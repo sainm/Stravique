@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,6 +66,13 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.sourcePath").value(SAMPLE.toRealPath().toString()))
                 .andReturn().getResponse().getContentAsString();
         String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+        mockMvc.perform(put("/api/v1/projects/{id}/path-overrides", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"relativePath":"web-app/views","role":"JSP_ROOT"}]
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].role").value("JSP_ROOT"));
 
         String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
                 .andExpect(status().isAccepted())
@@ -86,6 +94,18 @@ class StraviqueIntegrationTest {
                 scanId
         );
         assertThat(scanAuditCount).isEqualTo(2);
+        mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("pathPrefix", "web-app/views")
+                        .param("fileType", "JSP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].structureRole").value("JSP_ROOT"));
+        mockMvc.perform(get("/api/v1/projects/{id}/module-dependencies", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.fromModulePath == 'web-app' "
+                        + "&& @.toModulePath == 'domain' "
+                        + "&& @.dependencyType == 'MAVEN_MODULE')]").isNotEmpty())
+                .andExpect(jsonPath("$[0].evidencePath").isNotEmpty())
+                .andExpect(jsonPath("$[0].lineStart").isNumber());
 
         mockMvc.perform(get("/api/v1/projects/{id}/frameworks/SASTRUTS", projectId))
                 .andExpect(status().isOk())
@@ -135,6 +155,49 @@ class StraviqueIntegrationTest {
                         ))))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("SOURCE_PATH_FORBIDDEN"));
+    }
+
+    @Test
+    void appliesConfigurationOnlyAnalysisScope() throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Configuration Scope",
+                                "sourcePath", SAMPLE.toString(),
+                                "analysisScope", "CONFIGURATION_ONLY"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode completed = awaitScan(objectMapper.readTree(scanResponse).get("id").asText());
+        assertThat(completed.get("status").asText()).isEqualTo("COMPLETED");
+
+        mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("fileType", "JAVA")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    JsonNode content = objectMapper.readTree(
+                            result.getResponse().getContentAsByteArray()).get("content");
+                    assertThat(content).isNotEmpty();
+                    content.forEach(file ->
+                            assertThat(file.get("scanStatus").asText()).isEqualTo("SKIPPED"));
+                });
+        mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("fileType", "DICON")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    JsonNode content = objectMapper.readTree(
+                            result.getResponse().getContentAsByteArray()).get("content");
+                    assertThat(content).isNotEmpty();
+                    content.forEach(file ->
+                            assertThat(file.get("scanStatus").asText()).isEqualTo("ANALYZED"));
+                });
     }
 
     private JsonNode awaitScan(String scanId) throws Exception {

@@ -84,6 +84,10 @@ cd frontend && npm run build
 
 `verify.sh` runs backend tests, frontend tests, production compilation, and a fixture scan smoke test.
 
+## GitHub Actions
+
+`.github/workflows/ci.yml` runs on Ubuntu with a disposable PostgreSQL 17 service. It creates the isolated test database, checks comment language, runs backend tests against Flyway migrations, installs frontend dependencies from the lockfile, runs frontend tests, and builds both the SPA and standalone JAR.
+
 ## Exit criteria
 
 - All automated suites pass.

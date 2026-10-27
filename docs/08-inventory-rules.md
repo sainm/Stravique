@@ -44,6 +44,9 @@ Conventions cover Maven/Gradle source layouts, common Eclipse web projects, and 
 - Gradle `include(...)` entries in settings files create child modules.
 - The project itself is always represented as a root module.
 - Nested roots are assigned to the longest matching module path.
+- Direct Maven dependencies matching another module's group and artifact create a `MAVEN_MODULE` relation.
+- Gradle `project(':module')` declarations matching a settings module create a `GRADLE_PROJECT` relation.
+- Module dependencies persist declaration path, line, rule ID, analyzer version, and certainty.
 - Observed build files are evidence; a declaration is not treated as a successful build.
 
 ## File analysis

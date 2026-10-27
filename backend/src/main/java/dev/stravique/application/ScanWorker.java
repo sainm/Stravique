@@ -9,6 +9,7 @@ import dev.stravique.domain.Certainty;
 import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.FileScanStatus;
 import dev.stravique.domain.FileType;
+import dev.stravique.domain.ModuleDependency;
 import dev.stravique.domain.ParseStatus;
 import dev.stravique.domain.PathOverride;
 import dev.stravique.domain.ProjectFile;
@@ -18,6 +19,7 @@ import dev.stravique.domain.ScanStatus;
 import dev.stravique.infrastructure.AnalysisFindingRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.PathOverrideRepository;
+import dev.stravique.infrastructure.ModuleDependencyRepository;
 import dev.stravique.infrastructure.ProjectFileRepository;
 import dev.stravique.infrastructure.ProjectModuleRepository;
 import dev.stravique.infrastructure.ScanRunRepository;
@@ -27,6 +29,7 @@ import dev.stravique.inventory.AnalyzerContext;
 import dev.stravique.inventory.FileRoleResolver;
 import dev.stravique.inventory.InventoryFileAnalyzer;
 import dev.stravique.inventory.ModuleDiscovery;
+import dev.stravique.inventory.ModuleDependencyDiscovery;
 import dev.stravique.inventory.ScanPathPolicy;
 import dev.stravique.inventory.TechEvidenceLedger;
 import dev.stravique.inventory.TextDecoder;
@@ -35,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -65,6 +69,8 @@ public class ScanWorker {
     private final ScanPathPolicy pathPolicy;
     private final TreeWalker treeWalker;
     private final ModuleDiscovery moduleDiscovery;
+    private final ModuleDependencyDiscovery moduleDependencyDiscovery;
+    private final ModuleDependencyRepository moduleDependencyRepository;
     private final TextDecoder textDecoder;
     private final InventoryFileAnalyzer fileAnalyzer;
     private final FileRoleResolver roleResolver;
@@ -76,6 +82,8 @@ public class ScanWorker {
                       ProjectFileRepository fileRepository, AnalysisFindingRepository findingRepository,
                       TechnologyUsageRepository technologyRepository, ScanPathPolicy pathPolicy,
                       TreeWalker treeWalker, ModuleDiscovery moduleDiscovery, TextDecoder textDecoder,
+                      ModuleDependencyDiscovery moduleDependencyDiscovery,
+                      ModuleDependencyRepository moduleDependencyRepository,
                       InventoryFileAnalyzer fileAnalyzer, FileRoleResolver roleResolver,
                       StraviqueProperties properties, AuditService auditService) {
         this.scanRepository = scanRepository;
@@ -88,6 +96,8 @@ public class ScanWorker {
         this.pathPolicy = pathPolicy;
         this.treeWalker = treeWalker;
         this.moduleDiscovery = moduleDiscovery;
+        this.moduleDependencyDiscovery = moduleDependencyDiscovery;
+        this.moduleDependencyRepository = moduleDependencyRepository;
         this.textDecoder = textDecoder;
         this.fileAnalyzer = fileAnalyzer;
         this.roleResolver = roleResolver;
@@ -119,6 +129,7 @@ public class ScanWorker {
                     lines(project.getExcludedFiles()));
             ModuleDiscovery.ModuleLayout layout = moduleDiscovery.discover(root, walk, overrides);
             Map<String, ProjectModule> moduleEntities = persistModules(scan, layout);
+            persistModuleDependencies(scan, root, layout, walk, moduleEntities);
             Map<String, ProjectFile> previousFiles = previousFiles(project.getId(), scan.getSequence());
 
             TechEvidenceLedger ledger = new TechEvidenceLedger();
@@ -293,6 +304,35 @@ public class ScanWorker {
         moduleRepository.saveAll(entities).forEach(module ->
                 result.put(normalizeModule(module.getRelativePath()), module));
         return result;
+    }
+
+    private void persistModuleDependencies(ScanRun scan, Path root,
+                                           ModuleDiscovery.ModuleLayout layout,
+                                           TreeWalker.WalkResult walk,
+                                           Map<String, ProjectModule> moduleEntities) throws IOException {
+        List<ModuleDependency> dependencies = moduleDependencyDiscovery.discover(root, layout, walk).stream()
+                .map(discovered -> {
+                    ProjectModule from = moduleEntities.get(normalizeModule(discovered.fromModulePath()));
+                    ProjectModule to = moduleEntities.get(normalizeModule(discovered.toModulePath()));
+                    if (from == null || to == null || from.getId().equals(to.getId())) {
+                        return null;
+                    }
+                    return ModuleDependency.create(
+                            scan.getProjectId(),
+                            scan.getId(),
+                            from.getId(),
+                            to.getId(),
+                            discovered.type(),
+                            discovered.evidencePath(),
+                            discovered.lineStart(),
+                            discovered.ruleId(),
+                            discovered.certainty(),
+                            properties.getAnalyzerVersion()
+                    );
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        moduleDependencyRepository.saveAll(dependencies);
     }
 
     private Map<String, ProjectFile> previousFiles(UUID projectId, int sequence) {

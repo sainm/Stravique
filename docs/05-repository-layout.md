@@ -2,6 +2,9 @@
 
 ```text
 .
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml
 |-- backend/
 |   |-- build.gradle
 |   |-- settings.gradle

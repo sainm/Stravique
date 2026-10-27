@@ -138,6 +138,19 @@ export interface ModuleInfo {
   sqlRoots: string[];
 }
 
+export interface ModuleDependency {
+  id: string;
+  fromModulePath: string;
+  toModulePath: string;
+  dependencyType: string;
+  evidencePath: string;
+  lineStart?: number;
+  ruleId: string;
+  certainty: string;
+  analyzerVersion: string;
+  analyzedAt: string;
+}
+
 export interface DirectoryNode {
   name: string;
   path: string;
@@ -149,6 +162,7 @@ export interface InventoryTree {
   projectId: string;
   scanId?: string;
   modules: ModuleInfo[];
+  moduleDependencies: ModuleDependency[];
   directories: DirectoryNode[];
 }
 
@@ -163,6 +177,7 @@ export interface Overview {
   fileTypes: Record<string, number>;
   structureRoles: Record<string, number>;
   modules: ModuleInfo[];
+  moduleDependencies: ModuleDependency[];
   technologies: Technology[];
   reviewHighlights: Finding[];
   recentScans: Scan[];

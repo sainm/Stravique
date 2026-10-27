@@ -44,6 +44,7 @@
 | `GET` | `/projects/{id}/files` | Paged files with search and filters |
 | `GET` | `/files/{fileId}` | File detail and evidence |
 | `GET` | `/projects/{id}/tree` | Directory tree for latest scan |
+| `GET` | `/projects/{id}/module-dependencies` | Maven/Gradle dependencies between scanned modules |
 | `GET` | `/projects/{id}/findings` | Filtered findings |
 | `GET` | `/projects/{id}/frameworks` | Technology aggregates |
 | `GET` | `/projects/{id}/frameworks/{key}` | Framework detail and evidence |

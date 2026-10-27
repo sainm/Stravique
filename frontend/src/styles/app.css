@@ -1516,6 +1516,13 @@ textarea {
   font-size: 9px;
 }
 
+.module-dependency {
+  display: block;
+  margin-top: 3px;
+  color: var(--accent-deep);
+  font-size: 8px;
+}
+
 .scan-history {
   margin-top: 14px;
 }

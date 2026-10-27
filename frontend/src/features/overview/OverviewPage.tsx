@@ -332,23 +332,39 @@ export default function OverviewPage() {
                 </div>
               </header>
               <div className="module-list">
-                {data.modules.map((module) => (
-                  <div className="module-row" key={module.id}>
-                    <FolderTree size={16} />
-                    <div>
-                      <strong>{module.name}</strong>
-                      <code>{module.relativePath || "."}</code>
+                {data.modules.map((module) => {
+                  const dependencies = data.moduleDependencies.filter(
+                    (dependency) => dependency.fromModulePath === module.relativePath
+                  );
+                  return (
+                    <div className="module-row" key={module.id}>
+                      <FolderTree size={16} />
+                      <div>
+                        <strong>{module.name}</strong>
+                        <code>{module.relativePath || "."}</code>
+                        {dependencies.map((dependency) => (
+                          <span
+                            className="module-dependency"
+                            key={dependency.id}
+                            title={`${dependency.evidencePath}:${dependency.lineStart || ""}`}
+                          >
+                            {t("overview.moduleDependency", {
+                              target: dependency.toModulePath
+                            })}
+                          </span>
+                        ))}
+                      </div>
+                      <span>
+                        {t("overview.rootCount", {
+                          count:
+                            module.sourceRoots.length +
+                            module.webRoots.length +
+                            module.resourceRoots.length
+                        })}
+                      </span>
                     </div>
-                    <span>
-                      {t("overview.rootCount", {
-                        count:
-                          module.sourceRoots.length +
-                          module.webRoots.length +
-                          module.resourceRoots.length
-                      })}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>

@@ -6,6 +6,7 @@ import dev.stravique.api.dto.FindingDto;
 import dev.stravique.api.dto.FrameworkDetailDto;
 import dev.stravique.api.dto.InventoryTreeDto;
 import dev.stravique.api.dto.ModuleDto;
+import dev.stravique.api.dto.ModuleDependencyDto;
 import dev.stravique.api.dto.OverviewDto;
 import dev.stravique.api.dto.PageResponse;
 import dev.stravique.api.dto.TechnologyDto;
@@ -60,6 +61,13 @@ public class InventoryController {
     public List<ModuleDto> modules(@PathVariable UUID projectId,
                                    @RequestParam(required = false) UUID scanId) {
         return queryService.modules(projectId, scanId);
+    }
+
+    @GetMapping("/projects/{projectId}/module-dependencies")
+    public List<ModuleDependencyDto> moduleDependencies(
+            @PathVariable UUID projectId,
+            @RequestParam(required = false) UUID scanId) {
+        return queryService.moduleDependencies(projectId, scanId);
     }
 
     @GetMapping("/files/{fileId}")

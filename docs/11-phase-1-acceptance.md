@@ -15,6 +15,7 @@ It covers the following acceptance areas.
 | Import a Java web project | REST integration test registers the shipped multi-module fixture |
 | Classify project files | Classifier tests plus full fixture scan |
 | Detect module structure | Fixture test asserts at least three modules |
+| Detect module dependencies | Fixture test asserts an evidence-linked Maven dependency from `web-app` to `domain` |
 | Detect major frameworks | Fixture test asserts SAStruts evidence with `ANALYZED` rows |
 | Save analysis evidence | Findings persist paths, lines, snippets, rule IDs, versions, and timestamps |
 | Locate source positions | REST and UI evidence contain line ranges |

@@ -8,6 +8,7 @@ import dev.stravique.api.dto.FindingDto;
 import dev.stravique.api.dto.FrameworkDetailDto;
 import dev.stravique.api.dto.InventoryTreeDto;
 import dev.stravique.api.dto.ModuleDto;
+import dev.stravique.api.dto.ModuleDependencyDto;
 import dev.stravique.api.dto.OverviewDto;
 import dev.stravique.api.dto.PageResponse;
 import dev.stravique.api.dto.ScanDto;
@@ -25,6 +26,7 @@ import dev.stravique.infrastructure.AnalysisFindingRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.ProjectFileRepository;
 import dev.stravique.infrastructure.ProjectModuleRepository;
+import dev.stravique.infrastructure.ModuleDependencyRepository;
 import dev.stravique.infrastructure.ScanRunRepository;
 import dev.stravique.infrastructure.TechnologyUsageRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -59,6 +61,7 @@ public class InventoryQueryService {
     private final AnalysisProjectRepository projectRepository;
     private final ScanRunRepository scanRepository;
     private final ProjectModuleRepository moduleRepository;
+    private final ModuleDependencyRepository moduleDependencyRepository;
     private final ProjectFileRepository fileRepository;
     private final AnalysisFindingRepository findingRepository;
     private final TechnologyUsageRepository technologyRepository;
@@ -66,12 +69,14 @@ public class InventoryQueryService {
     public InventoryQueryService(AnalysisProjectRepository projectRepository,
                                  ScanRunRepository scanRepository,
                                  ProjectModuleRepository moduleRepository,
+                                 ModuleDependencyRepository moduleDependencyRepository,
                                  ProjectFileRepository fileRepository,
                                  AnalysisFindingRepository findingRepository,
                                  TechnologyUsageRepository technologyRepository) {
         this.projectRepository = projectRepository;
         this.scanRepository = scanRepository;
         this.moduleRepository = moduleRepository;
+        this.moduleDependencyRepository = moduleDependencyRepository;
         this.fileRepository = fileRepository;
         this.findingRepository = findingRepository;
         this.technologyRepository = technologyRepository;
@@ -85,7 +90,7 @@ public class InventoryQueryService {
                 .limit(6).map(ScanDto::from).toList();
         if (scan == null) {
             return new OverviewDto(projectId, null, 0, 0, 0, 0, 0,
-                    Map.of(), Map.of(), List.of(), List.of(), List.of(), recentScans,
+                    Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), recentScans,
                     "RUN_SCAN", true);
         }
 
@@ -99,8 +104,15 @@ public class InventoryQueryService {
                 .collect(java.util.stream.Collectors.groupingBy(
                         ProjectFile::getStructureRole, TreeMap::new,
                         java.util.stream.Collectors.counting())));
-        List<ModuleDto> modules = moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream()
-                .map(ModuleDto::from).toList();
+        List<dev.stravique.domain.ProjectModule> moduleEntities =
+                moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
+        List<ModuleDto> modules = moduleEntities.stream().map(ModuleDto::from).toList();
+        Map<UUID, dev.stravique.domain.ProjectModule> modulesById = moduleEntities.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        dev.stravique.domain.ProjectModule::getId, module -> module));
+        List<ModuleDependencyDto> moduleDependencies = moduleDependencyRepository
+                .findByScanIdOrderByEvidencePathAscLineStartAsc(scan.getId()).stream()
+                .map(dependency -> ModuleDependencyDto.from(dependency, modulesById)).toList();
         List<TechnologyDto> technologies = technologyRepository
                 .findByScanIdOrderByCategoryAscNameAsc(scan.getId()).stream()
                 .map(TechnologyDto::from).toList();
@@ -119,6 +131,7 @@ public class InventoryQueryService {
                 fileTypes,
                 roles,
                 modules,
+                moduleDependencies,
                 technologies,
                 reviews,
                 recentScans,
@@ -188,14 +201,21 @@ public class InventoryQueryService {
     public InventoryTreeDto tree(UUID projectId, UUID requestedScanId) {
         ScanRun scan = resolveScan(projectId, requestedScanId);
         if (scan == null) {
-            return new InventoryTreeDto(projectId, null, List.of(), List.of());
+            return new InventoryTreeDto(projectId, null, List.of(), List.of(), List.of());
         }
-        List<ModuleDto> modules = moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream()
-                .map(ModuleDto::from).toList();
+        List<dev.stravique.domain.ProjectModule> moduleEntities =
+                moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
+        List<ModuleDto> modules = moduleEntities.stream().map(ModuleDto::from).toList();
+        Map<UUID, dev.stravique.domain.ProjectModule> modulesById = moduleEntities.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        dev.stravique.domain.ProjectModule::getId, module -> module));
+        List<ModuleDependencyDto> dependencies = moduleDependencyRepository
+                .findByScanIdOrderByEvidencePathAscLineStartAsc(scan.getId()).stream()
+                .map(dependency -> ModuleDependencyDto.from(dependency, modulesById)).toList();
         List<ProjectFile> files = fileRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream()
                 .filter(file -> file.getChangeType() != FileChangeType.DELETED)
                 .toList();
-        return new InventoryTreeDto(projectId, scan.getId(), modules, buildTree(files));
+        return new InventoryTreeDto(projectId, scan.getId(), modules, dependencies, buildTree(files));
     }
 
     @Transactional(readOnly = true)
@@ -286,6 +306,21 @@ public class InventoryQueryService {
         }
         return moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream()
                 .map(ModuleDto::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ModuleDependencyDto> moduleDependencies(UUID projectId, UUID requestedScanId) {
+        ScanRun scan = resolveScan(projectId, requestedScanId);
+        if (scan == null) {
+            return List.of();
+        }
+        List<dev.stravique.domain.ProjectModule> moduleEntities =
+                moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
+        Map<UUID, dev.stravique.domain.ProjectModule> modulesById = moduleEntities.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        dev.stravique.domain.ProjectModule::getId, module -> module));
+        return moduleDependencyRepository.findByScanIdOrderByEvidencePathAscLineStartAsc(scan.getId())
+                .stream().map(dependency -> ModuleDependencyDto.from(dependency, modulesById)).toList();
     }
 
     private List<FindingDto> reviewFindings(UUID scanId, int limit) {

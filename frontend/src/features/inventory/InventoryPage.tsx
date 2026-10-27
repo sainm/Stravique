@@ -254,7 +254,15 @@ export default function InventoryPage() {
                 {tree.data.modules.map((module) => (
                   <div key={module.id}>
                     <span>{module.name}</span>
-                    <small>{module.sourceRoots.length + module.webRoots.length}</small>
+                    <small>
+                      {t("inventory.moduleSummary", {
+                        roots: module.sourceRoots.length + module.webRoots.length,
+                        dependencies: tree.data.moduleDependencies.filter(
+                          (dependency) =>
+                            dependency.fromModulePath === module.relativePath
+                        ).length
+                      })}
+                    </small>
                   </div>
                 ))}
               </div>

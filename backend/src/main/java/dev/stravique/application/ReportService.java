@@ -14,6 +14,7 @@ import dev.stravique.infrastructure.AnalysisFindingRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.ProjectFileRepository;
 import dev.stravique.infrastructure.ProjectModuleRepository;
+import dev.stravique.infrastructure.ModuleDependencyRepository;
 import dev.stravique.infrastructure.ScanRunRepository;
 import dev.stravique.infrastructure.TechnologyUsageRepository;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,7 @@ public class ReportService {
     private final ScanRunRepository scanRepository;
     private final ProjectFileRepository fileRepository;
     private final ProjectModuleRepository moduleRepository;
+    private final ModuleDependencyRepository moduleDependencyRepository;
     private final AnalysisFindingRepository findingRepository;
     private final TechnologyUsageRepository technologyRepository;
     private final AuditService auditService;
@@ -51,6 +53,7 @@ public class ReportService {
 
     public ReportService(AnalysisProjectRepository projectRepository, ScanRunRepository scanRepository,
                          ProjectFileRepository fileRepository, ProjectModuleRepository moduleRepository,
+                         ModuleDependencyRepository moduleDependencyRepository,
                          AnalysisFindingRepository findingRepository,
                          TechnologyUsageRepository technologyRepository, AuditService auditService,
                          ObjectMapper objectMapper) {
@@ -58,6 +61,7 @@ public class ReportService {
         this.scanRepository = scanRepository;
         this.fileRepository = fileRepository;
         this.moduleRepository = moduleRepository;
+        this.moduleDependencyRepository = moduleDependencyRepository;
         this.findingRepository = findingRepository;
         this.technologyRepository = technologyRepository;
         this.auditService = auditService;
@@ -146,7 +150,17 @@ public class ReportService {
     }
 
     private List<LinkedHashMap<String, Object>> structure(ScanRun scan) {
-        return moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream().map(module -> {
+        var modules = moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
+        Map<UUID, String> modulePaths = modules.stream().collect(java.util.stream.Collectors.toMap(
+                module -> module.getId(), module -> module.getRelativePath()));
+        Map<UUID, List<String>> dependenciesBySource = new LinkedHashMap<>();
+        moduleDependencyRepository.findByScanIdOrderByEvidencePathAscLineStartAsc(scan.getId())
+                .forEach(dependency -> dependenciesBySource.computeIfAbsent(
+                        dependency.getFromModuleId(), ignored -> new ArrayList<>())
+                        .add(modulePaths.getOrDefault(dependency.getToModuleId(), "")
+                                + " (" + dependency.getEvidencePath()
+                                + ":" + dependency.getLineStart() + ")"));
+        return modules.stream().map(module -> {
             LinkedHashMap<String, Object> row = new LinkedHashMap<>();
             row.put("id", module.getId());
             row.put("path", module.getRelativePath());
@@ -157,6 +171,8 @@ public class ReportService {
             row.put("webRoots", module.getWebRoots());
             row.put("configRoots", module.getConfigRoots());
             row.put("sqlRoots", module.getSqlRoots());
+            row.put("moduleDependencies", String.join(", ", dependenciesBySource
+                    .getOrDefault(module.getId(), List.of())));
             return row;
         }).toList();
     }

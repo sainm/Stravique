@@ -8,6 +8,7 @@
 | `path_override` | project_id, relative_path, role | User correction for uncertain directory structure |
 | `scan_run` | project_id, sequence, status, counts, timestamps, analyzer_version | Immutable scan job record |
 | `project_module` | scan_id, project_id, relative_path, name, source/test/web/resource roots | Module snapshot for one scan |
+| `module_dependency` | scan_id, from_module_id, to_module_id, evidence path and line | Maven or Gradle dependency between scanned modules |
 | `project_file` | scan_id, module_id, relative_path, metadata, hash, change_type | File snapshot for one scan |
 | `analysis_finding` | scan_id, file_id, kind, object_key, range, evidence, rule, certainty | Traceable static/config observation |
 | `technology_usage` | scan_id, technology_key, category, status, evidence counts | Technology aggregate for a scan |
@@ -67,6 +68,7 @@ A technology can have API evidence and still be marked review-required when its 
 - A finding points to the smallest practical line range.
 - A finding never claims a call executes.
 - XML/configuration syntax findings use secure parser success plus source locator evidence.
+- Module dependencies reference both module endpoints and the build-file declaration line.
 - Relationships across files are not introduced in Phase 1 merely to make the UI look complete.
 
 ## Identifiers and time

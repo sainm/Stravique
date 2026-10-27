@@ -14,6 +14,7 @@ Phase 1 is implemented as a runnable local application:
 - Read-only Maven/Gradle and Java web inventory.
 - File classification for Java, JSP, HTML, JavaScript, CSS, XML, properties, YAML, dicon, SQL, TLD, POM, and Gradle files.
 - Module, source, test, resource, web, configuration, and SQL root discovery.
+- Evidence-linked Maven and Gradle dependencies between modules.
 - JavaParser-based API evidence for SAStruts, Struts 1, Seasar2, S2JDBC, Servlet, JSTL, JUnit, and JDBC.
 - Secure XML parsing, dicon component/injection evidence, TLD and JSP tag/form evidence.
 - Repeated-scan change classification using SHA-256.
@@ -223,6 +224,7 @@ Implemented:
 - Inventory.
 - Static framework and configuration evidence.
 - Basic technology aggregation.
+- Evidence-linked Maven and Gradle module dependencies.
 - Review visibility.
 - Reports.
 

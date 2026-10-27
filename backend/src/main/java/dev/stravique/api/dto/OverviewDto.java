@@ -15,6 +15,7 @@ public record OverviewDto(
         Map<String, Long> fileTypes,
         Map<String, Long> structureRoles,
         List<ModuleDto> modules,
+        List<ModuleDependencyDto> moduleDependencies,
         List<TechnologyDto> technologies,
         List<FindingDto> reviewHighlights,
         List<ScanDto> recentScans,

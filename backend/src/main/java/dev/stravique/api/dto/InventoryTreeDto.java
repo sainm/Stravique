@@ -7,6 +7,7 @@ public record InventoryTreeDto(
         UUID projectId,
         UUID scanId,
         List<ModuleDto> modules,
+        List<ModuleDependencyDto> moduleDependencies,
         List<DirectoryNodeDto> directories
 ) {
 }
