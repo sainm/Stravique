@@ -75,20 +75,34 @@ When a browser runtime is available:
 
 Persisted screenshots are verification artifacts, not product data.
 
+## End-to-end tests
+
+`scripts/e2e.sh` builds the runnable jar, starts it on a local port, and drives the real HTTP surface:
+
+- Registers the shipped fixture and runs a scan to a terminal state.
+- Downloads CSV, Markdown, and JSON exports and asserts the documented contract.
+- Confirms CSV field names do not vary with `lang` or `Accept-Language`.
+- Confirms Markdown titles and column labels follow the resolved language.
+- Confirms localized API errors in Chinese and Japanese.
+- Confirms an unscanned report still emits a complete header row.
+
+It exists because MockMvc substitutes the servlet request. Locale resolution and response bytes are only trustworthy when observed through a real container.
+
 ## Verification commands
 
 ```bash
 cd backend && ./gradlew test
 cd frontend && npm test
 cd frontend && npm run build
+./scripts/e2e.sh
 ./verify.sh
 ```
 
-`verify.sh` runs backend tests, frontend tests, production compilation, and a fixture scan smoke test.
+`verify.sh` runs backend tests, frontend tests, production compilation, and the end-to-end stage.
 
 ## GitHub Actions
 
-`.github/workflows/ci.yml` runs on Ubuntu with a disposable PostgreSQL 17 service. It creates the isolated test database, checks comment language, runs backend tests against Flyway migrations, installs frontend dependencies from the lockfile, runs frontend tests, and builds both the SPA and standalone JAR.
+`.github/workflows/ci.yml` runs on Ubuntu with a disposable PostgreSQL 17 service. It creates the isolated test database, checks comment language, runs backend tests against Flyway migrations, installs frontend dependencies from the lockfile, runs frontend tests, builds both the SPA and standalone JAR, and runs the end-to-end stage against the packaged application.
 
 ## Exit criteria
 

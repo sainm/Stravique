@@ -25,4 +25,7 @@ cd "${project_root}/frontend"
 npm test
 npm run build
 
+cd "${project_root}"
+"${project_root}/scripts/e2e.sh"
+
 echo "Stravique verification passed."

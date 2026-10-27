@@ -201,6 +201,15 @@ The verification command checks:
 - PostgreSQL-backed Flyway migration, JPA validation, API, parser, localization, report, and source-immutability tests.
 - Frontend locale-key parity, status localization, language switching, and responsive contracts.
 - TypeScript compilation and production Vite build.
+- A packaged-application end-to-end run that scans the fixture over HTTP and asserts the export contract.
+
+The end-to-end stage starts the built application on a free local port, runs a full scan, and checks the bytes a client receives. It can also be run on its own:
+
+```bash
+./scripts/e2e.sh
+```
+
+Set `STRAVIQUE_E2E_PORT` to change the port. The stage needs the runtime database from `./scripts/ensure-postgres.sh` and the fixture project.
 
 With the application running and Google Chrome installed, the multilingual browser layout check is:
 

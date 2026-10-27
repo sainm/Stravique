@@ -23,6 +23,7 @@ It covers the following acceptance areas.
 | Display parse failures | Deliberately malformed XML produces a parse-failure record |
 | Export reports | Report descriptors and CSV/JSON exports read persisted rows |
 | Localize exports | Markdown exports assert per-locale titles and column labels while CSV and JSON field names stay stable |
+| Verify the running application | End-to-end stage scans the fixture over HTTP and asserts the exported bytes, headers, and localized errors |
 | Support three languages | Backend and frontend locale-key parity tests plus localized API error tests |
 | Preserve source | Integration test compares SHA-256, size, and modification time before and after scanning |
 | Modern developer UI | Six project routes are rendered at desktop and mobile widths in three languages |

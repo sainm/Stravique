@@ -75,3 +75,6 @@ jobs:
       - name: Build standalone jar
         working-directory: backend
         run: ./gradlew bootJar --no-daemon
+
+      - name: End-to-end verification
+        run: ./scripts/e2e.sh
