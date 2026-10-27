@@ -1,4 +1,5 @@
 import type {
+  AnalysisRelation,
   AuditEvent,
   FileDetail,
   Finding,
@@ -12,6 +13,7 @@ import type {
   Project,
   ProjectFile,
   ProjectInput,
+  RelationOverview,
   ReportDescriptor,
   RuntimeInfo,
   Scan,
@@ -170,5 +172,23 @@ export const api = {
   auditEvents: (projectId: string, page = 0, size = 12) =>
     request<PageResponse<AuditEvent>>(`/projects/${projectId}/audit-events`, {
       query: { page, size }
+    }),
+  relations: (
+    projectId: string,
+    filters: {
+      scanId?: string;
+      relationType?: string;
+      certainty?: string;
+      q?: string;
+      page?: number;
+      size?: number;
+    }
+  ) =>
+    request<PageResponse<AnalysisRelation>>(`/projects/${projectId}/relations`, {
+      query: filters
+    }),
+  relationOverview: (projectId: string, scanId?: string) =>
+    request<RelationOverview>(`/projects/${projectId}/relations/overview`, {
+      query: { scanId }
     })
 };

@@ -238,6 +238,7 @@ Implemented:
 - Basic technology aggregation.
 - Evidence-linked Maven and Gradle module dependencies.
 - Initial Phase 2 cross-file relations for Java, Seasar2 injection, configuration references, Struts/SAStruts/JSP flows, DAO/SQL candidates, and message lifecycle.
+- A Relations workspace with persisted counts, filters, certainty, and source/target navigation.
 - Review visibility.
 - Reports.
 

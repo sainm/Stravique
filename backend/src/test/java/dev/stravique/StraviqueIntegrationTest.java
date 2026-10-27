@@ -111,6 +111,22 @@ class StraviqueIntegrationTest {
                         + "&& @.dependencyType == 'MAVEN_MODULE')]").isNotEmpty())
                 .andExpect(jsonPath("$[0].evidencePath").isNotEmpty())
                 .andExpect(jsonPath("$[0].lineStart").isNumber());
+        mockMvc.perform(get("/api/v1/projects/{id}/relations/overview", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(org.hamcrest.Matchers.greaterThan(20)))
+                .andExpect(jsonPath("$.byType.JAVA_IMPORT").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.byType.SEASAR_BINDING").value(
+                        org.hamcrest.Matchers.greaterThan(0)));
+        mockMvc.perform(get("/api/v1/projects/{id}/relations", projectId)
+                        .param("relationType", "JAVA_IMPORT")
+                        .param("certainty", "ANALYZED")
+                        .param("q", "OrderService"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.content[0].sourceFilePath").isNotEmpty())
+                .andExpect(jsonPath("$.content[0].targetFilePath").isNotEmpty());
 
         String filesResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
                         .param("fileType", "JAVA")

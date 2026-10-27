@@ -61,6 +61,8 @@ The configured default is authoritative when the request carries no `Accept-Lang
 | `GET` | `/projects/{id}/findings` | Filtered findings |
 | `GET` | `/projects/{id}/frameworks` | Technology aggregates |
 | `GET` | `/projects/{id}/frameworks/{key}` | Framework detail and evidence |
+| `GET` | `/projects/{id}/relations` | Paged and filtered cross-file relationships |
+| `GET` | `/projects/{id}/relations/overview` | Relationship totals by type and certainty |
 | `GET` | `/projects/{id}/reviews` | Review-required, unresolved, and failed items |
 
 ## Reports

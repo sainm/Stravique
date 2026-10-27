@@ -84,6 +84,8 @@ export interface AnalysisRelation {
   id: string;
   sourceFileId: string;
   targetFileId: string;
+  sourceFilePath: string;
+  targetFilePath: string;
   sourceObjectKey: string;
   targetObjectKey: string;
   relationType: string;
@@ -94,6 +96,13 @@ export interface AnalysisRelation {
   certainty: string;
   analyzerVersion: string;
   analyzedAt: string;
+}
+
+export interface RelationOverview {
+  scanId?: string;
+  total: number;
+  byType: Record<string, number>;
+  byCertainty: Record<string, number>;
 }
 
 export interface ProjectFile {

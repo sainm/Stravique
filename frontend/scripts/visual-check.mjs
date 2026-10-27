@@ -40,6 +40,7 @@ const routes = [
     `/projects/${project.id}/inventory${firstFileId ? `?fileId=${firstFileId}` : ""}`
   ],
   ["frameworks", `/projects/${project.id}/frameworks?key=SASTRUTS`],
+  ["relations", `/projects/${project.id}/relations`],
   ["reports", `/projects/${project.id}/reports`],
   ["settings", `/projects/${project.id}/settings`]
 ];
@@ -90,7 +91,7 @@ for (const language of languages) {
       viewport.name === "desktop"
         ? routes
         : routes.filter(([name]) =>
-            ["projects", "overview", "inventory", "settings"].includes(name)
+            ["projects", "overview", "inventory", "relations", "settings"].includes(name)
           );
 
     for (const [name, route] of routesForViewport) {
@@ -134,6 +135,17 @@ for (const language of languages) {
             viewport: viewport.name,
             route: name,
             relationCards: 0
+          });
+        }
+      }
+      if (name === "relations") {
+        const relationRows = await page.locator(".relation-table-row").count();
+        if (relationRows === 0) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            relationRows: 0
           });
         }
       }

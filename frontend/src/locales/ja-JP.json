@@ -40,6 +40,7 @@
     "overview": "概要",
     "inventory": "棚卸",
     "frameworks": "フレームワーク",
+    "relations": "関係分析",
     "reports": "レポート",
     "settings": "設定",
     "projects": "すべてのプロジェクト",
@@ -263,6 +264,31 @@
     "noEvidence": "集計は存在しますが、個別のエビデンス行は返されませんでした。",
     "noLine": "行番号なし",
     "inspectFile": "ファイルを確認"
+  },
+  "relations": {
+    "eyebrow": "システム分析",
+    "title": "ファイル間の関係を追跡。",
+    "description": "Java、フレームワーク、設定、Web、データベース、メッセージの保存済み関係を確認し、存在しない関連を補いません。",
+    "noScanTitle": "ファイル間分析がありません",
+    "noScanDescription": "棚卸スキャンを実行し、根拠のあるプロジェクトファイル間関係を検出してください。",
+    "total": "保存済み関係 {{count}} 件",
+    "totalDescription": "ソース位置のエビデンスがある関係のみ表示します。",
+    "allTypes": "すべての種別",
+    "search": "関係を検索",
+    "searchPlaceholder": "オブジェクト、パス、エビデンスを検索",
+    "typeFilter": "関係種別",
+    "certaintyFilter": "確実性",
+    "allCertainties": "すべての確実性",
+    "matches": "{{count}} 件一致",
+    "emptyTitle": "条件に一致する関係がありません",
+    "emptyDescription": "フィルターを解除するか、新しい棚卸スキャンを実行してください。",
+    "columns": {
+      "type": "関係",
+      "source": "ソース",
+      "target": "ターゲット",
+      "evidence": "エビデンス",
+      "certainty": "確実性"
+    }
   },
   "reports": {
     "eyebrow": "棚卸レポート",

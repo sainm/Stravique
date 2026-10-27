@@ -9,6 +9,7 @@ import dev.stravique.api.dto.ModuleDto;
 import dev.stravique.api.dto.ModuleDependencyDto;
 import dev.stravique.api.dto.OverviewDto;
 import dev.stravique.api.dto.PageResponse;
+import dev.stravique.api.dto.RelationOverviewDto;
 import dev.stravique.api.dto.TechnologyDto;
 import dev.stravique.application.InventoryQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,6 +69,25 @@ public class InventoryController {
             @PathVariable UUID projectId,
             @RequestParam(required = false) UUID scanId) {
         return queryService.moduleDependencies(projectId, scanId);
+    }
+
+    @GetMapping("/projects/{projectId}/relations")
+    public PageResponse<dev.stravique.api.dto.AnalysisRelationDto> relations(
+            @PathVariable UUID projectId,
+            @RequestParam(required = false) UUID scanId,
+            @RequestParam(required = false) String relationType,
+            @RequestParam(required = false) String certainty,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return queryService.relations(projectId, scanId, relationType, certainty, q, page, size);
+    }
+
+    @GetMapping("/projects/{projectId}/relations/overview")
+    public RelationOverviewDto relationOverview(
+            @PathVariable UUID projectId,
+            @RequestParam(required = false) UUID scanId) {
+        return queryService.relationOverview(projectId, scanId);
     }
 
     @GetMapping("/files/{fileId}")

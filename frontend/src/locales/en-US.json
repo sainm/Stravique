@@ -40,6 +40,7 @@
     "overview": "Overview",
     "inventory": "Inventory",
     "frameworks": "Frameworks",
+    "relations": "Relations",
     "reports": "Reports",
     "settings": "Settings",
     "projects": "All projects",
@@ -263,6 +264,31 @@
     "noEvidence": "The aggregate exists, but no individual evidence rows were returned.",
     "noLine": "No line",
     "inspectFile": "Inspect file"
+  },
+  "relations": {
+    "eyebrow": "System analysis",
+    "title": "Follow relationships across files.",
+    "description": "Inspect persisted Java, framework, configuration, web, database, and message relationships without inventing missing edges.",
+    "noScanTitle": "No cross-file analysis yet",
+    "noScanDescription": "Run an inventory scan to discover evidence-backed relationships between project files.",
+    "total": "{{count}} persisted relationships",
+    "totalDescription": "Only relationships with a source locator are shown.",
+    "allTypes": "All types",
+    "search": "Search relationships",
+    "searchPlaceholder": "Search object, path, or evidence",
+    "typeFilter": "Relationship type",
+    "certaintyFilter": "Certainty",
+    "allCertainties": "All certainty states",
+    "matches": "{{count}} matches",
+    "emptyTitle": "No relationships match these filters",
+    "emptyDescription": "Clear the filters or run a new inventory scan.",
+    "columns": {
+      "type": "Relationship",
+      "source": "Source",
+      "target": "Target",
+      "evidence": "Evidence",
+      "certainty": "Certainty"
+    }
   },
   "reports": {
     "eyebrow": "Inventory reports",

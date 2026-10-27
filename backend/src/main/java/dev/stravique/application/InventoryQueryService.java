@@ -12,10 +12,13 @@ import dev.stravique.api.dto.ModuleDto;
 import dev.stravique.api.dto.ModuleDependencyDto;
 import dev.stravique.api.dto.OverviewDto;
 import dev.stravique.api.dto.PageResponse;
+import dev.stravique.api.dto.RelationOverviewDto;
 import dev.stravique.api.dto.ScanDto;
 import dev.stravique.api.dto.TechnologyDto;
 import dev.stravique.domain.AnalysisFinding;
 import dev.stravique.domain.AnalysisKind;
+import dev.stravique.domain.AnalysisRelation;
+import dev.stravique.domain.AnalysisRelationType;
 import dev.stravique.domain.Certainty;
 import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.FileScanStatus;
@@ -199,10 +202,11 @@ public class InventoryQueryService {
         List<FindingDto> findings = findingRepository
                 .findByScanIdAndFileIdOrderByLineStartAsc(file.getScanId(), fileId).stream()
                 .map(FindingDto::from).toList();
-        List<AnalysisRelationDto> relations = relationRepository
+        List<AnalysisRelation> relations = relationRepository
                 .findForFile(file.getScanId(), fileId).stream()
-                .map(AnalysisRelationDto::from).toList();
-        return new FileDetailDto(FileDto.from(file), findings, relations);
+                .toList();
+        List<AnalysisRelationDto> relationDtos = mapRelations(relations);
+        return new FileDetailDto(FileDto.from(file), findings, relationDtos);
     }
 
     @Transactional(readOnly = true)
@@ -331,6 +335,63 @@ public class InventoryQueryService {
                 .stream().map(dependency -> ModuleDependencyDto.from(dependency, modulesById)).toList();
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<AnalysisRelationDto> relations(
+            UUID projectId,
+            UUID requestedScanId,
+            String relationType,
+            String certainty,
+            String query,
+            int page,
+            int size) {
+        ScanRun scan = resolveScan(projectId, requestedScanId);
+        if (scan == null) {
+            return PageResponse.empty(page, size);
+        }
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size),
+                Sort.by(Sort.Direction.ASC, "relationType")
+                        .and(Sort.by(Sort.Direction.ASC, "evidencePath"))
+                        .and(Sort.by(Sort.Direction.ASC, "lineStart")));
+        Specification<AnalysisRelation> specification = (root, criteriaQuery, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(builder.equal(root.get("scanId"), scan.getId()));
+            if (relationType != null && !relationType.isBlank()) {
+                predicates.add(builder.equal(root.get("relationType"),
+                        parseEnum(AnalysisRelationType.class, relationType)));
+            }
+            if (certainty != null && !certainty.isBlank()) {
+                predicates.add(builder.equal(root.get("certainty"),
+                        parseEnum(Certainty.class, certainty)));
+            }
+            if (query != null && !query.isBlank()) {
+                String value = "%" + query.strip().toLowerCase(java.util.Locale.ROOT) + "%";
+                predicates.add(builder.or(
+                        builder.like(builder.lower(root.get("sourceObjectKey")), value),
+                        builder.like(builder.lower(root.get("targetObjectKey")), value),
+                        builder.like(builder.lower(root.get("evidencePath")), value)
+                ));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+        Page<AnalysisRelation> result = relationRepository.findAll(specification, pageable);
+        List<AnalysisRelationDto> content = mapRelations(result.getContent());
+        return new PageResponse<>(content, result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages());
+    }
+
+    @Transactional(readOnly = true)
+    public RelationOverviewDto relationOverview(UUID projectId, UUID requestedScanId) {
+        ScanRun scan = resolveScan(projectId, requestedScanId);
+        if (scan == null) {
+            return new RelationOverviewDto(null, 0, Map.of(), Map.of());
+        }
+        Map<String, Long> byType = countRelations(relationRepository.countByType(scan.getId()));
+        Map<String, Long> byCertainty =
+                countRelations(relationRepository.countByCertainty(scan.getId()));
+        long total = byType.values().stream().mapToLong(Long::longValue).sum();
+        return new RelationOverviewDto(scan.getId(), total, byType, byCertainty);
+    }
+
     private List<FindingDto> reviewFindings(UUID scanId, int limit) {
         Page<AnalysisFinding> page = findingRepository.findAll((root, query, builder) ->
                         builder.and(
@@ -420,6 +481,29 @@ public class InventoryQueryService {
             }
         }
         return root.toDtos();
+    }
+
+    private List<AnalysisRelationDto> mapRelations(List<AnalysisRelation> relations) {
+        Set<UUID> fileIds = new java.util.LinkedHashSet<>();
+        for (AnalysisRelation relation : relations) {
+            fileIds.add(relation.getSourceFileId());
+            fileIds.add(relation.getTargetFileId());
+        }
+        Map<UUID, ProjectFile> filesById = fileRepository.findAllById(fileIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ProjectFile::getId, file -> file));
+        return relations.stream().map(relation -> AnalysisRelationDto.from(
+                relation,
+                filesById.get(relation.getSourceFileId()),
+                filesById.get(relation.getTargetFileId())
+        )).toList();
+    }
+
+    private Map<String, Long> countRelations(List<Object[]> rows) {
+        Map<String, Long> result = new TreeMap<>();
+        for (Object[] row : rows) {
+            result.put(row[0].toString(), ((Number) row[1]).longValue());
+        }
+        return result;
     }
 
     private static final class MutableDirectory {

@@ -40,6 +40,7 @@
     "overview": "总览",
     "inventory": "棚卸",
     "frameworks": "框架使用",
+    "relations": "关系分析",
     "reports": "报告",
     "settings": "设置",
     "projects": "全部项目",
@@ -263,6 +264,31 @@
     "noEvidence": "技术聚合存在，但未返回单条证据。",
     "noLine": "无行号",
     "inspectFile": "检查文件"
+  },
+  "relations": {
+    "eyebrow": "系统分析",
+    "title": "追踪跨文件关系。",
+    "description": "检查已保存的 Java、框架、配置、Web、数据库和消息关系，不虚构缺失连线。",
+    "noScanTitle": "尚无跨文件分析",
+    "noScanDescription": "执行棚卸扫描以发现具有证据的项目文件关系。",
+    "total": "{{count}} 条已保存关系",
+    "totalDescription": "仅显示具有源代码定位证据的关系。",
+    "allTypes": "全部类型",
+    "search": "搜索关系",
+    "searchPlaceholder": "搜索对象、路径或证据",
+    "typeFilter": "关系类型",
+    "certaintyFilter": "确定性",
+    "allCertainties": "全部确定性状态",
+    "matches": "{{count}} 条匹配",
+    "emptyTitle": "没有符合筛选条件的关系",
+    "emptyDescription": "清除筛选条件或执行新的棚卸扫描。",
+    "columns": {
+      "type": "关系",
+      "source": "来源",
+      "target": "目标",
+      "evidence": "证据",
+      "certainty": "确定性"
+    }
   },
   "reports": {
     "eyebrow": "棚卸报告",

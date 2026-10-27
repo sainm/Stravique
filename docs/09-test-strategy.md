@@ -61,6 +61,7 @@ Use MockMvc for successful and failure paths:
 - Project creation validation.
 - Empty/no-scan state.
 - Evidence display with line labels.
+- Cross-file relationship filters, counts, and source/target navigation.
 - Report URL generation.
 - Navigation and responsive class contracts.
 
@@ -71,6 +72,7 @@ When a browser runtime is available:
 - Render all Phase 1 routes at 1440 px and 390 px.
 - Inspect English, Chinese, and Japanese navigation, tables, buttons, and error wrapping.
 - Check evidence panes and status labels for overflow.
+- Check relation filters and source/target rows for overflow.
 - Verify no locale produces clipped primary actions.
 
 Persisted screenshots are verification artifacts, not product data.
