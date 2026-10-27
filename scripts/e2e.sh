@@ -64,6 +64,10 @@ json_field() {
 }
 
 mkdir -p "${work_dir}"
+reports="${work_dir}/reports"
+mkdir -p "${reports}"
+
+expected_header='"id","path","type","moduleId","sizeBytes","encoding","lastModifiedAt","scanStatus","parseStatus","parseError","frameworkApiCount","generated","changeType","structureRole","sha256"'
 
 java_bin="java"
 gradle_java_args=()
@@ -113,6 +117,32 @@ if [[ ${ready} -ne 1 ]]; then
   exit 1
 fi
 
+echo "== Asserting empty report output =="
+empty_source="${work_dir}/empty-project"
+mkdir -p "${empty_source}/src/main/java/demo"
+printf 'package demo;\n\nclass Empty {\n}\n' > "${empty_source}/src/main/java/demo/Empty.java"
+empty_real="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "${empty_source}")"
+empty_project_id="$(
+  curl -s "${base_url}/projects" |
+    python3 -c 'import sys,json;target=sys.argv[1];print(next((p["id"] for p in json.load(sys.stdin) if p.get("sourcePath")==target),""))' "${empty_real}"
+)"
+if [[ -z "${empty_project_id}" ]]; then
+  empty_project_id="$(
+    curl -s -X POST "${base_url}/projects" \
+      -H 'Content-Type: application/json' \
+      -d '{"name":"End-to-End Empty Report","sourcePath":"'"${empty_real}"'"}' |
+      json_field id
+  )"
+fi
+if [[ -n "${empty_project_id}" ]]; then
+  curl -s "${base_url}/projects/${empty_project_id}/reports/FILES.csv" -o "${reports}/empty.csv"
+  check "an unscanned report still emits exactly one header row" "1" "$(body_line_count "${reports}/empty.csv")"
+  check "the header row of an empty report stays complete" "${expected_header}" "$(first_line "${reports}/empty.csv")"
+else
+  echo "  FAIL the empty report project could not be registered"
+  fail=$((fail + 1))
+fi
+
 fixture_real="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "${fixture}")"
 
 echo "== Resolving the fixture project =="
@@ -155,16 +185,12 @@ if [[ "${scan_status}" != "COMPLETED" ]]; then
 fi
 
 echo "== Exporting reports =="
-reports="${work_dir}/reports"
-mkdir -p "${reports}"
 curl -s -D "${reports}/files.headers" "${base_url}/projects/${project_id}/reports/FILES.csv" -o "${reports}/files.csv"
 curl -s "${base_url}/projects/${project_id}/reports/FILES.csv?lang=zh-CN" -o "${reports}/files.zh.csv"
 curl -s -H 'Accept-Language: ja-JP' "${base_url}/projects/${project_id}/reports/FILES.csv" -o "${reports}/files.ja.csv"
 curl -s "${base_url}/projects/${project_id}/reports/FILES.csv?lang=de-DE" -o "${reports}/files.unknown.csv"
 curl -s "${base_url}/projects/${project_id}/reports/FILES.markdown?lang=zh-CN" -o "${reports}/files.zh.md"
 curl -s -H 'Accept-Language: ja-JP' "${base_url}/projects/${project_id}/reports/FILES.markdown" -o "${reports}/files.ja.md"
-
-expected_header='"id","path","type","moduleId","sizeBytes","encoding","lastModifiedAt","scanStatus","parseStatus","parseError","frameworkApiCount","generated","changeType","structureRole","sha256"'
 
 echo "== Asserting the export contract =="
 check "CSV starts with a UTF-8 byte order mark" "efbbbf" "$(bom_hex "${reports}/files.csv")"
@@ -204,32 +230,6 @@ error_zh="$(curl -s -H 'Accept-Language: zh-CN' "${base_url}/projects/${unknown_
 error_ja="$(curl -s -H 'Accept-Language: ja-JP' "${base_url}/projects/${unknown_project}" | json_field message)"
 check "errors localize for zh-CN" "未找到指定的分析项目。" "${error_zh}"
 check "errors localize for ja-JP" "指定された分析プロジェクトが見つかりません。" "${error_ja}"
-
-echo "== Asserting empty report output =="
-empty_source="${work_dir}/empty-project"
-mkdir -p "${empty_source}/src/main/java/demo"
-printf 'package demo;\n\nclass Empty {\n}\n' > "${empty_source}/src/main/java/demo/Empty.java"
-empty_real="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "${empty_source}")"
-empty_project_id="$(
-  curl -s "${base_url}/projects" |
-    python3 -c 'import sys,json;target=sys.argv[1];print(next((p["id"] for p in json.load(sys.stdin) if p.get("sourcePath")==target),""))' "${empty_real}"
-)"
-if [[ -z "${empty_project_id}" ]]; then
-  empty_project_id="$(
-    curl -s -X POST "${base_url}/projects" \
-      -H 'Content-Type: application/json' \
-      -d '{"name":"End-to-End Empty Report","sourcePath":"'"${empty_real}"'"}' |
-      json_field id
-  )"
-fi
-if [[ -n "${empty_project_id}" ]]; then
-  curl -s "${base_url}/projects/${empty_project_id}/reports/FILES.csv" -o "${reports}/empty.csv"
-  check "an unscanned report still emits exactly one header row" "1" "$(body_line_count "${reports}/empty.csv")"
-  check "the header row of an empty report stays complete" "${expected_header}" "$(first_line "${reports}/empty.csv")"
-else
-  echo "  FAIL the empty report project could not be registered"
-  fail=$((fail + 1))
-fi
 
 echo ""
 echo "End-to-end checks: ${pass} passed, ${fail} failed."
