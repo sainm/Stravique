@@ -233,6 +233,8 @@
     "CONFIG_CLASS_REFERENCE": "Configuration class reference",
     "STRUTS_ACTION_TO_JSP": "Struts action to JSP",
     "JSP_FORM_TO_ACTION": "JSP form to action",
+    "SASTRUTS_ACTION_TO_JSP": "SAStruts action to JSP",
+    "DAO_SQL_REFERENCE": "DAO to SQL file",
     "MESSAGE_PRODUCTION": "Message production",
     "MESSAGE_DISPLAY": "Message display"
   },

@@ -237,7 +237,7 @@ Implemented:
 - Static framework and configuration evidence.
 - Basic technology aggregation.
 - Evidence-linked Maven and Gradle module dependencies.
-- Initial Phase 2 cross-file relations for Java, Seasar2 injection, configuration references, Struts/JSP flows, and message lifecycle.
+- Initial Phase 2 cross-file relations for Java, Seasar2 injection, configuration references, Struts/SAStruts/JSP flows, DAO/SQL candidates, and message lifecycle.
 - Review visibility.
 - Reports.
 

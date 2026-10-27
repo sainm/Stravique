@@ -140,6 +140,8 @@ The initial Phase 2 slice creates only relations with a concrete source locator:
 - `CONFIG_CLASS_REFERENCE` when a properties/YAML/XML configuration value contains a scanned project class name; this is `INFERRED`.
 - `STRUTS_ACTION_TO_JSP` when `struts-config.xml` maps an action class and forward path to scanned files.
 - `JSP_FORM_TO_ACTION` when a JSP form action matches a configured Struts action path; this remains `INFERRED`.
+- `SASTRUTS_ACTION_TO_JSP` when a SAStruts action returns a JSP literal that resolves to one scanned JSP; this remains `INFERRED`.
+- `DAO_SQL_REFERENCE` when an S2JDBC SQL literal and a scanned SQL file reference the same table; this remains `INFERRED`.
 - `MESSAGE_PRODUCTION` when a literal `ActionMessage` key resolves to one project properties file.
 - `MESSAGE_DISPLAY` when a JSP message tag key resolves to one project properties file.
 

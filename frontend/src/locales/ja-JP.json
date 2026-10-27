@@ -233,6 +233,8 @@
     "CONFIG_CLASS_REFERENCE": "設定クラス参照",
     "STRUTS_ACTION_TO_JSP": "Struts Action から JSP",
     "JSP_FORM_TO_ACTION": "JSP フォームから Action",
+    "SASTRUTS_ACTION_TO_JSP": "SAStruts Action から JSP",
+    "DAO_SQL_REFERENCE": "DAO から SQL ファイル",
     "MESSAGE_PRODUCTION": "メッセージ生成",
     "MESSAGE_DISPLAY": "メッセージ表示"
   },

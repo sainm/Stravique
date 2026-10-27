@@ -134,6 +134,19 @@ class StraviqueIntegrationTest {
                         + "&& @.targetObjectKey == 'error.order.save')]").isNotEmpty())
                 .andExpect(jsonPath("$.relations[?(@.relationType == 'STRUTS_ACTION_TO_JSP')]")
                         .isNotEmpty());
+        mockMvc.perform(get("/api/v1/files/{id}", actionFileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'SASTRUTS_ACTION_TO_JSP' "
+                        + "&& @.targetObjectKey == "
+                        + "'web-app/src/main/webapp/WEB-INF/jsp/order/list.jsp')]").isNotEmpty());
+
+        String daoFileId = fileIdByPath(filesResponse,
+                "domain/src/main/java/com/example/legacy/dao/OrderDao.java");
+        mockMvc.perform(get("/api/v1/files/{id}", daoFileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'DAO_SQL_REFERENCE' "
+                        + "&& @.targetObjectKey == 'web-app/src/main/resources/sql/orders.sql')]")
+                        .isNotEmpty());
 
         String jspResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
                         .param("fileType", "JSP")

@@ -233,6 +233,8 @@
     "CONFIG_CLASS_REFERENCE": "配置类引用",
     "STRUTS_ACTION_TO_JSP": "Struts Action 到 JSP",
     "JSP_FORM_TO_ACTION": "JSP 表单到 Action",
+    "SASTRUTS_ACTION_TO_JSP": "SAStruts Action 到 JSP",
+    "DAO_SQL_REFERENCE": "DAO 到 SQL 文件",
     "MESSAGE_PRODUCTION": "消息产生",
     "MESSAGE_DISPLAY": "消息展示"
   },

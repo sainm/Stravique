@@ -4,6 +4,7 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import dev.stravique.domain.AnalysisRelation;
 import dev.stravique.domain.AnalysisRelationType;
@@ -44,6 +45,9 @@ public class CrossFileRelationDiscovery {
     );
     private static final Pattern JSP_MESSAGE = Pattern.compile(
             "(?i)<(?:fmt:message|spring:message)\\b[^>]*\\bkey\\s*=\\s*[\"']([^\"']+)[\"']"
+    );
+    private static final Pattern SQL_TABLE = Pattern.compile(
+            "(?i)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+([A-Za-z_][A-Za-z0-9_.$]*)"
     );
 
     private final TextDecoder decoder;
@@ -101,6 +105,10 @@ public class CrossFileRelationDiscovery {
         relateDiconInjection(root, projectId, scanId, filesByPath, byFqn,
                 relations, seen, analyzerVersion);
         relateConfigurationClasses(root, projectId, scanId, filesByPath, byFqn,
+                relations, seen, analyzerVersion);
+        relateSaStrutsReturns(root, projectId, scanId, filesByPath, javaSources,
+                relations, seen, analyzerVersion);
+        relateDaoSql(root, projectId, scanId, filesByPath, javaSources,
                 relations, seen, analyzerVersion);
         relateMessages(root, projectId, scanId, filesByPath, javaSources,
                 relations, seen, analyzerVersion);
@@ -387,6 +395,83 @@ public class CrossFileRelationDiscovery {
         }
     }
 
+    private void relateSaStrutsReturns(Path root, UUID projectId, UUID scanId,
+                                       Map<String, ProjectFile> files,
+                                       List<JavaSource> javaSources,
+                                       List<AnalysisRelation> relations, Set<String> seen,
+                                       String analyzerVersion) {
+        for (JavaSource source : javaSources) {
+            if (!source.text().contains("org.seasar.struts")) {
+                continue;
+            }
+            for (StringLiteralExpr literal : source.unit().findAll(StringLiteralExpr.class)) {
+                String value = literal.getValue();
+                if (!value.endsWith(".jsp")) {
+                    continue;
+                }
+                ProjectFile jsp = uniquePathSuffix(files, "/" + stripLeadingSlash(value), FileType.JSP);
+                if (jsp == null) {
+                    continue;
+                }
+                int line = line(literal.getBegin());
+                add(relations, seen, AnalysisRelation.create(
+                        projectId, scanId, source.file().getId(), jsp.getId(),
+                        source.fqn(), jsp.getRelativePath(),
+                        AnalysisRelationType.SASTRUTS_ACTION_TO_JSP,
+                        source.file().getRelativePath(), line, lineText(source.text(), line),
+                        "JAVA-SAST-JSP-RETURN-001", Certainty.INFERRED, analyzerVersion
+                ));
+            }
+        }
+    }
+
+    private void relateDaoSql(Path root, UUID projectId, UUID scanId,
+                              Map<String, ProjectFile> files,
+                              List<JavaSource> javaSources,
+                              List<AnalysisRelation> relations, Set<String> seen,
+                              String analyzerVersion) {
+        Map<String, List<ProjectFile>> sqlFilesByTable = new LinkedHashMap<>();
+        for (ProjectFile sqlFile : files.values()) {
+            if (sqlFile.getFileType() != FileType.SQL) {
+                continue;
+            }
+            try {
+                TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(sqlFile.getRelativePath()));
+                for (String table : tables(decoded.text())) {
+                    sqlFilesByTable.computeIfAbsent(table, ignored -> new ArrayList<>()).add(sqlFile);
+                }
+            } catch (Exception ignored) {
+                // Parse failures are persisted by the per-file analyzer.
+            }
+        }
+
+        for (JavaSource source : javaSources) {
+            if (!source.text().contains("org.seasar.extension.jdbc")) {
+                continue;
+            }
+            for (StringLiteralExpr literal : source.unit().findAll(StringLiteralExpr.class)) {
+                String sql = literal.getValue();
+                if (!looksLikeSql(sql)) {
+                    continue;
+                }
+                int line = line(literal.getBegin());
+                for (String table : tables(sql)) {
+                    ProjectFile sqlFile = uniqueTarget(sqlFilesByTable.get(table));
+                    if (sqlFile == null || sqlFile.getId().equals(source.file().getId())) {
+                        continue;
+                    }
+                    add(relations, seen, AnalysisRelation.create(
+                            projectId, scanId, source.file().getId(), sqlFile.getId(),
+                            source.fqn(), sqlFile.getRelativePath(),
+                            AnalysisRelationType.DAO_SQL_REFERENCE,
+                            source.file().getRelativePath(), line, lineText(source.text(), line),
+                            "JAVA-S2JDBC-SQL-TABLE-001", Certainty.INFERRED, analyzerVersion
+                    ));
+                }
+            }
+        }
+    }
+
     private Map<String, JavaSource> parseStrutsRelations(
             Path root, UUID projectId, UUID scanId, Map<String, ProjectFile> files,
             Map<String, JavaSource> byFqn, List<AnalysisRelation> relations, Set<String> seen,
@@ -577,6 +662,23 @@ public class CrossFileRelationDiscovery {
     private String simpleName(String value) {
         int separator = value.lastIndexOf('.');
         return separator < 0 ? value : value.substring(separator + 1);
+    }
+
+    private List<String> tables(String sql) {
+        Set<String> tables = new LinkedHashSet<>();
+        Matcher matcher = SQL_TABLE.matcher(sql == null ? "" : sql);
+        while (matcher.find()) {
+            tables.add(matcher.group(1).replace("`", "").replace("\"", "")
+                    .toLowerCase(java.util.Locale.ROOT));
+        }
+        return List.copyOf(tables);
+    }
+
+    private boolean looksLikeSql(String value) {
+        String normalized = value == null ? "" : value.strip().toLowerCase(java.util.Locale.ROOT);
+        return normalized.startsWith("select ") || normalized.startsWith("update ")
+                || normalized.startsWith("insert ") || normalized.startsWith("delete ")
+                || normalized.startsWith("with ") || normalized.startsWith("merge ");
     }
 
     private int line(java.util.Optional<com.github.javaparser.Position> position) {
