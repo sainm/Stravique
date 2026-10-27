@@ -27,6 +27,7 @@
 | `GET` | `/projects/{id}/overview` | Derived current scan summary |
 | `GET` | `/projects/{id}/path-overrides` | Directory-role corrections |
 | `PUT` | `/projects/{id}/path-overrides` | Replace directory-role corrections |
+| `GET` | `/projects/{id}/audit-events` | Paged project audit history |
 
 ## Scans
 

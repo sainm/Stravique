@@ -2804,6 +2804,85 @@ textarea {
   font-size: 9px;
 }
 
+.audit-card {
+  padding: 18px;
+  margin-top: 14px;
+}
+
+.audit-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.audit-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-faint);
+  border: 1px solid #e8e2fa;
+  border-radius: 9px;
+}
+
+.audit-heading p {
+  max-width: 650px;
+  margin: 3px 0 0;
+  color: var(--ink-muted);
+  font-size: 9px;
+}
+
+.audit-list {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: 8px minmax(220px, 1fr) 90px 150px;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.audit-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.audit-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.audit-copy strong {
+  font-size: 10px;
+}
+
+.audit-copy code {
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-entity,
+.audit-row time {
+  color: var(--ink-faint);
+  font-size: 8px;
+}
+
+.audit-row time {
+  text-align: right;
+}
+
 @media (max-width: 1280px) {
   :root {
     --rail-width: 214px;
@@ -3266,6 +3345,19 @@ textarea {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .audit-row {
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+  }
+
+  .audit-entity {
+    display: none;
+  }
+
+  .audit-row time {
+    grid-column: 2;
+    text-align: left;
   }
 }
 

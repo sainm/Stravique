@@ -59,7 +59,7 @@ public class ScanCoordinator {
                 .map(scan -> scan.getSequence() + 1).orElse(1);
         ScanRun scan = scanRepository.save(ScanRun.queued(projectId, sequence,
                 properties.getAnalyzerVersion()));
-        auditService.record("SCAN_QUEUED", "SCAN", scan.getId().toString(),
+        auditService.record(projectId, "SCAN_QUEUED", "SCAN", scan.getId().toString(),
                 Integer.toString(scan.getSequence()));
         AtomicBoolean cancellation = new AtomicBoolean(false);
         controls.put(scan.getId(), cancellation);
@@ -86,14 +86,16 @@ public class ScanCoordinator {
         }
         scan.requestCancel();
         scan = scanRepository.save(scan);
-        auditService.record("SCAN_CANCEL_REQUESTED", "SCAN", scanId.toString(), null);
+        auditService.record(scan.getProjectId(), "SCAN_CANCEL_REQUESTED", "SCAN",
+                scanId.toString(), null);
         AtomicBoolean control = controls.get(scanId);
         if (control != null) {
             control.set(true);
         } else if (scan.getStatus() == ScanStatus.CANCEL_REQUESTED) {
             scan.cancel();
             scan = scanRepository.save(scan);
-            auditService.record("SCAN_CANCELLED", "SCAN", scanId.toString(), "not-running");
+            auditService.record(scan.getProjectId(), "SCAN_CANCELLED", "SCAN",
+                    scanId.toString(), "not-running");
         }
         return ScanDto.from(scan);
     }

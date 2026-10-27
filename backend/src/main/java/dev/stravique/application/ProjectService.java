@@ -53,7 +53,8 @@ public class ProjectService {
                 canonical.toString());
         apply(request, project);
         project = projectRepository.save(project);
-        auditService.record("PROJECT_CREATED", "PROJECT", project.getId().toString(), project.getName());
+        auditService.record(project.getId(), "PROJECT_CREATED", "PROJECT",
+                project.getId().toString(), project.getName());
         return toDto(project);
     }
 
@@ -72,7 +73,8 @@ public class ProjectService {
         apply(request, project);
         project.touch();
         project = projectRepository.save(project);
-        auditService.record("PROJECT_UPDATED", "PROJECT", project.getId().toString(), project.getName());
+        auditService.record(project.getId(), "PROJECT_UPDATED", "PROJECT",
+                project.getId().toString(), project.getName());
         return toDto(project);
     }
 
@@ -116,8 +118,8 @@ public class ProjectService {
         overrideRepository.deleteAllByProjectId(projectId);
         overrideRepository.flush();
         List<PathOverride> saved = overrideRepository.saveAll(overrides);
-        auditService.record("PROJECT_PATH_OVERRIDES_UPDATED", "PROJECT", projectId.toString(),
-                Integer.toString(saved.size()));
+        auditService.record(projectId, "PROJECT_PATH_OVERRIDES_UPDATED", "PROJECT",
+                projectId.toString(), Integer.toString(saved.size()));
         return saved.stream().map(PathOverrideDto::from).toList();
     }
 

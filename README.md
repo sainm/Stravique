@@ -19,6 +19,7 @@ Phase 1 is implemented as a runnable local application:
 - Secure XML parsing, dicon component/injection evidence, TLD and JSP tag/form evidence.
 - Repeated-scan change classification using SHA-256.
 - Asynchronous scan state, cancellation, restart recovery, parse-error records, and review items.
+- Project-scoped audit history for registration, correction, scan, cancellation, failure, and export operations.
 - English, Simplified Chinese, and Japanese interfaces.
 - CSV, JSON, and Markdown reports generated from persisted rows.
 - Project metadata and directory-role corrections.

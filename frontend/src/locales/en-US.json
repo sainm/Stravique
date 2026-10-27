@@ -330,7 +330,28 @@
     "overridePath": "Directory path",
     "overrideRole": "Directory role",
     "overridePathPlaceholder": "src/custom-web",
-    "saveOverrides": "Save overrides"
+    "saveOverrides": "Save overrides",
+    "auditEyebrow": "Operation trace",
+    "auditTitle": "Recent project activity",
+    "auditDescription": "Persisted local operations for this project, including scans, corrections, and exports.",
+    "auditEmpty": "No audit events have been recorded for this project."
+  },
+  "audit": {
+    "action": {
+      "PROJECT_CREATED": "Project registered",
+      "PROJECT_UPDATED": "Project metadata updated",
+      "PROJECT_PATH_OVERRIDES_UPDATED": "Directory role overrides updated",
+      "SCAN_QUEUED": "Inventory scan queued",
+      "SCAN_CANCEL_REQUESTED": "Scan cancellation requested",
+      "SCAN_CANCELLED": "Inventory scan cancelled",
+      "SCAN_COMPLETED": "Inventory scan completed",
+      "SCAN_FAILED": "Inventory scan failed",
+      "REPORT_EXPORTED": "Inventory report exported"
+    },
+    "entity": {
+      "PROJECT": "Project",
+      "SCAN": "Scan"
+    }
   },
   "pathRole": {
     "JAVA_SOURCE": "Java source",

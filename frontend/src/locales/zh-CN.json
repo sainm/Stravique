@@ -330,7 +330,28 @@
     "overridePath": "目录路径",
     "overrideRole": "目录角色",
     "overridePathPlaceholder": "src/custom-web",
-    "saveOverrides": "保存覆盖规则"
+    "saveOverrides": "保存覆盖规则",
+    "auditEyebrow": "操作追踪",
+    "auditTitle": "最近项目活动",
+    "auditDescription": "该项目已持久化的本地操作，包括扫描、修正和导出。",
+    "auditEmpty": "该项目尚无审计事件。"
+  },
+  "audit": {
+    "action": {
+      "PROJECT_CREATED": "项目已登记",
+      "PROJECT_UPDATED": "项目元数据已更新",
+      "PROJECT_PATH_OVERRIDES_UPDATED": "目录角色覆盖已更新",
+      "SCAN_QUEUED": "棚卸扫描已排队",
+      "SCAN_CANCEL_REQUESTED": "已请求取消扫描",
+      "SCAN_CANCELLED": "棚卸扫描已取消",
+      "SCAN_COMPLETED": "棚卸扫描已完成",
+      "SCAN_FAILED": "棚卸扫描失败",
+      "REPORT_EXPORTED": "棚卸报告已导出"
+    },
+    "entity": {
+      "PROJECT": "项目",
+      "SCAN": "扫描"
+    }
   },
   "pathRole": {
     "JAVA_SOURCE": "Java 源代码",

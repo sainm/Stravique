@@ -330,7 +330,28 @@
     "overridePath": "ディレクトリパス",
     "overrideRole": "ディレクトリロール",
     "overridePathPlaceholder": "src/custom-web",
-    "saveOverrides": "上書きを保存"
+    "saveOverrides": "上書きを保存",
+    "auditEyebrow": "操作トレース",
+    "auditTitle": "最近のプロジェクト操作",
+    "auditDescription": "スキャン、修正、エクスポートなど、このプロジェクトで保存されたローカル操作です。",
+    "auditEmpty": "このプロジェクトの監査イベントはまだありません。"
+  },
+  "audit": {
+    "action": {
+      "PROJECT_CREATED": "プロジェクトを登録",
+      "PROJECT_UPDATED": "プロジェクト情報を更新",
+      "PROJECT_PATH_OVERRIDES_UPDATED": "ディレクトリロール上書きを更新",
+      "SCAN_QUEUED": "棚卸スキャンをキューに追加",
+      "SCAN_CANCEL_REQUESTED": "スキャンキャンセルを要求",
+      "SCAN_CANCELLED": "棚卸スキャンをキャンセル",
+      "SCAN_COMPLETED": "棚卸スキャン完了",
+      "SCAN_FAILED": "棚卸スキャン失敗",
+      "REPORT_EXPORTED": "棚卸レポートをエクスポート"
+    },
+    "entity": {
+      "PROJECT": "プロジェクト",
+      "SCAN": "スキャン"
+    }
   },
   "pathRole": {
     "JAVA_SOURCE": "Java ソース",

@@ -128,6 +128,13 @@ class StraviqueIntegrationTest {
                     assertThat(rows.isArray()).isTrue();
                     assertThat(rows.size()).isEqualTo(completed.get("technologyCount").asInt());
                 });
+        mockMvc.perform(get("/api/v1/projects/{id}/audit-events", projectId)
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.action == 'PROJECT_CREATED')]").isNotEmpty())
+                .andExpect(jsonPath("$.content[?(@.action == 'SCAN_QUEUED')]").isNotEmpty())
+                .andExpect(jsonPath("$.content[?(@.action == 'SCAN_COMPLETED')]").isNotEmpty())
+                .andExpect(jsonPath("$.content[?(@.action == 'REPORT_EXPORTED')]").isNotEmpty());
 
         assertThat(snapshot(SAMPLE)).isEqualTo(before);
     }

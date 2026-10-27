@@ -115,7 +115,8 @@ public class ScanWorker {
             if (cancelRequested.get() || scan.getStatus() == ScanStatus.CANCEL_REQUESTED) {
                 scan.cancel();
                 scanRepository.save(scan);
-                auditService.record("SCAN_CANCELLED", "SCAN", scan.getId().toString(), "queued");
+                auditService.record(scan.getProjectId(), "SCAN_CANCELLED", "SCAN",
+                        scan.getId().toString(), "queued");
                 return;
             }
             scan.start();
@@ -274,7 +275,7 @@ public class ScanWorker {
                 scan.complete();
             }
             scanRepository.save(scan);
-            auditService.record(scan.getStatus() == ScanStatus.COMPLETED
+            auditService.record(scan.getProjectId(), scan.getStatus() == ScanStatus.COMPLETED
                             ? "SCAN_COMPLETED" : "SCAN_CANCELLED",
                     "SCAN", scan.getId().toString(),
                     "files=" + totalFiles + ",findings=" + scan.getFindingCount());
@@ -402,7 +403,8 @@ public class ScanWorker {
         scanRepository.findById(scanId).ifPresent(scan -> {
             scan.fail(code, message);
             scanRepository.save(scan);
-            auditService.record("SCAN_FAILED", "SCAN", scanId.toString(), code);
+            auditService.record(scan.getProjectId(), "SCAN_FAILED", "SCAN",
+                    scanId.toString(), code);
         });
     }
 

@@ -210,3 +210,12 @@ export interface PathOverrideInput {
   relativePath: string;
   role: string;
 }
+
+export interface AuditEvent {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  detail?: string;
+  occurredAt: string;
+}

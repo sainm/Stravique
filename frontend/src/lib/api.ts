@@ -1,4 +1,5 @@
 import type {
+  AuditEvent,
   FileDetail,
   Finding,
   FrameworkDetail,
@@ -165,5 +166,9 @@ export const api = {
     request<PathOverride[]>(`/projects/${projectId}/path-overrides`, {
       method: "PUT",
       body: JSON.stringify(inputs)
+    }),
+  auditEvents: (projectId: string, page = 0, size = 12) =>
+    request<PageResponse<AuditEvent>>(`/projects/${projectId}/audit-events`, {
+      query: { page, size }
     })
 };

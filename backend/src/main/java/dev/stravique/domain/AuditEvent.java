@@ -15,6 +15,9 @@ public class AuditEvent {
     @Id
     private UUID id;
 
+    @Column(name = "project_id")
+    private UUID projectId;
+
     @Column(nullable = false, length = 80)
     private String action;
 
@@ -30,9 +33,11 @@ public class AuditEvent {
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
-    public static AuditEvent create(String action, String entityType, String entityId, String detail) {
+    public static AuditEvent create(UUID projectId, String action, String entityType,
+                                    String entityId, String detail) {
         AuditEvent event = new AuditEvent();
         event.id = UUID.randomUUID();
+        event.projectId = projectId;
         event.action = action;
         event.entityType = entityType;
         event.entityId = entityId;
@@ -43,6 +48,10 @@ public class AuditEvent {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getProjectId() {
+        return projectId;
     }
 
     public String getAction() {

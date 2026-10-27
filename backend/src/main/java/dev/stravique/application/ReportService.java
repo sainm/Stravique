@@ -103,7 +103,7 @@ public class ReportService {
         String filename = "stravique-" + slug(project.getName()) + "-"
                 + type.name().toLowerCase(Locale.ROOT).replace('_', '-') + "-"
                 + (scan == null ? "no-scan" : scan.getSequence()) + "." + extension;
-        auditService.record("REPORT_EXPORTED", "PROJECT", projectId.toString(),
+        auditService.record(projectId, "REPORT_EXPORTED", "PROJECT", projectId.toString(),
                 type.name() + ":" + extension + ":" + rows.size());
         return new ReportDownload(content, contentType, filename);
     }

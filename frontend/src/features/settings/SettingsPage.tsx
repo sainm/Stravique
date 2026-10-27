@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   CheckCircle2,
   FolderCog,
   Plus,
+  RefreshCw,
   Save,
   ShieldCheck,
   Trash2
@@ -14,6 +16,7 @@ import ErrorPanel from "../../components/ErrorPanel";
 import LoadingBlock from "../../components/LoadingBlock";
 import PageHeader from "../../components/PageHeader";
 import { api } from "../../lib/api";
+import { formatDate } from "../../lib/format";
 import type {
   PathOverride,
   PathOverrideInput,
@@ -58,7 +61,7 @@ const emptyInput: ProjectInput = {
 
 export default function SettingsPage() {
   const { projectId = "" } = useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const project = useQuery({
     queryKey: ["project", projectId],
@@ -72,6 +75,10 @@ export default function SettingsPage() {
   const overrides = useQuery({
     queryKey: ["path-overrides", projectId],
     queryFn: () => api.pathOverrides(projectId)
+  });
+  const audit = useQuery({
+    queryKey: ["audit", projectId],
+    queryFn: () => api.auditEvents(projectId, 0, 12)
   });
   const [form, setForm] = useState<ProjectInput>(emptyInput);
   const [excludedDirectories, setExcludedDirectories] = useState("");
@@ -122,7 +129,8 @@ export default function SettingsPage() {
       queryClient.setQueryData(["project", projectId], updated);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
-        queryClient.invalidateQueries({ queryKey: ["overview", projectId] })
+        queryClient.invalidateQueries({ queryKey: ["overview", projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["audit", projectId] })
       ]);
     }
   });
@@ -133,6 +141,7 @@ export default function SettingsPage() {
       setOverrideSaved(true);
       window.setTimeout(() => setOverrideSaved(false), 2200);
       await queryClient.invalidateQueries({ queryKey: ["tree", projectId] });
+      await queryClient.invalidateQueries({ queryKey: ["audit", projectId] });
     }
   });
 
@@ -478,6 +487,58 @@ export default function SettingsPage() {
           </section>
         </div>
       </div>
+
+      <section className="surface audit-card">
+        <header className="section-header">
+          <div className="audit-heading">
+            <span className="audit-icon">
+              <Activity size={18} />
+            </span>
+            <div>
+              <span className="eyebrow">{t("settings.auditEyebrow")}</span>
+              <h2>{t("settings.auditTitle")}</h2>
+              <p>{t("settings.auditDescription")}</p>
+            </div>
+          </div>
+          <button
+            className="button button-ghost button-small"
+            onClick={() => audit.refetch()}
+          >
+            <RefreshCw size={14} />
+            {t("common.refresh")}
+          </button>
+        </header>
+        {audit.error ? (
+          <ErrorPanel error={audit.error} onRetry={() => audit.refetch()} />
+        ) : null}
+        {audit.data?.content.length === 0 ? (
+          <div className="section-empty">{t("settings.auditEmpty")}</div>
+        ) : (
+          <div className="audit-list">
+            {audit.data?.content.map((event) => (
+              <div className="audit-row" key={event.id}>
+                <span className="audit-dot" aria-hidden="true" />
+                <div className="audit-copy">
+                  <strong>
+                    {t(`audit.action.${event.action}`, {
+                      defaultValue: event.action
+                    })}
+                  </strong>
+                  {event.detail ? <code>{event.detail}</code> : null}
+                </div>
+                <span className="audit-entity">
+                  {t(`audit.entity.${event.entityType}`, {
+                    defaultValue: event.entityType
+                  })}
+                </span>
+                <time dateTime={event.occurredAt}>
+                  {formatDate(event.occurredAt, i18n.language)}
+                </time>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </>
   );
 }
