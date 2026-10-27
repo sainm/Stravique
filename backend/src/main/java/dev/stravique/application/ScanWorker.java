@@ -10,6 +10,7 @@ import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.FileScanStatus;
 import dev.stravique.domain.FileType;
 import dev.stravique.domain.ModuleDependency;
+import dev.stravique.domain.AnalysisRelation;
 import dev.stravique.domain.ParseStatus;
 import dev.stravique.domain.PathOverride;
 import dev.stravique.domain.ProjectFile;
@@ -17,6 +18,7 @@ import dev.stravique.domain.ProjectModule;
 import dev.stravique.domain.ScanRun;
 import dev.stravique.domain.ScanStatus;
 import dev.stravique.infrastructure.AnalysisFindingRepository;
+import dev.stravique.infrastructure.AnalysisRelationRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.PathOverrideRepository;
 import dev.stravique.infrastructure.ModuleDependencyRepository;
@@ -26,6 +28,7 @@ import dev.stravique.infrastructure.ScanRunRepository;
 import dev.stravique.infrastructure.TechnologyUsageRepository;
 import dev.stravique.inventory.AnalysisResult;
 import dev.stravique.inventory.AnalyzerContext;
+import dev.stravique.inventory.CrossFileRelationDiscovery;
 import dev.stravique.inventory.FileRoleResolver;
 import dev.stravique.inventory.InventoryFileAnalyzer;
 import dev.stravique.inventory.ModuleDiscovery;
@@ -65,6 +68,7 @@ public class ScanWorker {
     private final ProjectModuleRepository moduleRepository;
     private final ProjectFileRepository fileRepository;
     private final AnalysisFindingRepository findingRepository;
+    private final AnalysisRelationRepository relationRepository;
     private final TechnologyUsageRepository technologyRepository;
     private final ScanPathPolicy pathPolicy;
     private final TreeWalker treeWalker;
@@ -73,6 +77,7 @@ public class ScanWorker {
     private final ModuleDependencyRepository moduleDependencyRepository;
     private final TextDecoder textDecoder;
     private final InventoryFileAnalyzer fileAnalyzer;
+    private final CrossFileRelationDiscovery relationDiscovery;
     private final FileRoleResolver roleResolver;
     private final StraviqueProperties properties;
     private final AuditService auditService;
@@ -80,11 +85,14 @@ public class ScanWorker {
     public ScanWorker(ScanRunRepository scanRepository, AnalysisProjectRepository projectRepository,
                       PathOverrideRepository overrideRepository, ProjectModuleRepository moduleRepository,
                       ProjectFileRepository fileRepository, AnalysisFindingRepository findingRepository,
+                      AnalysisRelationRepository relationRepository,
                       TechnologyUsageRepository technologyRepository, ScanPathPolicy pathPolicy,
                       TreeWalker treeWalker, ModuleDiscovery moduleDiscovery, TextDecoder textDecoder,
                       ModuleDependencyDiscovery moduleDependencyDiscovery,
                       ModuleDependencyRepository moduleDependencyRepository,
-                      InventoryFileAnalyzer fileAnalyzer, FileRoleResolver roleResolver,
+                      InventoryFileAnalyzer fileAnalyzer,
+                      CrossFileRelationDiscovery relationDiscovery,
+                      FileRoleResolver roleResolver,
                       StraviqueProperties properties, AuditService auditService) {
         this.scanRepository = scanRepository;
         this.projectRepository = projectRepository;
@@ -92,6 +100,7 @@ public class ScanWorker {
         this.moduleRepository = moduleRepository;
         this.fileRepository = fileRepository;
         this.findingRepository = findingRepository;
+        this.relationRepository = relationRepository;
         this.technologyRepository = technologyRepository;
         this.pathPolicy = pathPolicy;
         this.treeWalker = treeWalker;
@@ -100,6 +109,7 @@ public class ScanWorker {
         this.moduleDependencyRepository = moduleDependencyRepository;
         this.textDecoder = textDecoder;
         this.fileAnalyzer = fileAnalyzer;
+        this.relationDiscovery = relationDiscovery;
         this.roleResolver = roleResolver;
         this.properties = properties;
         this.auditService = auditService;
@@ -265,6 +275,12 @@ public class ScanWorker {
 
             technologyRepository.saveAll(ledger.toEntities(project.getId(), scan.getId(),
                     properties.getAnalyzerVersion()));
+            List<ProjectFile> relationFiles =
+                    fileRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
+            List<AnalysisRelation> relations = relationDiscovery.discover(
+                    root, project.getId(), scan.getId(), relationFiles,
+                    properties.getAnalyzerVersion());
+            relationRepository.saveAll(relations);
             int totalFiles = walk.files().size() + deletedFiles.size();
             scan.updateCounts(totalFiles, layout.modules().size(), analyzed, parseFailures, skipped,
                     frameworkFindings + diagnostics.size(), reviewCount, ledger.keys().size(),

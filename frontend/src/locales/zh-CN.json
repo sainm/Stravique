@@ -218,7 +218,18 @@
     "openFramework": "打开框架",
     "apiCount": "{{count}} 个 API",
     "expand": "展开目录",
-    "collapse": "折叠目录"
+    "collapse": "折叠目录",
+    "relationsEyebrow": "跨文件分析",
+    "relationsTitle": "{{count}} 条关联记录",
+    "noRelations": "该文件没有保存可追溯的跨文件关系。",
+    "outgoingRelation": "引用",
+    "incomingRelation": "被引用"
+  },
+  "relation": {
+    "JAVA_IMPORT": "Java 导入",
+    "JAVA_INHERITANCE": "Java 继承",
+    "STRUTS_ACTION_TO_JSP": "Struts Action 到 JSP",
+    "JSP_FORM_TO_ACTION": "JSP 表单到 Action"
   },
   "frameworks": {
     "eyebrow": "框架使用",

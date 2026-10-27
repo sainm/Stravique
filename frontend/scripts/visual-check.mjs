@@ -24,9 +24,12 @@ const scanId = project.latestScan?.id;
 let firstFileId = "";
 if (scanId) {
   const files = await fetch(
-    `${apiUrl}/projects/${project.id}/files?scanId=${scanId}&size=1`
+    `${apiUrl}/projects/${project.id}/files?scanId=${scanId}&size=200`
   ).then((response) => response.json());
-  firstFileId = files.content?.[0]?.id || "";
+  firstFileId =
+    files.content?.find((file) => file.relativePath.endsWith("OrderAction.java"))?.id ||
+    files.content?.[0]?.id ||
+    "";
 }
 
 const routes = [
@@ -122,6 +125,17 @@ for (const language of languages) {
       });
       if (metrics.overflow > 1 || metrics.clippedButtons.length > 0 || !metrics.heroWithinViewport) {
         issues.push({ language, viewport: viewport.name, route: name, ...metrics });
+      }
+      if (name === "inventory" && firstFileId) {
+        const relationCount = await page.locator(".relation-card").count();
+        if (relationCount === 0) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            relationCards: 0
+          });
+        }
       }
 
       const filename = `${language}-${viewport.name}-${name}.png`;

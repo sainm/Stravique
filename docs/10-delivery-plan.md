@@ -52,13 +52,10 @@ Gate: the acceptance checklist in `README.md` is evidenced by passing commands a
 
 ## Planned Phase 2
 
-After Phase 1 acceptance, add evidence-backed cross-file relations:
+The first Phase 2 slice now adds evidence-backed Java and Struts/JSP relations. Remaining Phase 2 work:
 
 - Action to JSP candidates.
-- Component definitions and injections.
-- Configuration references.
 - DAO to SQL candidates.
-- Form submission to server handler candidates.
 - Message production and display candidates.
 - Reflection and dynamic loading candidates.
 

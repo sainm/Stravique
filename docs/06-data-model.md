@@ -11,6 +11,7 @@
 | `module_dependency` | scan_id, from_module_id, to_module_id, evidence path and line | Maven or Gradle dependency between scanned modules |
 | `project_file` | scan_id, module_id, relative_path, metadata, hash, change_type | File snapshot for one scan |
 | `analysis_finding` | scan_id, file_id, kind, object_key, range, evidence, rule, certainty | Traceable static/config observation |
+| `analysis_relation` | scan_id, source/target file and object, type, evidence path/line, certainty | Evidence-backed cross-file relation |
 | `technology_usage` | scan_id, technology_key, category, status, evidence counts | Technology aggregate for a scan |
 | `audit_event` | project_id, action, entity_type, entity_id, detail, occurred_at | Project-scoped operation trace |
 

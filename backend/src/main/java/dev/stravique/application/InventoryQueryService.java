@@ -2,6 +2,7 @@ package dev.stravique.application;
 
 import dev.stravique.api.ApiException;
 import dev.stravique.api.dto.DirectoryNodeDto;
+import dev.stravique.api.dto.AnalysisRelationDto;
 import dev.stravique.api.dto.FileDetailDto;
 import dev.stravique.api.dto.FileDto;
 import dev.stravique.api.dto.FindingDto;
@@ -23,6 +24,7 @@ import dev.stravique.domain.ProjectFile;
 import dev.stravique.domain.ScanRun;
 import dev.stravique.domain.ScanStatus;
 import dev.stravique.infrastructure.AnalysisFindingRepository;
+import dev.stravique.infrastructure.AnalysisRelationRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.ProjectFileRepository;
 import dev.stravique.infrastructure.ProjectModuleRepository;
@@ -64,6 +66,7 @@ public class InventoryQueryService {
     private final ModuleDependencyRepository moduleDependencyRepository;
     private final ProjectFileRepository fileRepository;
     private final AnalysisFindingRepository findingRepository;
+    private final AnalysisRelationRepository relationRepository;
     private final TechnologyUsageRepository technologyRepository;
 
     public InventoryQueryService(AnalysisProjectRepository projectRepository,
@@ -72,6 +75,7 @@ public class InventoryQueryService {
                                  ModuleDependencyRepository moduleDependencyRepository,
                                  ProjectFileRepository fileRepository,
                                  AnalysisFindingRepository findingRepository,
+                                 AnalysisRelationRepository relationRepository,
                                  TechnologyUsageRepository technologyRepository) {
         this.projectRepository = projectRepository;
         this.scanRepository = scanRepository;
@@ -79,6 +83,7 @@ public class InventoryQueryService {
         this.moduleDependencyRepository = moduleDependencyRepository;
         this.fileRepository = fileRepository;
         this.findingRepository = findingRepository;
+        this.relationRepository = relationRepository;
         this.technologyRepository = technologyRepository;
     }
 
@@ -194,7 +199,10 @@ public class InventoryQueryService {
         List<FindingDto> findings = findingRepository
                 .findByScanIdAndFileIdOrderByLineStartAsc(file.getScanId(), fileId).stream()
                 .map(FindingDto::from).toList();
-        return new FileDetailDto(FileDto.from(file), findings);
+        List<AnalysisRelationDto> relations = relationRepository
+                .findForFile(file.getScanId(), fileId).stream()
+                .map(AnalysisRelationDto::from).toList();
+        return new FileDetailDto(FileDto.from(file), findings, relations);
     }
 
     @Transactional(readOnly = true)

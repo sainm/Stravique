@@ -237,12 +237,12 @@ Implemented:
 - Static framework and configuration evidence.
 - Basic technology aggregation.
 - Evidence-linked Maven and Gradle module dependencies.
+- Initial Phase 2 cross-file relations for Java imports/inheritance and Struts/JSP flows.
 - Review visibility.
 - Reports.
 
 Not implemented:
 
-- Full cross-file system understanding.
 - Migration planning.
 - Code transformation.
 - Runtime dependency or behavior verification.

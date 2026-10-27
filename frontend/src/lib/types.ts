@@ -80,6 +80,22 @@ export interface Finding {
   metadata?: string;
 }
 
+export interface AnalysisRelation {
+  id: string;
+  sourceFileId: string;
+  targetFileId: string;
+  sourceObjectKey: string;
+  targetObjectKey: string;
+  relationType: string;
+  evidencePath: string;
+  lineStart?: number;
+  evidence: string;
+  ruleId: string;
+  certainty: string;
+  analyzerVersion: string;
+  analyzedAt: string;
+}
+
 export interface ProjectFile {
   id: string;
   scanId: string;
@@ -102,6 +118,7 @@ export interface ProjectFile {
 export interface FileDetail {
   file: ProjectFile;
   findings: Finding[];
+  relations: AnalysisRelation[];
 }
 
 export interface Technology {

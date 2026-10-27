@@ -419,6 +419,7 @@ export default function InventoryPage() {
               projectId={projectId}
               fileId={selectedFileId}
               onClose={() => updateParam("fileId", undefined)}
+              onOpenFile={(id) => updateParam("fileId", id)}
             />
           </div>
         </>
@@ -566,11 +567,13 @@ function Pagination({
 function FileInspector({
   projectId,
   fileId,
-  onClose
+  onClose,
+  onOpenFile
 }: {
   projectId: string;
   fileId?: string;
   onClose: () => void;
+  onOpenFile: (fileId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const detail = useQuery({
@@ -697,6 +700,67 @@ function FileInspector({
                   </footer>
                 </article>
               ))}
+            </div>
+          )}
+          <div className="inspector-evidence-heading">
+            <span className="eyebrow">{t("inventory.relationsEyebrow")}</span>
+            <h3>
+              {t("inventory.relationsTitle", {
+                count: detail.data.relations.length
+              })}
+            </h3>
+          </div>
+          {detail.data.relations.length === 0 ? (
+            <div className="inspector-empty">
+              {t("inventory.noRelations")}
+            </div>
+          ) : (
+            <div className="relation-list">
+              {detail.data.relations.map((relation) => {
+                const outgoing = relation.sourceFileId === detail.data.file.id;
+                const relatedFileId = outgoing
+                  ? relation.targetFileId
+                  : relation.sourceFileId;
+                const relatedObject = outgoing
+                  ? relation.targetObjectKey
+                  : relation.sourceObjectKey;
+                return (
+                  <article className="relation-card" key={relation.id}>
+                    <header>
+                      <strong>
+                        {t(`relation.${relation.relationType}`, {
+                          defaultValue: relation.relationType
+                        })}
+                      </strong>
+                      <StatusBadge value={relation.certainty} kind="certainty" />
+                    </header>
+                    <button
+                      className="relation-target"
+                      onClick={() => onOpenFile(relatedFileId)}
+                    >
+                      <span>
+                        {outgoing
+                          ? t("inventory.outgoingRelation")
+                          : t("inventory.incomingRelation")}
+                      </span>
+                      <code>{relatedObject}</code>
+                    </button>
+                    {relation.evidence ? (
+                      <pre>
+                        <code>{relation.evidence}</code>
+                      </pre>
+                    ) : null}
+                    <footer>
+                      <code>{relation.ruleId}</code>
+                      <span>
+                        {relation.lineStart
+                          ? t("inventory.line", { line: relation.lineStart })
+                          : ""}
+                      </span>
+                    </footer>
+                  </article>
+                );
+              })}
             </div>
           )}
         </>

@@ -129,6 +129,17 @@ Custom business-framework detection is a review signal, not a confirmed framewor
 - File SHA-256 drives `ADDED`, `MODIFIED`, `UNCHANGED`, and `DELETED`.
 - A scan does not update prior scan rows.
 
+## Phase 2 cross-file relations
+
+The initial Phase 2 slice creates only relations with a concrete source locator:
+
+- `JAVA_IMPORT` when an import resolves to a Java type declared in another scanned project file.
+- `JAVA_INHERITANCE` when an extends or implements type resolves to another scanned Java type.
+- `STRUTS_ACTION_TO_JSP` when `struts-config.xml` maps an action class and forward path to scanned files.
+- `JSP_FORM_TO_ACTION` when a JSP form action matches a configured Struts action path; this remains `INFERRED`.
+
+Relations are bidirectional when viewing a file, but retain their original source and target direction, evidence path, line, rule ID, analyzer version, and certainty.
+
 ## Safety
 
 - XML uses secure processing features.

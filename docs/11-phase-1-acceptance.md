@@ -27,6 +27,7 @@ It covers the following acceptance areas.
 | Support three languages | Backend and frontend locale-key parity tests plus localized API error tests |
 | Preserve source | Integration test compares SHA-256, size, and modification time before and after scanning |
 | Modern developer UI | Six project routes are rendered at desktop and mobile widths in three languages |
+| Initial cross-file analysis | Java imports/inheritance and Struts/JSP relations are persisted with source evidence |
 
 ## Fixture expectations
 

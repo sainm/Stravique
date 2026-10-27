@@ -218,7 +218,18 @@
     "openFramework": "Open framework",
     "apiCount": "{{count}} API",
     "expand": "Expand directory",
-    "collapse": "Collapse directory"
+    "collapse": "Collapse directory",
+    "relationsEyebrow": "Cross-file analysis",
+    "relationsTitle": "{{count}} related records",
+    "noRelations": "No evidence-backed cross-file relation was persisted for this file.",
+    "outgoingRelation": "References",
+    "incomingRelation": "Referenced by"
+  },
+  "relation": {
+    "JAVA_IMPORT": "Java import",
+    "JAVA_INHERITANCE": "Java inheritance",
+    "STRUTS_ACTION_TO_JSP": "Struts action to JSP",
+    "JSP_FORM_TO_ACTION": "JSP form to action"
   },
   "frameworks": {
     "eyebrow": "Framework usage",

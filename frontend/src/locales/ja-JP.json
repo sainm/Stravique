@@ -218,7 +218,18 @@
     "openFramework": "フレームワークを開く",
     "apiCount": "API {{count}} 件",
     "expand": "ディレクトリを展開",
-    "collapse": "ディレクトリを折りたたむ"
+    "collapse": "ディレクトリを折りたたむ",
+    "relationsEyebrow": "ファイル間分析",
+    "relationsTitle": "関連記録 {{count}} 件",
+    "noRelations": "このファイルには追跡可能なファイル間関係が保存されていません。",
+    "outgoingRelation": "参照先",
+    "incomingRelation": "参照元"
+  },
+  "relation": {
+    "JAVA_IMPORT": "Java インポート",
+    "JAVA_INHERITANCE": "Java 継承",
+    "STRUTS_ACTION_TO_JSP": "Struts Action から JSP",
+    "JSP_FORM_TO_ACTION": "JSP フォームから Action"
   },
   "frameworks": {
     "eyebrow": "フレームワーク利用",

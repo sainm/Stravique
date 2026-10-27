@@ -55,7 +55,7 @@ The configured default is authoritative when the request carries no `Accept-Lang
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/projects/{id}/files` | Paged files with search and filters |
-| `GET` | `/files/{fileId}` | File detail and evidence |
+| `GET` | `/files/{fileId}` | File detail, evidence, and incoming/outgoing cross-file relations |
 | `GET` | `/projects/{id}/tree` | Directory tree for latest scan |
 | `GET` | `/projects/{id}/module-dependencies` | Maven/Gradle dependencies between scanned modules |
 | `GET` | `/projects/{id}/findings` | Filtered findings |

@@ -112,6 +112,36 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$[0].evidencePath").isNotEmpty())
                 .andExpect(jsonPath("$[0].lineStart").isNumber());
 
+        String filesResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("fileType", "JAVA")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String actionFileId = fileIdByPath(filesResponse,
+                "web-app/src/main/java/com/example/legacy/action/OrderAction.java");
+        mockMvc.perform(get("/api/v1/files/{id}", actionFileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'JAVA_IMPORT' "
+                        + "&& @.targetObjectKey == 'com.example.legacy.service.OrderService')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'JAVA_INHERITANCE' "
+                        + "&& @.targetObjectKey == 'com.example.legacy.framework.BaseWorkflowController')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'STRUTS_ACTION_TO_JSP')]")
+                        .isNotEmpty());
+
+        String jspResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("fileType", "JSP")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String jspFileId = fileIdByPath(jspResponse,
+                "web-app/src/main/webapp/WEB-INF/jsp/order/list.jsp");
+        mockMvc.perform(get("/api/v1/files/{id}", jspFileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'JSP_FORM_TO_ACTION' "
+                        + "&& @.certainty == 'INFERRED')]").isNotEmpty());
+
         mockMvc.perform(get("/api/v1/projects/{id}/frameworks/SASTRUTS", projectId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.technology.status").value("ANALYZED"))
@@ -321,6 +351,15 @@ class StraviqueIntegrationTest {
             Thread.sleep(50);
         }
         throw new AssertionError("Scan did not finish: " + last);
+    }
+
+    private String fileIdByPath(String response, String path) throws Exception {
+        for (JsonNode file : objectMapper.readTree(response).get("content")) {
+            if (path.equals(file.get("relativePath").asText())) {
+                return file.get("id").asText();
+            }
+        }
+        throw new AssertionError("File not found in scan response: " + path);
     }
 
     private Map<String, Snapshot> snapshot(Path root) throws Exception {
