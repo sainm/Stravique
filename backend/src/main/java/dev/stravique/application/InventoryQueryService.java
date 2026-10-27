@@ -13,6 +13,9 @@ import dev.stravique.api.dto.ModuleDependencyDto;
 import dev.stravique.api.dto.OverviewDto;
 import dev.stravique.api.dto.PageResponse;
 import dev.stravique.api.dto.RelationOverviewDto;
+import dev.stravique.api.dto.RelationGraphDto;
+import dev.stravique.api.dto.RelationGraphEdgeDto;
+import dev.stravique.api.dto.RelationGraphNodeDto;
 import dev.stravique.api.dto.ScanDto;
 import dev.stravique.api.dto.TechnologyDto;
 import dev.stravique.domain.AnalysisFinding;
@@ -52,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.TreeSet;
 
 @Service
 public class InventoryQueryService {
@@ -392,6 +396,49 @@ public class InventoryQueryService {
         return new RelationOverviewDto(scan.getId(), total, byType, byCertainty);
     }
 
+    @Transactional(readOnly = true)
+    public RelationGraphDto relationGraph(UUID projectId, UUID requestedScanId,
+                                          String relationType, String certainty,
+                                          String query) {
+        ScanRun scan = resolveScan(projectId, requestedScanId);
+        if (scan == null) {
+            return new RelationGraphDto(projectId, null, 0, List.of(), List.of());
+        }
+        Specification<AnalysisRelation> specification = relationSpecification(
+                scan.getId(), relationType, certainty, query);
+        List<AnalysisRelation> relations = relationRepository.findAll(specification);
+        Map<UUID, ProjectFile> filesById = relationFiles(relations);
+        Map<UUID, int[]> counts = new LinkedHashMap<>();
+        Map<String, EdgeAccumulator> edges = new LinkedHashMap<>();
+        for (AnalysisRelation relation : relations) {
+            counts.computeIfAbsent(relation.getSourceFileId(), ignored -> new int[2])[1]++;
+            counts.computeIfAbsent(relation.getTargetFileId(), ignored -> new int[2])[0]++;
+            String key = relation.getSourceFileId() + "->" + relation.getTargetFileId();
+            edges.computeIfAbsent(key, ignored -> new EdgeAccumulator(
+                    relation.getSourceFileId(), relation.getTargetFileId()))
+                    .add(relation);
+        }
+        List<RelationGraphNodeDto> nodes = counts.entrySet().stream()
+                .map(entry -> {
+                    ProjectFile file = filesById.get(entry.getKey());
+                    return new RelationGraphNodeDto(
+                            entry.getKey().toString(),
+                            file == null ? "" : file.getRelativePath(),
+                            file == null ? entry.getKey().toString() : file.getFileName(),
+                            file == null ? "OTHER" : file.getFileType().name(),
+                            entry.getValue()[0],
+                            entry.getValue()[1]
+                    );
+                })
+                .sorted(Comparator.comparing(RelationGraphNodeDto::path))
+                .toList();
+        List<RelationGraphEdgeDto> graphEdges = edges.values().stream()
+                .map(EdgeAccumulator::toDto)
+                .sorted(Comparator.comparing(RelationGraphEdgeDto::id))
+                .toList();
+        return new RelationGraphDto(projectId, scan.getId(), relations.size(), nodes, graphEdges);
+    }
+
     private List<FindingDto> reviewFindings(UUID scanId, int limit) {
         Page<AnalysisFinding> page = findingRepository.findAll((root, query, builder) ->
                         builder.and(
@@ -506,6 +553,41 @@ public class InventoryQueryService {
         return result;
     }
 
+    private Specification<AnalysisRelation> relationSpecification(
+            UUID scanId, String relationType, String certainty, String query) {
+        return (root, criteriaQuery, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(builder.equal(root.get("scanId"), scanId));
+            if (relationType != null && !relationType.isBlank()) {
+                predicates.add(builder.equal(root.get("relationType"),
+                        parseEnum(AnalysisRelationType.class, relationType)));
+            }
+            if (certainty != null && !certainty.isBlank()) {
+                predicates.add(builder.equal(root.get("certainty"),
+                        parseEnum(Certainty.class, certainty)));
+            }
+            if (query != null && !query.isBlank()) {
+                String value = "%" + query.strip().toLowerCase(java.util.Locale.ROOT) + "%";
+                predicates.add(builder.or(
+                        builder.like(builder.lower(root.get("sourceObjectKey")), value),
+                        builder.like(builder.lower(root.get("targetObjectKey")), value),
+                        builder.like(builder.lower(root.get("evidencePath")), value)
+                ));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    private Map<UUID, ProjectFile> relationFiles(List<AnalysisRelation> relations) {
+        Set<UUID> fileIds = new java.util.LinkedHashSet<>();
+        for (AnalysisRelation relation : relations) {
+            fileIds.add(relation.getSourceFileId());
+            fileIds.add(relation.getTargetFileId());
+        }
+        return fileRepository.findAllById(fileIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ProjectFile::getId, file -> file));
+    }
+
     private static final class MutableDirectory {
         private final String name;
         private final String path;
@@ -521,6 +603,31 @@ public class InventoryQueryService {
             return children.values().stream()
                     .map(child -> new DirectoryNodeDto(child.name, child.path, child.fileCount, child.toDtos()))
                     .toList();
+        }
+    }
+
+    private static final class EdgeAccumulator {
+        private final UUID source;
+        private final UUID target;
+        private int count;
+        private final Set<String> relationTypes = new TreeSet<>();
+        private final Set<String> certainties = new TreeSet<>();
+
+        private EdgeAccumulator(UUID source, UUID target) {
+            this.source = source;
+            this.target = target;
+        }
+
+        private void add(AnalysisRelation relation) {
+            count++;
+            relationTypes.add(relation.getRelationType().name());
+            certainties.add(relation.getCertainty().name());
+        }
+
+        private RelationGraphEdgeDto toDto() {
+            String id = source + "->" + target;
+            return new RelationGraphEdgeDto(id, source.toString(), target.toString(),
+                    List.copyOf(relationTypes), List.copyOf(certainties), count);
         }
     }
 }

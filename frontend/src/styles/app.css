@@ -2598,12 +2598,20 @@ textarea {
 
 .relation-toolbar {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) 210px 170px auto;
+  grid-template-columns: auto minmax(190px, 1fr) 200px 160px auto;
   align-items: center;
   gap: 7px;
   padding: 10px;
   background: var(--surface-subtle);
   border-bottom: 1px solid var(--line);
+}
+
+.relation-view-switch {
+  flex: 0 0 auto;
+}
+
+.relation-view-switch button {
+  font-size: 8px;
 }
 
 .relation-toolbar input,
@@ -2726,6 +2734,78 @@ textarea {
 
 .relation-evidence span {
   flex: 0 0 auto;
+}
+
+.relation-map {
+  position: relative;
+  height: 620px;
+  background:
+    linear-gradient(rgba(102, 80, 217, 0.018), rgba(102, 80, 217, 0.018)),
+    #fcfbfd;
+}
+
+.relation-map .react-flow__node {
+  cursor: pointer;
+}
+
+.relation-map .react-flow__node:hover {
+  box-shadow: 0 9px 24px rgba(25, 23, 31, 0.11);
+}
+
+.relation-flow-label {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 11px;
+  text-align: left;
+}
+
+.relation-flow-label strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relation-flow-label code {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--ink-faint);
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relation-flow-label span {
+  margin-top: 5px;
+  color: var(--accent-deep);
+  font-size: 8px;
+}
+
+.relation-map-note {
+  position: absolute;
+  z-index: 5;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 9px;
+  color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 14px rgba(25, 23, 31, 0.06);
+  font-size: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.relation-map-note a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-deep);
+  font-weight: 650;
 }
 
 .report-policy {
@@ -3572,6 +3652,11 @@ textarea {
     grid-template-columns: 1fr 1fr;
   }
 
+  .relation-view-switch {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
   .relation-toolbar .search-field {
     grid-column: 1 / -1;
   }
@@ -3603,6 +3688,10 @@ textarea {
   .relation-table-row > .status-badge {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .relation-map {
+    height: 540px;
   }
 
   .report-policy {
@@ -3765,5 +3854,15 @@ textarea {
 
   .relation-toolbar .search-field {
     grid-column: auto;
+  }
+
+  .relation-map {
+    height: 480px;
+  }
+
+  .relation-map-note {
+    right: 8px;
+    left: 8px;
+    justify-content: space-between;
   }
 }

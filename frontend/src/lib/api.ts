@@ -14,6 +14,7 @@ import type {
   ProjectFile,
   ProjectInput,
   RelationOverview,
+  RelationGraph,
   ReportDescriptor,
   RuntimeInfo,
   Scan,
@@ -190,5 +191,17 @@ export const api = {
   relationOverview: (projectId: string, scanId?: string) =>
     request<RelationOverview>(`/projects/${projectId}/relations/overview`, {
       query: { scanId }
+    }),
+  relationGraph: (
+    projectId: string,
+    filters: {
+      scanId?: string;
+      relationType?: string;
+      certainty?: string;
+      q?: string;
+    }
+  ) =>
+    request<RelationGraph>(`/projects/${projectId}/relations/graph`, {
+      query: filters
     })
 };

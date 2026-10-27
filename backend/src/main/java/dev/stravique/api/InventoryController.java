@@ -10,6 +10,7 @@ import dev.stravique.api.dto.ModuleDependencyDto;
 import dev.stravique.api.dto.OverviewDto;
 import dev.stravique.api.dto.PageResponse;
 import dev.stravique.api.dto.RelationOverviewDto;
+import dev.stravique.api.dto.RelationGraphDto;
 import dev.stravique.api.dto.TechnologyDto;
 import dev.stravique.application.InventoryQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -88,6 +89,16 @@ public class InventoryController {
             @PathVariable UUID projectId,
             @RequestParam(required = false) UUID scanId) {
         return queryService.relationOverview(projectId, scanId);
+    }
+
+    @GetMapping("/projects/{projectId}/relations/graph")
+    public RelationGraphDto relationGraph(
+            @PathVariable UUID projectId,
+            @RequestParam(required = false) UUID scanId,
+            @RequestParam(required = false) String relationType,
+            @RequestParam(required = false) String certainty,
+            @RequestParam(required = false) String q) {
+        return queryService.relationGraph(projectId, scanId, relationType, certainty, q);
     }
 
     @GetMapping("/files/{fileId}")

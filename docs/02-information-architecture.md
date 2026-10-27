@@ -12,7 +12,7 @@ The persistent left rail contains brand, project navigation, language selection,
 | `/projects/:projectId/overview` | Current inventory state | Asymmetric overview with findings and history |
 | `/projects/:projectId/inventory` | File and evidence exploration | Three-pane workbench |
 | `/projects/:projectId/frameworks` | Framework and API usage | Framework index plus evidence table |
-| `/projects/:projectId/relations` | Cross-file system relationships | Filter strip plus evidence table |
+| `/projects/:projectId/relations` | Cross-file system relationships | Filter strip plus evidence table and evidence-derived map |
 | `/projects/:projectId/reports` | Evidence-backed exports | Report catalog and export controls |
 | `/projects/:projectId/settings` | Project metadata and scan policy | Grouped settings form |
 

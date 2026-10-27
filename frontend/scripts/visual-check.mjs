@@ -41,6 +41,7 @@ const routes = [
   ],
   ["frameworks", `/projects/${project.id}/frameworks?key=SASTRUTS`],
   ["relations", `/projects/${project.id}/relations`],
+  ["relations-map", `/projects/${project.id}/relations?view=map`],
   ["reports", `/projects/${project.id}/reports`],
   ["settings", `/projects/${project.id}/settings`]
 ];
@@ -91,7 +92,14 @@ for (const language of languages) {
       viewport.name === "desktop"
         ? routes
         : routes.filter(([name]) =>
-            ["projects", "overview", "inventory", "relations", "settings"].includes(name)
+            [
+              "projects",
+              "overview",
+              "inventory",
+              "relations",
+              "relations-map",
+              "settings"
+            ].includes(name)
           );
 
     for (const [name, route] of routesForViewport) {
@@ -146,6 +154,17 @@ for (const language of languages) {
             viewport: viewport.name,
             route: name,
             relationRows: 0
+          });
+        }
+      }
+      if (name === "relations-map") {
+        const graphNodes = await page.locator(".react-flow__node").count();
+        if (graphNodes === 0) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            graphNodes: 0
           });
         }
       }

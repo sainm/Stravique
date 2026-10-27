@@ -105,6 +105,32 @@ export interface RelationOverview {
   byCertainty: Record<string, number>;
 }
 
+export interface RelationGraphNode {
+  id: string;
+  path: string;
+  fileName: string;
+  fileType: string;
+  incoming: number;
+  outgoing: number;
+}
+
+export interface RelationGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relationTypes: string[];
+  certainties: string[];
+  count: number;
+}
+
+export interface RelationGraph {
+  projectId: string;
+  scanId?: string;
+  relationCount: number;
+  nodes: RelationGraphNode[];
+  edges: RelationGraphEdge[];
+}
+
 export interface ProjectFile {
   id: string;
   scanId: string;

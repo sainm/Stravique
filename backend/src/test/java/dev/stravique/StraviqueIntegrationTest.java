@@ -127,6 +127,12 @@ class StraviqueIntegrationTest {
                         org.hamcrest.Matchers.greaterThan(0)))
                 .andExpect(jsonPath("$.content[0].sourceFilePath").isNotEmpty())
                 .andExpect(jsonPath("$.content[0].targetFilePath").isNotEmpty());
+        mockMvc.perform(get("/api/v1/projects/{id}/relations/graph", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relationCount").value(
+                        org.hamcrest.Matchers.greaterThan(20)))
+                .andExpect(jsonPath("$.nodes").isNotEmpty())
+                .andExpect(jsonPath("$.edges").isNotEmpty());
 
         String filesResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
                         .param("fileType", "JAVA")
