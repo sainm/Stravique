@@ -3,6 +3,9 @@
 .vscode/
 *.iml
 
+# Local workbench state, not product data
+.workbuddy/
+
 backend/.gradle/
 backend/build/
 backend/*.log
