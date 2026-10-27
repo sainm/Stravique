@@ -228,8 +228,13 @@
   "relation": {
     "JAVA_IMPORT": "Java 导入",
     "JAVA_INHERITANCE": "Java 继承",
+    "SEASAR_BINDING": "Seasar2 注入",
+    "SEASAR_DICON_INJECTION": "dicon 注入",
+    "CONFIG_CLASS_REFERENCE": "配置类引用",
     "STRUTS_ACTION_TO_JSP": "Struts Action 到 JSP",
-    "JSP_FORM_TO_ACTION": "JSP 表单到 Action"
+    "JSP_FORM_TO_ACTION": "JSP 表单到 Action",
+    "MESSAGE_PRODUCTION": "消息产生",
+    "MESSAGE_DISPLAY": "消息展示"
   },
   "frameworks": {
     "eyebrow": "框架使用",

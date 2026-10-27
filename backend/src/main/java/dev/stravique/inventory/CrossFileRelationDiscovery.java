@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +35,15 @@ public class CrossFileRelationDiscovery {
 
     private static final Pattern JSP_FORM = Pattern.compile(
             "(?i)<form\\b[^>]*action\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>"
+    );
+    private static final Pattern CONFIG_CLASS = Pattern.compile(
+            "(?:[a-z_][\\w$]*\\.){2,}[A-Z][\\w$]*(?:\\.[A-Z][\\w$]*)*"
+    );
+    private static final Pattern ACTION_MESSAGE = Pattern.compile(
+            "ActionMessage\\s*\\(\\s*[\"']([^\"']+)[\"']"
+    );
+    private static final Pattern JSP_MESSAGE = Pattern.compile(
+            "(?i)<(?:fmt:message|spring:message)\\b[^>]*\\bkey\\s*=\\s*[\"']([^\"']+)[\"']"
     );
 
     private final TextDecoder decoder;
@@ -80,11 +90,19 @@ public class CrossFileRelationDiscovery {
                 addInheritance(relations, seen, projectId, scanId, source, type,
                         resolveType(type.asString(), source, byFqn, bySimpleName), analyzerVersion);
             }
+            relateBindings(relations, seen, projectId, scanId, source, byFqn,
+                    bySimpleName, analyzerVersion);
         }
 
         Map<String, JavaSource> strutsActions = parseStrutsRelations(
                 root, projectId, scanId, filesByPath, byFqn, relations, seen, analyzerVersion);
         relateJspForms(root, projectId, scanId, filesByPath, strutsActions,
+                relations, seen, analyzerVersion);
+        relateDiconInjection(root, projectId, scanId, filesByPath, byFqn,
+                relations, seen, analyzerVersion);
+        relateConfigurationClasses(root, projectId, scanId, filesByPath, byFqn,
+                relations, seen, analyzerVersion);
+        relateMessages(root, projectId, scanId, filesByPath, javaSources,
                 relations, seen, analyzerVersion);
         return List.copyOf(relations);
     }
@@ -161,6 +179,212 @@ public class CrossFileRelationDiscovery {
                 source.file().getRelativePath(), line, lineText(source.text(), line),
                 "JAVA-PROJECT-INHERITANCE-001", Certainty.ANALYZED, analyzerVersion
         ));
+    }
+
+    private void relateBindings(List<AnalysisRelation> relations, Set<String> seen,
+                                UUID projectId, UUID scanId, JavaSource source,
+                                Map<String, JavaSource> byFqn,
+                                Map<String, List<JavaSource>> bySimpleName,
+                                String analyzerVersion) {
+        for (var field : source.declaration().getFields()) {
+            if (field.getAnnotations().stream().noneMatch(annotation ->
+                    simpleName(annotation.getNameAsString()).equals("Binding"))) {
+                continue;
+            }
+            JavaSource target = resolveType(field.getElementType().asString(), source,
+                    byFqn, bySimpleName);
+            if (target == null || target.file().getId().equals(source.file().getId())) {
+                continue;
+            }
+            int line = line(field.getBegin());
+            add(relations, seen, AnalysisRelation.create(
+                    projectId, scanId, source.file().getId(), target.file().getId(),
+                    source.fqn(), target.fqn(), AnalysisRelationType.SEASAR_BINDING,
+                    source.file().getRelativePath(), line, lineText(source.text(), line),
+                    "JAVA-SEASAR-BINDING-RELATION-001", Certainty.ANALYZED, analyzerVersion
+            ));
+        }
+    }
+
+    private void relateDiconInjection(Path root, UUID projectId, UUID scanId,
+                                      Map<String, ProjectFile> files,
+                                      Map<String, JavaSource> byFqn,
+                                      List<AnalysisRelation> relations, Set<String> seen,
+                                      String analyzerVersion) {
+        List<DiconFile> diconFiles = new ArrayList<>();
+        Map<String, JavaSource> componentsByName = new LinkedHashMap<>();
+        for (ProjectFile file : files.values()) {
+            if (file.getFileType() != FileType.DICON) {
+                continue;
+            }
+            try {
+                TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(file.getRelativePath()));
+                Document document = SecureXml.parse(decoded.text());
+                diconFiles.add(new DiconFile(file, decoded.text(), document));
+                NodeList components = document.getElementsByTagName("component");
+                for (int index = 0; index < components.getLength(); index++) {
+                    Element component = (Element) components.item(index);
+                    String name = component.getAttribute("name");
+                    JavaSource source = byFqn.get(component.getAttribute("class"));
+                    if (!name.isBlank() && source != null) {
+                        componentsByName.put(name, source);
+                    }
+                }
+            } catch (Exception ignored) {
+                // Parse failures are persisted by the per-file analyzer.
+            }
+        }
+
+        for (DiconFile dicon : diconFiles) {
+            NodeList properties = dicon.document().getElementsByTagName("property");
+            for (int index = 0; index < properties.getLength(); index++) {
+                Element property = (Element) properties.item(index);
+                Element owner = ancestor(property, "component");
+                if (owner == null) {
+                    continue;
+                }
+                JavaSource source = byFqn.get(owner.getAttribute("class"));
+                if (source == null) {
+                    String ownerName = owner.getAttribute("name");
+                    source = componentsByName.get(ownerName);
+                }
+                JavaSource target = null;
+                Element nested = directChild(property, "component");
+                if (nested != null) {
+                    target = byFqn.get(nested.getAttribute("class"));
+                }
+                if (target == null) {
+                    target = componentsByName.get(property.getTextContent().trim());
+                }
+                if (source == null || target == null
+                        || source.file().getId().equals(target.file().getId())) {
+                    continue;
+                }
+                String propertyName = property.getAttribute("name");
+                String marker = propertyName.isBlank() ? "<property" : propertyName;
+                int line = findLine(dicon.text(), marker);
+                add(relations, seen, AnalysisRelation.create(
+                        projectId, scanId, dicon.file().getId(), target.file().getId(),
+                        source.fqn() + "#" + propertyName, target.fqn(),
+                        AnalysisRelationType.SEASAR_DICON_INJECTION,
+                        dicon.file().getRelativePath(), line, lineText(dicon.text(), line),
+                        "DICON-INJECTION-RELATION-001", Certainty.ANALYZED, analyzerVersion
+                ));
+            }
+        }
+    }
+
+    private void relateConfigurationClasses(Path root, UUID projectId, UUID scanId,
+                                            Map<String, ProjectFile> files,
+                                            Map<String, JavaSource> byFqn,
+                                            List<AnalysisRelation> relations, Set<String> seen,
+                                            String analyzerVersion) {
+        for (ProjectFile file : files.values()) {
+            if (file.getFileType() != FileType.XML
+                    && file.getFileType() != FileType.PROPERTIES
+                    && file.getFileType() != FileType.YAML) {
+                continue;
+            }
+            try {
+                TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(file.getRelativePath()));
+                List<String> lines = decoded.text().lines().toList();
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = CONFIG_CLASS.matcher(lines.get(index));
+                    while (matcher.find()) {
+                        JavaSource target = byFqn.get(matcher.group());
+                        if (target == null || target.file().getId().equals(file.getId())) {
+                            continue;
+                        }
+                        add(relations, seen, AnalysisRelation.create(
+                                projectId, scanId, file.getId(), target.file().getId(),
+                                file.getRelativePath(), target.fqn(),
+                                AnalysisRelationType.CONFIG_CLASS_REFERENCE,
+                                file.getRelativePath(), index + 1, lines.get(index).strip(),
+                                "CONFIG-PROJECT-CLASS-REF-001", Certainty.INFERRED,
+                                analyzerVersion
+                        ));
+                    }
+                }
+            } catch (Exception ignored) {
+                // Parse failures are persisted by the per-file analyzer.
+            }
+        }
+    }
+
+    private void relateMessages(Path root, UUID projectId, UUID scanId,
+                                Map<String, ProjectFile> files,
+                                List<JavaSource> javaSources,
+                                List<AnalysisRelation> relations, Set<String> seen,
+                                String analyzerVersion) {
+        Map<String, List<ProjectFile>> keyFiles = new LinkedHashMap<>();
+        for (ProjectFile file : files.values()) {
+            if (file.getFileType() != FileType.PROPERTIES) {
+                continue;
+            }
+            try {
+                TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(file.getRelativePath()));
+                for (String line : decoded.text().lines().toList()) {
+                    String trimmed = line.strip();
+                    if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("!")) {
+                        continue;
+                    }
+                    int separator = firstSeparator(trimmed);
+                    if (separator <= 0) {
+                        continue;
+                    }
+                    String key = trimmed.substring(0, separator).trim();
+                    keyFiles.computeIfAbsent(key, ignored -> new ArrayList<>()).add(file);
+                }
+            } catch (Exception ignored) {
+                // Parse failures are persisted by the per-file analyzer.
+            }
+        }
+
+        for (JavaSource source : javaSources) {
+            Matcher matcher = ACTION_MESSAGE.matcher(source.text());
+            while (matcher.find()) {
+                ProjectFile messageFile = uniqueTarget(keyFiles.get(matcher.group(1)));
+                if (messageFile == null) {
+                    continue;
+                }
+                int line = lineAtOffset(source.text(), matcher.start());
+                add(relations, seen, AnalysisRelation.create(
+                        projectId, scanId, source.file().getId(), messageFile.getId(),
+                        source.fqn(), matcher.group(1),
+                        AnalysisRelationType.MESSAGE_PRODUCTION,
+                        source.file().getRelativePath(), line, lineText(source.text(), line),
+                        "JAVA-MESSAGE-PRODUCTION-001", Certainty.ANALYZED, analyzerVersion
+                ));
+            }
+        }
+
+        for (ProjectFile jsp : files.values()) {
+            if (jsp.getFileType() != FileType.JSP) {
+                continue;
+            }
+            try {
+                TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(jsp.getRelativePath()));
+                List<String> lines = decoded.text().lines().toList();
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = JSP_MESSAGE.matcher(lines.get(index));
+                    while (matcher.find()) {
+                        ProjectFile messageFile = uniqueTarget(keyFiles.get(matcher.group(1)));
+                        if (messageFile == null) {
+                            continue;
+                        }
+                        add(relations, seen, AnalysisRelation.create(
+                                projectId, scanId, jsp.getId(), messageFile.getId(),
+                                jsp.getRelativePath(), matcher.group(1),
+                                AnalysisRelationType.MESSAGE_DISPLAY,
+                                jsp.getRelativePath(), index + 1, lines.get(index).strip(),
+                                "JSP-MESSAGE-DISPLAY-001", Certainty.ANALYZED, analyzerVersion
+                        ));
+                    }
+                }
+            } catch (Exception ignored) {
+                // Parse failures are persisted by the per-file analyzer.
+            }
+        }
     }
 
     private Map<String, JavaSource> parseStrutsRelations(
@@ -311,6 +535,50 @@ public class CrossFileRelationDiscovery {
         return value == null ? "" : value.replaceAll("^/+", "");
     }
 
+    private Element ancestor(Element element, String localName) {
+        Node node = element.getParentNode();
+        while (node != null) {
+            if (node instanceof Element parent && matches(parent, localName)) {
+                return parent;
+            }
+            node = node.getParentNode();
+        }
+        return null;
+    }
+
+    private ProjectFile uniqueTarget(List<ProjectFile> files) {
+        if (files == null) {
+            return null;
+        }
+        List<ProjectFile> unique = files.stream().distinct().toList();
+        return unique.size() == 1 ? unique.getFirst() : null;
+    }
+
+    private int firstSeparator(String value) {
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (character == '=' || character == ':' || Character.isWhitespace(character)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private int lineAtOffset(String text, int offset) {
+        int line = 1;
+        for (int index = 0; index < offset && index < text.length(); index++) {
+            if (text.charAt(index) == '\n') {
+                line++;
+            }
+        }
+        return line;
+    }
+
+    private String simpleName(String value) {
+        int separator = value.lastIndexOf('.');
+        return separator < 0 ? value : value.substring(separator + 1);
+    }
+
     private int line(java.util.Optional<com.github.javaparser.Position> position) {
         return position.map(value -> value.line).orElse(1);
     }
@@ -327,5 +595,8 @@ public class CrossFileRelationDiscovery {
         private String simpleName() {
             return declaration.getNameAsString();
         }
+    }
+
+    private record DiconFile(ProjectFile file, String text, Document document) {
     }
 }

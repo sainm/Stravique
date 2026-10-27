@@ -3,6 +3,11 @@ package dev.stravique.domain;
 public enum AnalysisRelationType {
     JAVA_IMPORT,
     JAVA_INHERITANCE,
+    SEASAR_BINDING,
+    SEASAR_DICON_INJECTION,
+    CONFIG_CLASS_REFERENCE,
     STRUTS_ACTION_TO_JSP,
-    JSP_FORM_TO_ACTION
+    JSP_FORM_TO_ACTION,
+    MESSAGE_PRODUCTION,
+    MESSAGE_DISPLAY
 }

@@ -135,8 +135,13 @@ The initial Phase 2 slice creates only relations with a concrete source locator:
 
 - `JAVA_IMPORT` when an import resolves to a Java type declared in another scanned project file.
 - `JAVA_INHERITANCE` when an extends or implements type resolves to another scanned Java type.
+- `SEASAR_BINDING` when a `@Binding` field type resolves to another scanned Java component.
+- `SEASAR_DICON_INJECTION` when dicon component/property declarations identify a project class target.
+- `CONFIG_CLASS_REFERENCE` when a properties/YAML/XML configuration value contains a scanned project class name; this is `INFERRED`.
 - `STRUTS_ACTION_TO_JSP` when `struts-config.xml` maps an action class and forward path to scanned files.
 - `JSP_FORM_TO_ACTION` when a JSP form action matches a configured Struts action path; this remains `INFERRED`.
+- `MESSAGE_PRODUCTION` when a literal `ActionMessage` key resolves to one project properties file.
+- `MESSAGE_DISPLAY` when a JSP message tag key resolves to one project properties file.
 
 Relations are bidirectional when viewing a file, but retain their original source and target direction, evidence path, line, rule ID, analyzer version, and certainty.
 

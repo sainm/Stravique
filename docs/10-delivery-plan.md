@@ -52,11 +52,9 @@ Gate: the acceptance checklist in `README.md` is evidenced by passing commands a
 
 ## Planned Phase 2
 
-The first Phase 2 slice now adds evidence-backed Java and Struts/JSP relations. Remaining Phase 2 work:
+Phase 2 now adds evidence-backed Java, Seasar2, Struts/JSP, configuration, and message relations. Remaining Phase 2 work:
 
-- Action to JSP candidates.
 - DAO to SQL candidates.
-- Message production and display candidates.
-- Reflection and dynamic loading candidates.
+- Runtime resolution of reflection and dynamic loading candidates.
 
 No migration engine work begins until those relationships retain explicit provenance and uncertainty.

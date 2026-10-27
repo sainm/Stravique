@@ -228,8 +228,13 @@
   "relation": {
     "JAVA_IMPORT": "Java import",
     "JAVA_INHERITANCE": "Java inheritance",
+    "SEASAR_BINDING": "Seasar2 injection",
+    "SEASAR_DICON_INJECTION": "dicon injection",
+    "CONFIG_CLASS_REFERENCE": "Configuration class reference",
     "STRUTS_ACTION_TO_JSP": "Struts action to JSP",
-    "JSP_FORM_TO_ACTION": "JSP form to action"
+    "JSP_FORM_TO_ACTION": "JSP form to action",
+    "MESSAGE_PRODUCTION": "Message production",
+    "MESSAGE_DISPLAY": "Message display"
   },
   "frameworks": {
     "eyebrow": "Framework usage",

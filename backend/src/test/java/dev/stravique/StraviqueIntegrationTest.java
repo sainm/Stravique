@@ -127,6 +127,11 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.relations[?(@.relationType == 'JAVA_INHERITANCE' "
                         + "&& @.targetObjectKey == 'com.example.legacy.framework.BaseWorkflowController')]")
                         .isNotEmpty())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'SEASAR_BINDING' "
+                        + "&& @.targetObjectKey == 'com.example.legacy.service.OrderService')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'MESSAGE_PRODUCTION' "
+                        + "&& @.targetObjectKey == 'error.order.save')]").isNotEmpty())
                 .andExpect(jsonPath("$.relations[?(@.relationType == 'STRUTS_ACTION_TO_JSP')]")
                         .isNotEmpty());
 
@@ -140,7 +145,36 @@ class StraviqueIntegrationTest {
         mockMvc.perform(get("/api/v1/files/{id}", jspFileId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.relations[?(@.relationType == 'JSP_FORM_TO_ACTION' "
-                        + "&& @.certainty == 'INFERRED')]").isNotEmpty());
+                        + "&& @.certainty == 'INFERRED')]").isNotEmpty())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'MESSAGE_DISPLAY' "
+                        + "&& @.targetObjectKey == 'common.search')]").isNotEmpty());
+
+        String diconResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("fileType", "DICON")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String diconFileId = fileIdByPath(diconResponse,
+                "web-app/src/main/webapp/WEB-INF/dicon/app.dicon");
+        mockMvc.perform(get("/api/v1/files/{id}", diconFileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'SEASAR_DICON_INJECTION' "
+                        + "&& @.targetObjectKey == 'com.example.legacy.dao.OrderDao')]")
+                        .isNotEmpty());
+
+        String propertiesResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("fileType", "PROPERTIES")
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String propertiesFileId = fileIdByPath(propertiesResponse,
+                "web-app/src/main/resources/config/classes.properties");
+        mockMvc.perform(get("/api/v1/files/{id}", propertiesFileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'CONFIG_CLASS_REFERENCE' "
+                        + "&& @.targetObjectKey == 'com.example.legacy.action.OrderAction')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.relations[0].certainty").value("INFERRED"));
 
         mockMvc.perform(get("/api/v1/projects/{id}/frameworks/SASTRUTS", projectId))
                 .andExpect(status().isOk())
