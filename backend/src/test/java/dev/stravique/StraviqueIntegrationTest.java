@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -36,6 +37,10 @@ class StraviqueIntegrationTest {
 
     private static final Path SAMPLE = Path.of(System.getProperty("user.dir"))
             .getParent().resolve("sample-projects/legacy-web-demo").normalize();
+
+    private static final String FILE_CSV_HEADER = "\"id\",\"path\",\"type\",\"moduleId\",\"sizeBytes\","
+            + "\"encoding\",\"lastModifiedAt\",\"scanStatus\",\"parseStatus\",\"parseError\","
+            + "\"frameworkApiCount\",\"generated\",\"changeType\",\"structureRole\",\"sha256\"";
 
     @Autowired
     MockMvc mockMvc;
@@ -118,8 +123,54 @@ class StraviqueIntegrationTest {
 
         mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.csv", projectId))
                 .andExpect(status().isOk())
-                .andExpect(result -> assertThat(result.getResponse().getContentAsString())
-                        .contains("path", "legacy-broken.xml"));
+                .andExpect(result -> {
+                    byte[] body = result.getResponse().getContentAsByteArray();
+                    assertThat(body[0]).isEqualTo((byte) 0xEF);
+                    assertThat(body[1]).isEqualTo((byte) 0xBB);
+                    assertThat(body[2]).isEqualTo((byte) 0xBF);
+                    String csv = decode(body);
+                    assertThat(csv.lines().findFirst().orElse("")).isEqualTo(FILE_CSV_HEADER);
+                    assertThat(csv).contains("legacy-broken.xml");
+                });
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.csv", projectId)
+                        .param("lang", "zh-CN"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    String csv = decode(result.getResponse().getContentAsByteArray());
+                    assertThat(csv.lines().findFirst().orElse("")).isEqualTo(FILE_CSV_HEADER);
+                    assertThat(csv).doesNotContain("路径");
+                });
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.csv", projectId)
+                        .header("Accept-Language", "ja-JP"))
+                .andExpect(status().isOk())
+                .andExpect(result -> assertThat(decode(result.getResponse().getContentAsByteArray())
+                        .lines().findFirst().orElse("")).isEqualTo(FILE_CSV_HEADER));
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.markdown", projectId))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    String markdown = decode(result.getResponse().getContentAsByteArray());
+                    assertThat(markdown).startsWith("# File inventory");
+                    assertThat(markdown).contains("| Path |");
+                });
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.markdown", projectId)
+                        .param("lang", "zh-CN"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    String markdown = decode(result.getResponse().getContentAsByteArray());
+                    assertThat(markdown).startsWith("# 文件清单");
+                    assertThat(markdown).contains("| 路径 |");
+                    assertThat(markdown).doesNotContain("| Path |");
+                });
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.markdown", projectId)
+                        .param("lang", "ja-JP"))
+                .andExpect(status().isOk())
+                .andExpect(result -> assertThat(decode(
+                        result.getResponse().getContentAsByteArray())).startsWith("# ファイル棚卸"));
 
         mockMvc.perform(get("/api/v1/projects/{id}/reports/TECHNOLOGY.json", projectId))
                 .andExpect(status().isOk())
@@ -127,6 +178,15 @@ class StraviqueIntegrationTest {
                     JsonNode rows = objectMapper.readTree(result.getResponse().getContentAsByteArray());
                     assertThat(rows.isArray()).isTrue();
                     assertThat(rows.size()).isEqualTo(completed.get("technologyCount").asInt());
+                });
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/TECHNOLOGY.json", projectId)
+                        .param("lang", "zh-CN"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    JsonNode rows = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+                    assertThat(rows.get(0).has("technologyKey")).isTrue();
+                    assertThat(rows.get(0).get("technologyKey").isTextual()).isTrue();
                 });
         mockMvc.perform(get("/api/v1/projects/{id}/audit-events", projectId)
                         .param("size", "100"))
@@ -140,16 +200,55 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void exportsHeaderOnlyCsvWhenNoScanHasRun() throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Empty Report Project",
+                                "sourcePath", SAMPLE.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.csv", projectId))
+                .andExpect(status().isOk())
+                .andExpect(result -> assertThat(decode(
+                        result.getResponse().getContentAsByteArray()).strip()).isEqualTo(FILE_CSV_HEADER));
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/FILES.markdown", projectId)
+                        .param("lang", "zh-CN"))
+                .andExpect(status().isOk())
+                .andExpect(result -> assertThat(decode(result.getResponse().getContentAsByteArray()))
+                        .contains("# 文件清单", "该报告暂无持久化数据行。"));
+
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/TECHNOLOGY.json", projectId))
+                .andExpect(status().isOk())
+                .andExpect(result -> assertThat(objectMapper.readTree(
+                        result.getResponse().getContentAsByteArray()).isEmpty()).isTrue());
+    }
+
+    @Test
     void returnsStableLocalizedErrorKeys() throws Exception {
-        for (String language : new String[]{"en-US", "zh-CN", "ja-JP"}) {
+        Map<String, String> expected = Map.of(
+                "en-US", "The requested project was not found.",
+                "zh-CN", "未找到指定的分析项目。",
+                "ja-JP", "指定された分析プロジェクトが見つかりません。");
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
             mockMvc.perform(get("/api/v1/projects/{id}", "00000000-0000-0000-0000-000000000000")
-                            .header("Accept-Language", language))
+                            .header("Accept-Language", entry.getKey()))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"))
                     .andExpect(jsonPath("$.messageKey").value("error.project.notFound"))
-                    .andExpect(jsonPath("$.message").isNotEmpty())
+                    .andExpect(jsonPath("$.message").value(entry.getValue()))
                     .andExpect(jsonPath("$.requestId").isNotEmpty());
         }
+    }
+
+    @Test
+    void configuredDefaultLocaleDrivesErrorsWithoutHeader() throws Exception {
+        mockMvc.perform(get("/api/v1/projects/{id}", "00000000-0000-0000-0000-000000000000"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("The requested project was not found."));
     }
 
     @Test
@@ -237,6 +336,12 @@ class StraviqueIntegrationTest {
             }
         }
         return result;
+    }
+
+    private static String decode(byte[] body) {
+        int offset = body.length >= 3
+                && body[0] == (byte) 0xEF && body[1] == (byte) 0xBB && body[2] == (byte) 0xBF ? 3 : 0;
+        return new String(body, offset, body.length - offset, StandardCharsets.UTF_8);
     }
 
     private record Snapshot(String hash, long modifiedAt, long size) {

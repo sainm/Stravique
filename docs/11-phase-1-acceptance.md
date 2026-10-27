@@ -22,7 +22,8 @@ It covers the following acceptance areas.
 | Display uncertainty | Dynamic loading and reflection produce review-required findings |
 | Display parse failures | Deliberately malformed XML produces a parse-failure record |
 | Export reports | Report descriptors and CSV/JSON exports read persisted rows |
-| Support three languages | Locale parity and localized API error tests |
+| Localize exports | Markdown exports assert per-locale titles and column labels while CSV and JSON field names stay stable |
+| Support three languages | Backend and frontend locale-key parity tests plus localized API error tests |
 | Preserve source | Integration test compares SHA-256, size, and modification time before and after scanning |
 | Modern developer UI | Six project routes are rendered at desktop and mobile widths in three languages |
 

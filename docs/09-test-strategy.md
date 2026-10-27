@@ -13,6 +13,7 @@
 - POM/Gradle declarations.
 - File hash diff classification.
 - Report serialization and CSV escaping.
+- Localized Markdown titles and column labels with stable CSV and JSON field names.
 - Technology certainty aggregation.
 
 ### Integration tests
@@ -23,6 +24,7 @@
 - Evidence persistence and retrieval.
 - Framework aggregate queries.
 - Report counts matching persisted rows.
+- Localized Markdown exports with locale-independent CSV and JSON field names.
 - i18n error response keys in all three locales.
 
 ### Fixture tests

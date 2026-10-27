@@ -164,7 +164,7 @@ function ReportRow({
             <a
               key={format}
               className="format-button"
-              href={api.reportUrl(projectId, report.type, format, scanId)}
+              href={api.reportUrl(projectId, report.type, format, scanId, i18n.language)}
               download
               aria-label={t("reports.downloadFormat", {
                 format: formatContentTypes[format] || format,

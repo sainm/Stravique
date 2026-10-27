@@ -10,6 +10,18 @@
 - API errors use a stable `code`, `messageKey`, localized `message`, `args`, timestamp, and request ID.
 - `Accept-Language` supports `en-US`, `zh-CN`, and `ja-JP`.
 
+## Language resolution
+
+Interface and export language resolve in this order:
+
+1. The `lang` query parameter, when present and supported.
+2. The `Accept-Language` request header, first supported match in client quality order.
+3. `STRAVIQUE_DEFAULT_LOCALE`, which defaults to `en-US`.
+
+An explicit `lang` value that is unsupported falls through to the header and then to the configured default rather than returning an error, so a stale bookmark never fails. Regional variants narrow to the supported language: `zh-TW` and `zh_CN` resolve to `zh-CN`, `en-GB` resolves to `en-US`. The frontend sends `lang` on export links because a plain `<a download>` navigation cannot control every browser's `Accept-Language`.
+
+The configured default is authoritative when the request carries no `Accept-Language` header. The servlet container reports its own locale for such requests, so the resolver ignores the container value in that case.
+
 ## Runtime
 
 | Method | Path | Purpose |
@@ -61,6 +73,22 @@
 Formats: `csv`, `json`, `markdown`.
 
 Report types: `files`, `structure`, `technology`, `frameworks`, `configuration`, `parse-errors`, `reviews`.
+
+Exports accept optional `scanId` and `lang` query parameters. The export inherits the language resolution described above.
+
+Localization applies to the Markdown document only:
+
+| Format | Titles and column headers | Cell values |
+| --- | --- | --- |
+| `csv` | Stable English field names | Unchanged |
+| `markdown` | Localized | Unchanged |
+| `json` | Stable English field names | Unchanged |
+
+CSV and JSON share the same stable English field names, so a downstream parser never breaks when a user switches language; only Markdown renders a localized title and localized column labels. Cell values stay language-neutral as well, so a status such as `ANALYZED` or a file type such as `JSP` reads the same in every locale.
+
+A CSV export always writes its header row, including when the report has no rows, so an empty result appears as a header-only file rather than a zero-byte download. Output starts with a UTF-8 byte order mark because cell values can contain local text and spreadsheet tools need it to select the correct encoding.
+
+Report types, formats, and report counts do not change with language.
 
 ## Status codes
 

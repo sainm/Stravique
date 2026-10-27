@@ -18,6 +18,7 @@ import dev.stravique.infrastructure.ModuleDependencyRepository;
 import dev.stravique.infrastructure.ScanRunRepository;
 import dev.stravique.infrastructure.TechnologyUsageRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,13 +51,14 @@ public class ReportService {
     private final TechnologyUsageRepository technologyRepository;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final MessageSource messageSource;
 
     public ReportService(AnalysisProjectRepository projectRepository, ScanRunRepository scanRepository,
                          ProjectFileRepository fileRepository, ProjectModuleRepository moduleRepository,
                          ModuleDependencyRepository moduleDependencyRepository,
                          AnalysisFindingRepository findingRepository,
                          TechnologyUsageRepository technologyRepository, AuditService auditService,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper, MessageSource messageSource) {
         this.projectRepository = projectRepository;
         this.scanRepository = scanRepository;
         this.fileRepository = fileRepository;
@@ -66,6 +68,7 @@ public class ReportService {
         this.technologyRepository = technologyRepository;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
+        this.messageSource = messageSource;
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +87,8 @@ public class ReportService {
     }
 
     @Transactional
-    public ReportDownload export(UUID projectId, UUID requestedScanId, String reportType, String format) {
+    public ReportDownload export(UUID projectId, UUID requestedScanId, String reportType,
+                                 String format, Locale locale) {
         AnalysisProject project = requireProject(projectId);
         ScanRun scan = resolveScan(projectId, requestedScanId);
         ReportType type = ReportType.parse(reportType);
@@ -93,7 +97,7 @@ public class ReportService {
                     "error.report.format");
         }
         List<LinkedHashMap<String, Object>> rows = scan == null ? List.of() : reportRows(type, scan);
-        byte[] content = serialize(rows, format.toLowerCase(Locale.ROOT));
+        byte[] content = serialize(rows, format.toLowerCase(Locale.ROOT), type, locale);
         String extension = format.equalsIgnoreCase("markdown") ? "md" : format.toLowerCase(Locale.ROOT);
         String contentType = switch (extension) {
             case "csv" -> "text/csv; charset=UTF-8";
@@ -232,7 +236,36 @@ public class ReportService {
         return row;
     }
 
-    private byte[] serialize(List<LinkedHashMap<String, Object>> rows, String format) {
+    private static final List<String> FILE_COLUMNS = List.of(
+            "id", "path", "type", "moduleId", "sizeBytes", "encoding", "lastModifiedAt",
+            "scanStatus", "parseStatus", "parseError", "frameworkApiCount", "generated",
+            "changeType", "structureRole", "sha256");
+
+    private static final List<String> STRUCTURE_COLUMNS = List.of(
+            "id", "path", "name", "sourceRoots", "testRoots", "resourceRoots", "webRoots",
+            "configRoots", "sqlRoots", "moduleDependencies");
+
+    private static final List<String> TECHNOLOGY_COLUMNS = List.of(
+            "id", "technologyKey", "name", "category", "status", "apiEvidenceCount",
+            "configurationEvidenceCount", "dependencyEvidenceCount", "totalEvidenceCount",
+            "ruleIds", "firstEvidencePath", "firstEvidenceLine", "analyzerVersion", "analyzedAt");
+
+    private static final List<String> FINDING_COLUMNS = List.of(
+            "id", "path", "lineStart", "lineEnd", "analysisKind", "objectKey", "summary",
+            "ruleId", "evidence", "certainty", "analyzerVersion", "analyzedAt", "parseStatus",
+            "metadata");
+
+    private static List<String> columns(ReportType type) {
+        return switch (type) {
+            case FILES -> FILE_COLUMNS;
+            case STRUCTURE -> STRUCTURE_COLUMNS;
+            case TECHNOLOGY -> TECHNOLOGY_COLUMNS;
+            case FRAMEWORKS, CONFIGURATION, PARSE_ERRORS, REVIEWS -> FINDING_COLUMNS;
+        };
+    }
+
+    private byte[] serialize(List<LinkedHashMap<String, Object>> rows, String format,
+                             ReportType type, Locale locale) {
         if (format.equals("json")) {
             try {
                 return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(rows);
@@ -241,35 +274,48 @@ public class ReportService {
             }
         }
         if (format.equals("csv")) {
-            return csv(rows).getBytes(StandardCharsets.UTF_8);
+            return withUtf8Bom(csv(rows, type));
         }
-        return markdown(rows).getBytes(StandardCharsets.UTF_8);
+        return markdown(rows, type, locale).getBytes(StandardCharsets.UTF_8);
     }
 
-    private String csv(List<LinkedHashMap<String, Object>> rows) {
-        if (rows.isEmpty()) {
-            return "";
+    private byte[] withUtf8Bom(String content) {
+        byte[] body = content.getBytes(StandardCharsets.UTF_8);
+        if (body.length == 0) {
+            return body;
         }
-        List<String> headers = new ArrayList<>(rows.getFirst().keySet());
+        byte[] encoded = new byte[body.length + 3];
+        encoded[0] = (byte) 0xEF;
+        encoded[1] = (byte) 0xBB;
+        encoded[2] = (byte) 0xBF;
+        System.arraycopy(body, 0, encoded, 3, body.length);
+        return encoded;
+    }
+
+    private String csv(List<LinkedHashMap<String, Object>> rows, ReportType type) {
+        List<String> headers = columns(type);
         StringBuilder output = new StringBuilder();
-        output.append(headers.stream().map(this::csvValue)
-                .reduce((left, right) -> left + "," + right).orElse("")).append('\n');
+        output.append(String.join(",", headers.stream().map(this::csvValue).toList())).append('\n');
         for (Map<String, Object> row : rows) {
-            output.append(headers.stream().map(header -> csvValue(value(row.get(header))))
-                    .reduce((left, right) -> left + "," + right).orElse("")).append('\n');
+            output.append(String.join(",", headers.stream()
+                    .map(header -> csvValue(value(row.get(header)))).toList())).append('\n');
         }
         return output.toString();
     }
 
-    private String markdown(List<LinkedHashMap<String, Object>> rows) {
+    private String markdown(List<LinkedHashMap<String, Object>> rows, ReportType type, Locale locale) {
+        List<String> headers = columns(type);
+        String title = message("report.title." + type.name(), locale, type.name());
         if (rows.isEmpty()) {
-            return "# Stravique Inventory Report\n\nNo persisted rows are available for this report.\n";
+            return "# " + title + "\n\n"
+                    + message("report.markdownEmpty", locale,
+                    "No persisted rows are available for this report.") + "\n";
         }
-        List<String> headers = new ArrayList<>(rows.getFirst().keySet());
-        StringBuilder output = new StringBuilder("# Stravique Inventory Report\n\n");
+        StringBuilder output = new StringBuilder("# ").append(title).append("\n\n");
         output.append('|');
         for (String header : headers) {
-            output.append(' ').append(escapeMarkdown(header)).append(" |");
+            output.append(' ').append(escapeMarkdown(
+                    message("report.column." + header, locale, header))).append(" |");
         }
         output.append('\n').append('|');
         for (int index = 0; index < headers.size(); index++) {
@@ -325,6 +371,10 @@ public class ReportService {
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
         return slug.isBlank() ? "project" : slug;
+    }
+
+    private String message(String key, Locale locale, String fallback) {
+        return messageSource.getMessage(key, null, fallback, locale);
     }
 
     public record ReportDownload(byte[] content, String contentType, String filename) {

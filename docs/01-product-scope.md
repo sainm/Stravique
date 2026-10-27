@@ -61,7 +61,7 @@ These states are not interchangeable. A Maven dependency is `IDENTIFIED`, not `A
 - Results are persisted before they are displayed.
 - Exports read persisted results only.
 - Missing data remains missing; it is never filled with sample values.
-- Technical labels and stable enums do not change with UI language.
+- Technical labels and stable enums do not change with UI language. Exported column names and cell values are technical labels; only the Markdown document renders localized titles and column labels.
 - The browser receives relative repository paths, not arbitrary filesystem access.
 
 ## Success condition

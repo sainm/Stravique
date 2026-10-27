@@ -123,7 +123,7 @@ Additional runtime controls:
 | `STRAVIQUE_MAX_FILE_BYTES` | `2097152` | Per-file analysis limit |
 | `STRAVIQUE_MAX_FILES` | `100000` | Scan file-count limit |
 | `STRAVIQUE_ANALYZER_VERSION` | `1.0.0` | Persisted analyzer version |
-| `STRAVIQUE_DEFAULT_LOCALE` | `en-US` | Backend default locale |
+| `STRAVIQUE_DEFAULT_LOCALE` | `en-US` | Fallback for interface messages and exports when the request states no language |
 | `SERVER_PORT` | `8080` | Backend port |
 | `STRAVIQUE_DB_URL` | `jdbc:postgresql://127.0.0.1:5432/stravique` | Runtime database |
 | `STRAVIQUE_DB_USER` | Current OS user | PostgreSQL role |
@@ -186,6 +186,8 @@ GET /api/v1/projects/{projectId}/reports/{type}.{format}
 Types: `FILES`, `STRUCTURE`, `TECHNOLOGY`, `FRAMEWORKS`, `CONFIGURATION`, `PARSE_ERRORS`, and `REVIEWS`.
 
 Formats: `csv`, `json`, and `markdown`.
+
+Exports accept an optional `lang` parameter. Language resolves from `lang`, then `Accept-Language`, then `STRAVIQUE_DEFAULT_LOCALE`. Only Markdown localizes its title and column labels; CSV and JSON keep stable English field names so a parser never breaks when the interface language changes. Cell values stay language-neutral, so a status such as `ANALYZED` reads the same in every language. CSV output always includes a header row, even for an empty report, and starts with a UTF-8 byte order mark.
 
 ## Verify
 

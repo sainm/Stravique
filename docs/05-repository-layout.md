@@ -22,6 +22,7 @@
 |       |   |   `-- inventory/
 |       |   `-- resources/
 |       |       |-- application.yml
+|       |       |-- application-test.yml
 |       |       |-- db/migration/
 |       |       `-- i18n/
 |       `-- test/
@@ -35,8 +36,9 @@
 |   |   |-- features/
 |   |   |-- lib/
 |   |   |-- locales/
-|   |   `-- styles/
-|   `-- tests/
+|   |   |-- styles/
+|   |   `-- test/
+|   `-- vite.config.ts
 |-- sample-projects/
 |   `-- legacy-web-demo/
 |-- docs/

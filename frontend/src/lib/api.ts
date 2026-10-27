@@ -158,8 +158,8 @@ export const api = {
     request<ReportDescriptor[]>(`/projects/${projectId}/reports`, {
       query: { scanId }
     }),
-  reportUrl: (projectId: string, type: string, format: string, scanId?: string) =>
-    `${API_BASE}/projects/${projectId}/reports/${type}.${format}${queryString({ scanId })}`,
+  reportUrl: (projectId: string, type: string, format: string, scanId?: string, lang?: string) =>
+    `${API_BASE}/projects/${projectId}/reports/${type}.${format}${queryString({ scanId, lang })}`,
   pathOverrides: (projectId: string) =>
     request<PathOverride[]>(`/projects/${projectId}/path-overrides`),
   replacePathOverrides: (projectId: string, inputs: PathOverrideInput[]) =>

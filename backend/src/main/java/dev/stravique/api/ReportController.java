@@ -2,6 +2,8 @@ package dev.stravique.api;
 
 import dev.stravique.api.dto.ReportDescriptorDto;
 import dev.stravique.application.ReportService;
+import dev.stravique.config.RequestLocaleSupport;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,9 +23,11 @@ import java.util.UUID;
 public class ReportController {
 
     private final ReportService reportService;
+    private final RequestLocaleSupport localeSupport;
 
-    public ReportController(ReportService reportService) {
+    public ReportController(ReportService reportService, RequestLocaleSupport localeSupport) {
         this.reportService = reportService;
+        this.localeSupport = localeSupport;
     }
 
     @GetMapping
@@ -38,8 +42,11 @@ public class ReportController {
             @PathVariable UUID projectId,
             @PathVariable String type,
             @PathVariable String format,
-            @RequestParam(required = false) UUID scanId) {
-        ReportService.ReportDownload download = reportService.export(projectId, scanId, type, format);
+            @RequestParam(required = false) UUID scanId,
+            @RequestParam(required = false) String lang,
+            HttpServletRequest request) {
+        ReportService.ReportDownload download = reportService.export(
+                projectId, scanId, type, format, localeSupport.resolve(lang, request));
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(download.filename(), StandardCharsets.UTF_8)
                 .build();
