@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: stravique
+  datasource:
+    url: ${STRAVIQUE_DB_URL:jdbc:postgresql://127.0.0.1:5432/stravique}
+    username: ${STRAVIQUE_DB_USER:${user.name}}
+    password: ${STRAVIQUE_DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+  mvc:
+    problemdetails:
+      enabled: false
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+
+stravique:
+  analyzer-version: ${STRAVIQUE_ANALYZER_VERSION:1.0.0}
+  default-locale: ${STRAVIQUE_DEFAULT_LOCALE:en-US}
+  scan:
+    allowed-roots: ${STRAVIQUE_ALLOWED_SCAN_ROOTS:}
+    max-file-bytes: ${STRAVIQUE_MAX_FILE_BYTES:2097152}
+    max-files: ${STRAVIQUE_MAX_FILES:100000}
+  cors:
+    allowed-origins: ${STRAVIQUE_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+logging:
+  level:
+    dev.stravique: INFO
+    org.hibernate.SQL: WARN

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components>
+    <component name="orderAction" class="com.example.legacy.action.OrderAction">
+        <property name="orderService">orderService</property>
+    </component>
+</components>

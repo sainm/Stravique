@@ -1,0 +1,406 @@
+{
+  "common": {
+    "unexpectedError": "An unexpected error occurred.",
+    "requestFailed": "The request could not be completed",
+    "retry": "Retry",
+    "loading": "Loading",
+    "close": "Close",
+    "open": "Open",
+    "continue": "Continue",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{total}}",
+    "refresh": "Refresh",
+    "scanAgain": "Scan again",
+    "scanProject": "Scan project",
+    "scanning": "Scanning",
+    "starting": "Starting",
+    "cancel": "Cancel",
+    "creating": "Creating",
+    "create": "Create",
+    "notDetected": "Not detected",
+    "never": "Never",
+    "evidenceCount": "{{count}} evidence",
+    "saving": "Saving",
+    "saveChanges": "Save changes",
+    "saved": "Saved",
+    "add": "Add"
+  },
+  "brand": {
+    "tagline": "Legacy intelligence",
+    "readOnly": "Read-only inventory"
+  },
+  "language": {
+    "label": "Interface language",
+    "en": "English",
+    "zh": "简体中文",
+    "ja": "日本語"
+  },
+  "nav": {
+    "overview": "Overview",
+    "inventory": "Inventory",
+    "frameworks": "Frameworks",
+    "reports": "Reports",
+    "settings": "Settings",
+    "projects": "All projects",
+    "primary": "Primary navigation",
+    "workspace": "Workspace",
+    "openMenu": "Open navigation"
+  },
+  "project": {
+    "current": "Current project",
+    "switch": "Switch project"
+  },
+  "projects": {
+    "eyebrow": "Project registry",
+    "title": "Legacy systems, brought into focus.",
+    "description": "Register a local Java web source tree, establish a traceable inventory, and decide what deserves investigation next.",
+    "create": "Add project",
+    "registrySummary": "Project registry summary",
+    "registeredCount": "{{count}} registered project",
+    "registryLoading": "Loading project registry",
+    "registryHint": "Each project keeps independent scans, evidence, and reports.",
+    "readOnlyPolicy": "Source directories remain read-only",
+    "limit": "{{size}} MB per-file analysis limit",
+    "emptyTitle": "No projects registered yet",
+    "emptyDescription": "Add an existing Java web source directory. The backend validates the path before any inventory starts.",
+    "listLabel": "Registered projects",
+    "columns": {
+      "project": "Project",
+      "stack": "Detected stack",
+      "lastScan": "Last scan",
+      "status": "Status"
+    },
+    "awaitingScan": "Awaiting first scan",
+    "notScanned": "Not scanned",
+    "openSettings": "Open project settings",
+    "accessEyebrow": "Local access boundary",
+    "accessTitle": "The browser never walks your filesystem.",
+    "accessDescription": "Inventory scans run in the local backend and must resolve beneath configured roots. Symlinks are not followed, and source mutation is not part of the inventory API.",
+    "createTitle": "Register a legacy project",
+    "createDescription": "Point Stravique at an existing source directory. Project metadata can be corrected after the first scan.",
+    "createAndOpen": "Create and open"
+  },
+  "projectType": {
+    "UNKNOWN": "Unknown project type",
+    "MAVEN_SINGLE_MODULE": "Maven single module",
+    "MAVEN_MULTI_MODULE": "Maven multi-module",
+    "GRADLE_SINGLE_MODULE": "Gradle single module",
+    "GRADLE_MULTI_MODULE": "Gradle multi-module",
+    "ECLIPSE_WEB": "Eclipse web project"
+  },
+  "buildTool": {
+    "UNKNOWN": "Unknown build tool",
+    "MAVEN": "Maven",
+    "GRADLE": "Gradle",
+    "MIXED": "Maven and Gradle"
+  },
+  "analysisScope": {
+    "FULL": "Full source and configuration",
+    "SOURCE_ONLY": "Source and web files",
+    "CONFIGURATION_ONLY": "Build and configuration files"
+  },
+  "form": {
+    "name": "Project name",
+    "namePlaceholder": "Customer portal modernization",
+    "sourcePath": "Local source directory",
+    "sourcePathPlaceholder": "/absolute/path/to/legacy-project",
+    "sourcePathHint": "The directory is resolved and validated by the backend before registration.",
+    "description": "Description",
+    "descriptionPlaceholder": "Purpose, ownership, or current investigation context",
+    "sourceFramework": "Source framework",
+    "sourceFrameworkPlaceholder": "SAStruts, Struts 1, Seasar2",
+    "targetFramework": "Target framework",
+    "targetFrameworkPlaceholder": "Spring MVC, Spring Boot",
+    "allowedRoots": "Allowed scan roots"
+  },
+  "overview": {
+    "eyebrow": "Inventory overview",
+    "defaultDescription": "Evidence-backed status for this legacy system.",
+    "noScanTitle": "Build the first evidence set",
+    "noScanDescription": "Start a read-only inventory to establish modules, file types, framework usage, and review items.",
+    "runFirstScan": "Run first inventory",
+    "facts": {
+      "readOnly": "No source writes",
+      "structure": "Module and root discovery",
+      "changeTracking": "Repeated scans preserve change history"
+    },
+    "scanNumber": "Inventory scan #{{number}}",
+    "scanInProgress": "The backend is walking and analyzing this source tree.",
+    "metricsLabel": "Inventory scan metrics",
+    "metrics": {
+      "files": "Files discovered",
+      "modules": "Modules",
+      "analyzed": "Files analyzed",
+      "evidence": "Evidence records",
+      "review": "Review items",
+      "parseFailures": "Parse failures"
+    },
+    "nextActionEyebrow": "Recommended next action",
+    "nextActions": {
+      "RUN_SCAN": "Run the first inventory scan.",
+      "WAIT_FOR_SCAN": "Wait for the active scan to reach a persisted terminal state.",
+      "RETRY_SCAN": "Inspect the failed scan, adjust the source or policy, then retry.",
+      "REVIEW_PARSE_FAILURES": "Resolve parser failures before trusting framework totals.",
+      "REVIEW_UNCERTAINTIES": "Review dynamic and convention-based findings before migration planning.",
+      "INSPECT_RESULTS": "Explore the evidence and framework usage before defining the next analysis phase."
+    },
+    "stackEyebrow": "Technology landscape",
+    "stackTitle": "Observed stack",
+    "openFrameworks": "Framework usage",
+    "noTechnology": "No technology evidence is available for this scan.",
+    "moreTechnologies": "View {{count}} more technologies",
+    "reviewEyebrow": "Human attention",
+    "reviewTitle": "Open review items",
+    "noReviewTitle": "No unresolved review items",
+    "noReviewDescription": "The current scan did not persist review-required or parse-failed evidence.",
+    "openAllReviews": "Open all review items",
+    "compositionEyebrow": "File composition",
+    "compositionTitle": "What this system is made of",
+    "openExplorer": "Open inventory",
+    "structureEyebrow": "Module structure",
+    "structureTitle": "Detected source roots",
+    "rootCount": "{{count}} roots",
+    "historyEyebrow": "Scan history",
+    "historyTitle": "Inventory runs",
+    "historyNote": "New scans create immutable records.",
+    "historyFiles": "{{count}} files",
+    "historyReviews": "{{count}} review"
+  },
+  "inventory": {
+    "eyebrow": "Inventory Explorer",
+    "title": "Follow every result to its source.",
+    "description": "Browse the persisted scan tree, inspect files, and verify findings against exact line evidence.",
+    "scanOverview": "Scan overview",
+    "noScanTitle": "Inventory is waiting for a scan",
+    "noScanDescription": "Run a read-only scan to populate the repository tree and evidence inspector.",
+    "viewLabel": "Inventory view",
+    "filesTab": "Files {{count}}",
+    "reviewTab": "Review {{count}}",
+    "analyzerVersion": "Analyzer v{{version}}",
+    "treeEyebrow": "Repository",
+    "treeTitle": "Directory tree",
+    "allFiles": "All files",
+    "modules": "Modules",
+    "filesEyebrow": "Files and evidence",
+    "reviewEyebrow": "Needs attention",
+    "fileResults": "{{count}} files",
+    "reviewResults": "{{count}} review items",
+    "search": "Search files",
+    "searchPlaceholder": "Search path or filename",
+    "fileType": "File type",
+    "allTypes": "All types",
+    "parseStatus": "File analysis state",
+    "allStates": "All states",
+    "noMatchesTitle": "No files match these filters",
+    "noMatchesDescription": "Clear the search or choose a different directory, type, or analysis state.",
+    "noReviewsTitle": "No review items in this scan",
+    "noReviewsDescription": "Unresolved, inferred, and parse-failed findings will appear here.",
+    "inspectorTitle": "Evidence inspector",
+    "inspectorPlaceholder": "Select a file to inspect its metadata, parse state, rules, and source evidence.",
+    "inspectorEyebrow": "File inspector",
+    "metadata": {
+      "type": "Type",
+      "size": "Size",
+      "encoding": "Encoding",
+      "modified": "Last modified",
+      "change": "Change",
+      "role": "Structure role"
+    },
+    "parseError": "Parse error",
+    "evidenceEyebrow": "Traceable findings",
+    "evidenceTitle": "{{count}} evidence records",
+    "noEvidence": "No framework or configuration evidence was persisted for this file.",
+    "line": "Line {{line}}",
+    "analyzer": "Analyzer v{{version}}",
+    "openFramework": "Open framework",
+    "apiCount": "{{count}} API",
+    "expand": "Expand directory",
+    "collapse": "Collapse directory"
+  },
+  "frameworks": {
+    "eyebrow": "Framework usage",
+    "title": "Separate signals from confirmed use.",
+    "description": "Inspect framework, build, web, and data-access evidence with its certainty and source location.",
+    "noScanTitle": "No framework inventory yet",
+    "noScanDescription": "Run the first scan to identify dependencies, APIs, configuration, and custom tag usage.",
+    "emptyTitle": "No technology evidence found",
+    "emptyDescription": "The scan completed without matching the configured technology and framework rules.",
+    "indexEyebrow": "Detected technologies",
+    "indexTitle": "Inventory index",
+    "metrics": {
+      "api": "API evidence",
+      "config": "Configuration",
+      "dependency": "Declarations",
+      "total": "Total evidence"
+    },
+    "interpretationTitle": "How to read this status",
+    "interpretationDeclared": "Only dependency declarations were found. This does not establish runtime use.",
+    "interpretationAnalyzed": "Static API or configuration evidence was parsed, but runtime branch execution is not implied.",
+    "analyzedAt": "Analyzed {{date}}",
+    "evidenceEyebrow": "Evidence chain",
+    "evidenceTitle": "{{count}} source-linked records",
+    "noEvidence": "The aggregate exists, but no individual evidence rows were returned.",
+    "noLine": "No line",
+    "inspectFile": "Inspect file"
+  },
+  "reports": {
+    "eyebrow": "Inventory reports",
+    "title": "Export the evidence you actually have.",
+    "description": "Every report is generated from persisted scan rows and can be exported as CSV, JSON, or Markdown.",
+    "policyTitle": "Persistence is the source of truth",
+    "policyDescription": "Report counts use the same rows as the exported documents. No client-side totals or placeholder findings are added.",
+    "scanContext": "Scan #{{sequence}} · {{date}}",
+    "noScanTitle": "No report data yet",
+    "noScanDescription": "Complete an inventory scan before exporting files, structure, technology, or review reports.",
+    "catalogEyebrow": "Export catalog",
+    "catalogTitle": "Inventory report families",
+    "catalogDescription": "Choose a report and format. Empty results remain explicit in the exported file.",
+    "types": {
+      "FILES": {
+        "title": "File inventory",
+        "description": "Paths, types, encoding, parse state, hashes, and change classification."
+      },
+      "STRUCTURE": {
+        "title": "Project structure",
+        "description": "Modules and detected source, test, web, resource, configuration, and SQL roots."
+      },
+      "TECHNOLOGY": {
+        "title": "Technology stack",
+        "description": "Aggregated technology signals with API, configuration, and dependency evidence counts."
+      },
+      "FRAMEWORKS": {
+        "title": "Framework API usage",
+        "description": "Persisted framework API and configuration findings with paths, lines, and rule IDs."
+      },
+      "CONFIGURATION": {
+        "title": "Configuration inventory",
+        "description": "Parsed configuration findings, class references, dicon components, and tag libraries."
+      },
+      "PARSE_ERRORS": {
+        "title": "Parse exceptions",
+        "description": "Files and records where the configured parser could not provide a trustworthy result."
+      },
+      "REVIEWS": {
+        "title": "Review queue",
+        "description": "Inferred, unresolved, review-required, and parse-failed findings."
+      }
+    },
+    "rows": "rows",
+    "ready": "Ready",
+    "unavailable": "No scan",
+    "downloadFormat": "Download {{report}} as {{format}}"
+  },
+  "settings": {
+    "eyebrow": "Project settings",
+    "title": "Correct what automation cannot know.",
+    "description": "Refine project metadata, exclusions, and structural assumptions without touching the source tree.",
+    "identityEyebrow": "Identity",
+    "identityTitle": "Project context",
+    "identityDescription": "These values describe the investigation; scanning never rewrites the source directory.",
+    "stackEyebrow": "Detection",
+    "stackTitle": "Stack and scope",
+    "stackDescription": "Detected values can be corrected. Existing scan records remain unchanged.",
+    "projectType": "Project type",
+    "buildTool": "Build tool",
+    "jdkVersion": "JDK version",
+    "jdkPlaceholder": "1.7, 8, 11",
+    "sourceFrameworkPlaceholder": "SAStruts, Struts 1, Seasar2",
+    "analysisScope": "Analysis scope",
+    "scopeEyebrow": "Scan boundaries",
+    "scopeTitle": "Exclusions",
+    "scopeDescription": "Add one directory name, relative path, or glob per line. Defaults still apply.",
+    "excludedDirectories": "Excluded directories",
+    "excludedFiles": "Excluded files",
+    "exclusionsPlaceholder": "generated-modules\n**/*.min.js",
+    "defaultExclusions": "Build output, VCS metadata, dependencies, and common generated paths are excluded by default.",
+    "projectSaved": "Project metadata saved.",
+    "pathPolicyTitle": "Backend path policy",
+    "pathPolicyDescription": "Only these local roots are eligible for read-only scanning.",
+    "maxFiles": "Maximum files",
+    "maxFileSize": "Per-file limit",
+    "analyzerVersion": "Analyzer",
+    "overridesEyebrow": "Structure correction",
+    "overridesTitle": "Directory role overrides",
+    "overridesDescription": "Use explicit roles when conventions cannot reliably classify a directory. Overrides affect future scans.",
+    "noOverrides": "No explicit directory role overrides.",
+    "removeOverride": "Remove directory override",
+    "overridePath": "Directory path",
+    "overrideRole": "Directory role",
+    "overridePathPlaceholder": "src/custom-web",
+    "saveOverrides": "Save overrides"
+  },
+  "pathRole": {
+    "JAVA_SOURCE": "Java source",
+    "TEST_SOURCE": "Test source",
+    "RESOURCE": "Resources",
+    "WEB_ROOT": "Web root",
+    "JSP_ROOT": "JSP root",
+    "STATIC_RESOURCE": "Static resources",
+    "CONFIGURATION": "Configuration",
+    "SQL": "SQL"
+  },
+  "technology": {
+    "category": {
+      "LANGUAGE": "Language",
+      "BUILD": "Build",
+      "FRAMEWORK": "Framework",
+      "WEB": "Web",
+      "TEST": "Testing",
+      "DATABASE": "Database"
+    }
+  },
+  "fileType": {
+    "JAVA": "Java",
+    "JSP": "JSP",
+    "HTML": "HTML",
+    "JAVASCRIPT": "JavaScript",
+    "CSS": "CSS",
+    "XML": "XML",
+    "PROPERTIES": "Properties",
+    "YAML": "YAML",
+    "DICON": "dicon",
+    "SQL": "SQL",
+    "TLD": "TLD",
+    "MAVEN_POM": "Maven POM",
+    "GRADLE": "Gradle",
+    "TEST": "Test source",
+    "OTHER": "Other"
+  },
+  "status": {
+    "scan": {
+      "QUEUED": "Queued",
+      "RUNNING": "Running",
+      "CANCEL_REQUESTED": "Cancelling",
+      "CANCELLED": "Cancelled",
+      "COMPLETED": "Completed",
+      "FAILED": "Failed"
+    },
+    "certainty": {
+      "IDENTIFIED": "Identified",
+      "ANALYZED": "Analyzed",
+      "INFERRED": "Inferred",
+      "REVIEW_REQUIRED": "Review required",
+      "UNRESOLVED": "Unresolved",
+      "PARSE_FAILED": "Parse failed"
+    },
+    "file": {
+      "DISCOVERED": "Discovered",
+      "ANALYZED": "Analyzed",
+      "SKIPPED": "Skipped",
+      "PARSE_FAILED": "Parse failed"
+    },
+    "parse": {
+      "NOT_APPLICABLE": "Not applicable",
+      "PARSED": "Parsed",
+      "PARTIAL": "Partially parsed",
+      "FAILED": "Parse failed"
+    },
+    "change": {
+      "ADDED": "Added",
+      "MODIFIED": "Modified",
+      "UNCHANGED": "Unchanged",
+      "DELETED": "Deleted"
+    }
+  }
+}

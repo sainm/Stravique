@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<taglib xmlns="http://java.sun.com/xml/ns/javaee"
+        version="2.1">
+    <tlib-version>1.0</tlib-version>
+    <short-name>sq</short-name>
+    <uri>http://example.com/tags/legacy-ui</uri>
+    <tag>
+        <name>emptyState</name>
+        <tag-class>com.example.legacy.tag.EmptyStateTag</tag-class>
+        <body-content>empty</body-content>
+        <attribute>
+            <name>message</name>
+            <required>true</required>
+        </attribute>
+    </tag>
+</taglib>

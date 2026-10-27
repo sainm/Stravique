@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<struts-config>
+    <message-resources parameter="messages"/>
+    <action-mappings>
+        <action path="/orders" type="com.example.legacy.action.OrderAction">
+            <forward name="list" path="/WEB-INF/jsp/order/list.jsp"/>
+        </action>
+    </action-mappings>
+</struts-config>

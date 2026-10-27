@@ -1,0 +1,238 @@
+# Stravique
+
+**Legacy System Inventory, Analysis & Modernization Platform**
+
+Stravique is a local-first workbench for turning an existing Java web system into a traceable inventory. Phase 1 scans source without modifying it, records evidence down to file and line, separates declarations from analyzed use, and exports reports from persisted scan data.
+
+The product deliberately stops before automated migration. Its first responsibility is to help engineering teams understand what is actually present.
+
+## Current status
+
+Phase 1 is implemented as a runnable local application:
+
+- Multi-project registration with backend-enforced path policy.
+- Read-only Maven/Gradle and Java web inventory.
+- File classification for Java, JSP, HTML, JavaScript, CSS, XML, properties, YAML, dicon, SQL, TLD, POM, and Gradle files.
+- Module, source, test, resource, web, configuration, and SQL root discovery.
+- JavaParser-based API evidence for SAStruts, Struts 1, Seasar2, S2JDBC, Servlet, JSTL, JUnit, and JDBC.
+- Secure XML parsing, dicon component/injection evidence, TLD and JSP tag/form evidence.
+- Repeated-scan change classification using SHA-256.
+- Asynchronous scan state, cancellation, restart recovery, parse-error records, and review items.
+- English, Simplified Chinese, and Japanese interfaces.
+- CSV, JSON, and Markdown reports generated from persisted rows.
+- Project metadata and directory-role corrections.
+- Automated source-immutability, REST, parser, localization, responsive, and browser visual checks.
+
+## Architecture
+
+```text
+React + TypeScript + Vite
+        |
+        | /api/v1
+        v
+Spring Boot local backend
+  |-- project and scan application services
+  |-- read-only inventory engine
+  |-- PostgreSQL relational persistence
+  |-- report service
+  |
+  +--> allowlisted local source directories
+```
+
+The browser never scans the filesystem. The local backend resolves and validates every project path, does not follow symbolic links during inventory, disables external XML entities, and contains no source-write operation in the inventory API.
+
+Detailed contracts are in [docs/](docs/).
+
+## Requirements
+
+- Java 21.
+- Node.js 22 or newer.
+- npm.
+- PostgreSQL 16 or newer. PostgreSQL 18 is used for acceptance verification.
+- macOS, Linux, or a compatible local environment. The scripts include a Homebrew Java 21 hint and also honor the default Java runtime.
+
+## Dependency mirrors
+
+The repository opts into domestic mirrors by default:
+
+- npm: `https://registry.npmmirror.com` through `frontend/.npmrc`.
+- Gradle distribution: Tencent Cloud Gradle mirror.
+- Maven and Gradle plugins: Aliyun public and Gradle Plugin mirrors first.
+- Official repositories remain available as fallbacks.
+
+The lockfile records npmmirror tarball URLs. To intentionally override the package registry for one command, use:
+
+```bash
+cd frontend
+npm ci --registry=https://registry.npmmirror.com
+```
+
+## Run locally
+
+Start PostgreSQL and provision the local databases:
+
+```bash
+./scripts/ensure-postgres.sh
+```
+
+The local defaults are database `stravique`, test database `stravique_test`, and the current operating-system user as the PostgreSQL role. Override these through the `STRAVIQUE_DB_*` variables in [.env.example](.env.example).
+
+```bash
+./scripts/dev.sh
+```
+
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173).
+
+The script starts Spring Boot on `127.0.0.1:8080` and Vite on `127.0.0.1:5173`, waiting for the backend before opening the UI workflow.
+
+If dependencies are already installed, the services can also be started separately:
+
+```bash
+cd backend
+./gradlew bootRun
+```
+
+The wrapper is pinned to Gradle 8.14.6. The project scripts use it first and fall back to a system Gradle installation only if the wrapper is unavailable.
+
+```bash
+cd frontend
+npm run dev
+```
+
+## Scan roots
+
+By default, Stravique allows the backend working directory, nearby `sample-projects` directories, and the backend working directory's parent. This default is intentionally narrow.
+
+To scan projects elsewhere, configure one or more absolute roots:
+
+```bash
+export STRAVIQUE_ALLOWED_SCAN_ROOTS="/workspace/projects,/Volumes/archive/java"
+cd backend
+./gradlew bootRun
+```
+
+Use commas between roots. A project must resolve to a directory at or below one of these roots. Filesystem roots, the exact home directory, missing paths, and paths outside the policy are rejected before discovery.
+
+Additional runtime controls:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `STRAVIQUE_ALLOWED_SCAN_ROOTS` | local defaults | Comma-separated read roots |
+| `STRAVIQUE_MAX_FILE_BYTES` | `2097152` | Per-file analysis limit |
+| `STRAVIQUE_MAX_FILES` | `100000` | Scan file-count limit |
+| `STRAVIQUE_ANALYZER_VERSION` | `1.0.0` | Persisted analyzer version |
+| `STRAVIQUE_DEFAULT_LOCALE` | `en-US` | Backend default locale |
+| `SERVER_PORT` | `8080` | Backend port |
+| `STRAVIQUE_DB_URL` | `jdbc:postgresql://127.0.0.1:5432/stravique` | Runtime database |
+| `STRAVIQUE_DB_USER` | Current OS user | PostgreSQL role |
+| `STRAVIQUE_DB_PASSWORD` | Empty | PostgreSQL password |
+| `STRAVIQUE_TEST_DB_URL` | `jdbc:postgresql://127.0.0.1:5432/stravique_test` | Isolated test database |
+
+## Sample project
+
+`sample-projects/legacy-web-demo` is a deliberately mixed legacy fixture. It contains:
+
+- A three-module Maven hierarchy.
+- SAStruts actions and Struts 1 tag usage.
+- Seasar2 component, binding, dicon, and lifecycle configuration.
+- An S2JDBC entity, DAO, and query calls.
+- JSP, JSTL, TLD, web.xml, properties, YAML, SQL, static assets, and tests.
+- Generated paths and generated-file headers that must be skipped.
+- A dynamic class load that must remain review-required.
+- A malformed XML file that must be recorded as a parse failure.
+
+Register the directory in the UI or use the API:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/projects \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Legacy Web Demo",
+    "sourcePath": "/absolute/path/to/Stravique/sample-projects/legacy-web-demo"
+  }'
+```
+
+Start a scan with the returned project ID:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/projects/<project-id>/scans
+```
+
+## Certainty model
+
+| State | Meaning |
+| --- | --- |
+| `IDENTIFIED` | A declaration or artifact is directly visible; usage is not established. |
+| `ANALYZED` | A supported static parser observed the construct. |
+| `INFERRED` | A rule suggests a relationship requiring context. |
+| `REVIEW_REQUIRED` | Human review is needed before relying on the result. |
+| `UNRESOLVED` | Dynamic or unsupported behavior prevents a reliable answer. |
+| `PARSE_FAILED` | The configured parser could not produce a trustworthy result. |
+
+A Maven dependency is not upgraded to runtime use. A parsed Java import is not proof that a branch executes. Dynamic loading and reflection remain explicit review items.
+
+## Persistence and reports
+
+Phase 1 uses PostgreSQL as the only database. Flyway owns the schema. Each scan creates immutable rows for modules, files, evidence, and technology aggregates.
+
+Reports are available from the UI and at:
+
+```text
+GET /api/v1/projects/{projectId}/reports/{type}.{format}
+```
+
+Types: `FILES`, `STRUCTURE`, `TECHNOLOGY`, `FRAMEWORKS`, `CONFIGURATION`, `PARSE_ERRORS`, and `REVIEWS`.
+
+Formats: `csv`, `json`, and `markdown`.
+
+## Verify
+
+```bash
+./verify.sh
+```
+
+The verification command checks:
+
+- No Chinese comment text in source comments.
+- PostgreSQL-backed Flyway migration, JPA validation, API, parser, localization, report, and source-immutability tests.
+- Frontend locale-key parity, status localization, language switching, and responsive contracts.
+- TypeScript compilation and production Vite build.
+
+With the application running and Google Chrome installed, the multilingual browser layout check is:
+
+```bash
+cd frontend
+npm run test:visual
+```
+
+Screenshots and the machine-readable visual report are written to `frontend/.artifacts/visual/`, which is ignored as verification output.
+
+## Build a standalone package
+
+```bash
+./scripts/build.sh
+java -jar backend/build/libs/stravique-backend-0.1.0.jar
+```
+
+The frontend production build is copied into the Spring Boot static resources. SPA routes under `/projects` fall back to `index.html`.
+
+## Phase boundary
+
+Implemented:
+
+- Inventory.
+- Static framework and configuration evidence.
+- Basic technology aggregation.
+- Review visibility.
+- Reports.
+
+Not implemented:
+
+- Full cross-file system understanding.
+- Migration planning.
+- Code transformation.
+- Runtime dependency or behavior verification.
+- Graph database projections.
+- AI conclusions treated as evidence.
+
+The next phase should add cross-file relations only when every relation can retain source provenance and explicit uncertainty.

@@ -1,0 +1,406 @@
+{
+  "common": {
+    "unexpectedError": "发生了意外错误。",
+    "requestFailed": "请求未能完成",
+    "retry": "重试",
+    "loading": "加载中",
+    "close": "关闭",
+    "open": "打开",
+    "continue": "继续",
+    "previous": "上一页",
+    "next": "下一页",
+    "pageOf": "第 {{page}} 页，共 {{total}} 页",
+    "refresh": "刷新",
+    "scanAgain": "重新扫描",
+    "scanProject": "扫描项目",
+    "scanning": "扫描中",
+    "starting": "正在启动",
+    "cancel": "取消",
+    "creating": "正在创建",
+    "create": "创建",
+    "notDetected": "未检测",
+    "never": "从未",
+    "evidenceCount": "{{count}} 条证据",
+    "saving": "保存中",
+    "saveChanges": "保存更改",
+    "saved": "已保存",
+    "add": "添加"
+  },
+  "brand": {
+    "tagline": "既存系统洞察",
+    "readOnly": "只读棚卸"
+  },
+  "language": {
+    "label": "界面语言",
+    "en": "English",
+    "zh": "简体中文",
+    "ja": "日本語"
+  },
+  "nav": {
+    "overview": "总览",
+    "inventory": "棚卸",
+    "frameworks": "框架使用",
+    "reports": "报告",
+    "settings": "设置",
+    "projects": "全部项目",
+    "primary": "主导航",
+    "workspace": "工作区",
+    "openMenu": "打开导航"
+  },
+  "project": {
+    "current": "当前项目",
+    "switch": "切换项目"
+  },
+  "projects": {
+    "eyebrow": "项目登记",
+    "title": "让既存系统变得清晰可见。",
+    "description": "登记本地 Java Web 源代码目录，建立可追溯的棚卸结果，并决定下一步值得调查的重点。",
+    "create": "添加项目",
+    "registrySummary": "项目登记摘要",
+    "registeredCount": "已登记 {{count}} 个项目",
+    "registryLoading": "正在加载项目登记",
+    "registryHint": "每个项目独立保存扫描、证据和报告。",
+    "readOnlyPolicy": "源代码目录始终保持只读",
+    "limit": "单文件分析上限 {{size}} MB",
+    "emptyTitle": "尚未登记项目",
+    "emptyDescription": "添加一个既存 Java Web 源代码目录。开始棚卸前，后端会先验证路径范围。",
+    "listLabel": "已登记项目",
+    "columns": {
+      "project": "项目",
+      "stack": "检测到的技术栈",
+      "lastScan": "最近扫描",
+      "status": "状态"
+    },
+    "awaitingScan": "等待首次扫描",
+    "notScanned": "未扫描",
+    "openSettings": "打开项目设置",
+    "accessEyebrow": "本地访问边界",
+    "accessTitle": "浏览器不会遍历您的文件系统。",
+    "accessDescription": "棚卸扫描由本地后端执行，路径必须位于配置的允许根目录内。不会跟随符号链接，棚卸 API 不包含源代码写入操作。",
+    "createTitle": "登记既存项目",
+    "createDescription": "指定一个已有的源代码目录。首次扫描后仍可修正项目元数据。",
+    "createAndOpen": "创建并打开"
+  },
+  "projectType": {
+    "UNKNOWN": "未知项目类型",
+    "MAVEN_SINGLE_MODULE": "Maven 单模块",
+    "MAVEN_MULTI_MODULE": "Maven 多模块",
+    "GRADLE_SINGLE_MODULE": "Gradle 单模块",
+    "GRADLE_MULTI_MODULE": "Gradle 多模块",
+    "ECLIPSE_WEB": "Eclipse Web 项目"
+  },
+  "buildTool": {
+    "UNKNOWN": "未知构建工具",
+    "MAVEN": "Maven",
+    "GRADLE": "Gradle",
+    "MIXED": "Maven 与 Gradle"
+  },
+  "analysisScope": {
+    "FULL": "完整源代码与配置",
+    "SOURCE_ONLY": "源代码与 Web 文件",
+    "CONFIGURATION_ONLY": "构建与配置文件"
+  },
+  "form": {
+    "name": "项目名称",
+    "namePlaceholder": "客户门户系统现代化",
+    "sourcePath": "本地源代码目录",
+    "sourcePathPlaceholder": "/absolute/path/to/legacy-project",
+    "sourcePathHint": "登记前后端会解析并验证该目录。",
+    "description": "说明",
+    "descriptionPlaceholder": "用途、负责人或当前调查背景",
+    "sourceFramework": "源框架",
+    "sourceFrameworkPlaceholder": "SAStruts、Struts 1、Seasar2",
+    "targetFramework": "目标框架",
+    "targetFrameworkPlaceholder": "Spring MVC、Spring Boot",
+    "allowedRoots": "允许扫描的根目录"
+  },
+  "overview": {
+    "eyebrow": "棚卸总览",
+    "defaultDescription": "该既存系统基于证据的当前状态。",
+    "noScanTitle": "建立第一组证据",
+    "noScanDescription": "执行只读棚卸，以识别模块、文件类型、框架使用和待确认事项。",
+    "runFirstScan": "执行首次棚卸",
+    "facts": {
+      "readOnly": "不写入源代码",
+      "structure": "识别模块与源码根目录",
+      "changeTracking": "重复扫描保留变更历史"
+    },
+    "scanNumber": "棚卸扫描 #{{number}}",
+    "scanInProgress": "后端正在遍历和分析该源代码目录。",
+    "metricsLabel": "棚卸扫描指标",
+    "metrics": {
+      "files": "发现文件",
+      "modules": "模块",
+      "analyzed": "已分析文件",
+      "evidence": "证据记录",
+      "review": "待确认事项",
+      "parseFailures": "解析失败"
+    },
+    "nextActionEyebrow": "建议的下一步",
+    "nextActions": {
+      "RUN_SCAN": "执行首次棚卸扫描。",
+      "WAIT_FOR_SCAN": "等待当前扫描进入持久化的终止状态。",
+      "RETRY_SCAN": "检查失败扫描，修正源代码或策略后重试。",
+      "REVIEW_PARSE_FAILURES": "在信任框架统计前处理解析失败。",
+      "REVIEW_UNCERTAINTIES": "在制定迁移计划前审核动态和约定推断结果。",
+      "INSPECT_RESULTS": "在定义下一阶段分析前检查证据与框架使用。"
+    },
+    "stackEyebrow": "技术生态",
+    "stackTitle": "已观察到的技术栈",
+    "openFrameworks": "框架使用",
+    "noTechnology": "当前扫描没有可用的技术证据。",
+    "moreTechnologies": "查看另外 {{count}} 项技术",
+    "reviewEyebrow": "人工关注",
+    "reviewTitle": "待确认事项",
+    "noReviewTitle": "没有未处理的待确认事项",
+    "noReviewDescription": "当前扫描没有保存需要确认、未确定或解析失败的证据。",
+    "openAllReviews": "打开全部待确认事项",
+    "compositionEyebrow": "文件构成",
+    "compositionTitle": "该系统的组成",
+    "openExplorer": "打开棚卸工作区",
+    "structureEyebrow": "模块结构",
+    "structureTitle": "检测到的源码根目录",
+    "rootCount": "{{count}} 个根目录",
+    "historyEyebrow": "扫描历史",
+    "historyTitle": "棚卸运行记录",
+    "historyNote": "每次扫描都会创建不可变记录。",
+    "historyFiles": "{{count}} 个文件",
+    "historyReviews": "{{count}} 个待确认"
+  },
+  "inventory": {
+    "eyebrow": "棚卸浏览器",
+    "title": "让每个结果追溯到源文件。",
+    "description": "浏览持久化扫描目录树、检查文件，并通过精确行号证据验证发现。",
+    "scanOverview": "扫描总览",
+    "noScanTitle": "棚卸正在等待扫描",
+    "noScanDescription": "执行只读扫描以填充工程树和证据检查器。",
+    "viewLabel": "棚卸视图",
+    "filesTab": "文件 {{count}}",
+    "reviewTab": "待确认 {{count}}",
+    "analyzerVersion": "分析器 v{{version}}",
+    "treeEyebrow": "工程目录",
+    "treeTitle": "目录树",
+    "allFiles": "全部文件",
+    "modules": "模块",
+    "filesEyebrow": "文件与证据",
+    "reviewEyebrow": "需要关注",
+    "fileResults": "{{count}} 个文件",
+    "reviewResults": "{{count}} 个待确认事项",
+    "search": "搜索文件",
+    "searchPlaceholder": "搜索路径或文件名",
+    "fileType": "文件类型",
+    "allTypes": "全部类型",
+    "parseStatus": "文件分析状态",
+    "allStates": "全部状态",
+    "noMatchesTitle": "没有符合筛选条件的文件",
+    "noMatchesDescription": "清除搜索条件，或选择其他目录、类型和分析状态。",
+    "noReviewsTitle": "当前扫描没有待确认事项",
+    "noReviewsDescription": "未确定、推断和解析失败的发现会显示在这里。",
+    "inspectorTitle": "证据检查器",
+    "inspectorPlaceholder": "选择文件以检查元数据、解析状态、规则和源代码证据。",
+    "inspectorEyebrow": "文件检查器",
+    "metadata": {
+      "type": "类型",
+      "size": "大小",
+      "encoding": "编码",
+      "modified": "最后修改",
+      "change": "变更",
+      "role": "结构角色"
+    },
+    "parseError": "解析错误",
+    "evidenceEyebrow": "可追溯发现",
+    "evidenceTitle": "{{count}} 条证据记录",
+    "noEvidence": "该文件没有保存框架或配置证据。",
+    "line": "第 {{line}} 行",
+    "analyzer": "分析器 v{{version}}",
+    "openFramework": "打开框架",
+    "apiCount": "{{count}} 个 API",
+    "expand": "展开目录",
+    "collapse": "折叠目录"
+  },
+  "frameworks": {
+    "eyebrow": "框架使用",
+    "title": "区分信号与确认使用。",
+    "description": "按确定性状态和源代码位置检查框架、构建、Web 与数据访问证据。",
+    "noScanTitle": "尚无框架棚卸",
+    "noScanDescription": "执行首次扫描以识别依赖、API、配置和自定义标签使用。",
+    "emptyTitle": "未发现技术证据",
+    "emptyDescription": "扫描完成，但没有匹配已配置的技术与框架规则。",
+    "indexEyebrow": "检测到的技术",
+    "indexTitle": "棚卸索引",
+    "metrics": {
+      "api": "API 证据",
+      "config": "配置证据",
+      "dependency": "依赖声明",
+      "total": "证据总数"
+    },
+    "interpretationTitle": "如何理解该状态",
+    "interpretationDeclared": "仅发现依赖声明，这不能证明运行时实际使用。",
+    "interpretationAnalyzed": "已解析静态 API 或配置证据，但这不代表运行时分支一定执行。",
+    "analyzedAt": "分析时间 {{date}}",
+    "evidenceEyebrow": "证据链",
+    "evidenceTitle": "{{count}} 条源文件关联记录",
+    "noEvidence": "技术聚合存在，但未返回单条证据。",
+    "noLine": "无行号",
+    "inspectFile": "检查文件"
+  },
+  "reports": {
+    "eyebrow": "棚卸报告",
+    "title": "导出实际拥有的证据。",
+    "description": "所有报告均基于持久化扫描记录生成，可导出为 CSV、JSON 或 Markdown。",
+    "policyTitle": "持久化数据是唯一事实来源",
+    "policyDescription": "报告计数与导出文档使用相同记录，不添加客户端统计或占位发现。",
+    "scanContext": "扫描 #{{sequence}} · {{date}}",
+    "noScanTitle": "尚无报告数据",
+    "noScanDescription": "请先完成棚卸扫描，再导出文件、结构、技术或待确认报告。",
+    "catalogEyebrow": "导出目录",
+    "catalogTitle": "棚卸报告类型",
+    "catalogDescription": "选择报告与格式。空结果也会在导出文件中明确呈现。",
+    "types": {
+      "FILES": {
+        "title": "文件清单",
+        "description": "路径、类型、编码、解析状态、哈希与变更分类。"
+      },
+      "STRUCTURE": {
+        "title": "工程结构",
+        "description": "模块以及检测到的源代码、测试、Web、资源、配置和 SQL 根目录。"
+      },
+      "TECHNOLOGY": {
+        "title": "技术栈",
+        "description": "按 API、配置和依赖证据数量汇总的技术信号。"
+      },
+      "FRAMEWORKS": {
+        "title": "框架 API 使用",
+        "description": "包含路径、行号和规则 ID 的框架 API 与配置发现。"
+      },
+      "CONFIGURATION": {
+        "title": "配置清单",
+        "description": "已解析的配置发现、类引用、dicon 组件与标签库。"
+      },
+      "PARSE_ERRORS": {
+        "title": "解析异常",
+        "description": "配置解析器无法提供可信结果的文件与记录。"
+      },
+      "REVIEWS": {
+        "title": "待确认队列",
+        "description": "推断、未确定、需要确认及解析失败的发现。"
+      }
+    },
+    "rows": "行",
+    "ready": "可导出",
+    "unavailable": "无扫描",
+    "downloadFormat": "将 {{report}} 下载为 {{format}}"
+  },
+  "settings": {
+    "eyebrow": "项目设置",
+    "title": "修正自动化无法判断的信息。",
+    "description": "在不修改源代码的情况下，完善项目元数据、排除规则和结构假设。",
+    "identityEyebrow": "标识",
+    "identityTitle": "项目背景",
+    "identityDescription": "这些值用于描述调查范围；扫描不会重写源代码目录。",
+    "stackEyebrow": "检测",
+    "stackTitle": "技术栈与范围",
+    "stackDescription": "可修正检测结果。已有扫描记录保持不变。",
+    "projectType": "项目类型",
+    "buildTool": "构建工具",
+    "jdkVersion": "JDK 版本",
+    "jdkPlaceholder": "1.7、8、11",
+    "sourceFrameworkPlaceholder": "SAStruts、Struts 1、Seasar2",
+    "analysisScope": "分析范围",
+    "scopeEyebrow": "扫描边界",
+    "scopeTitle": "排除规则",
+    "scopeDescription": "每行添加一个目录名、相对路径或通配模式。默认排除仍然生效。",
+    "excludedDirectories": "排除目录",
+    "excludedFiles": "排除文件",
+    "exclusionsPlaceholder": "generated-modules\n**/*.min.js",
+    "defaultExclusions": "构建产物、版本控制元数据、依赖目录和常见生成路径默认排除。",
+    "projectSaved": "项目元数据已保存。",
+    "pathPolicyTitle": "后端路径策略",
+    "pathPolicyDescription": "只有这些本地根目录可用于只读扫描。",
+    "maxFiles": "最大文件数",
+    "maxFileSize": "单文件上限",
+    "analyzerVersion": "分析器",
+    "overridesEyebrow": "结构修正",
+    "overridesTitle": "目录角色覆盖",
+    "overridesDescription": "当约定无法可靠分类目录时，请显式指定角色。覆盖规则会影响后续扫描。",
+    "noOverrides": "没有显式目录角色覆盖。",
+    "removeOverride": "删除目录覆盖",
+    "overridePath": "目录路径",
+    "overrideRole": "目录角色",
+    "overridePathPlaceholder": "src/custom-web",
+    "saveOverrides": "保存覆盖规则"
+  },
+  "pathRole": {
+    "JAVA_SOURCE": "Java 源代码",
+    "TEST_SOURCE": "测试源代码",
+    "RESOURCE": "资源",
+    "WEB_ROOT": "Web 根目录",
+    "JSP_ROOT": "JSP 根目录",
+    "STATIC_RESOURCE": "静态资源",
+    "CONFIGURATION": "配置",
+    "SQL": "SQL"
+  },
+  "technology": {
+    "category": {
+      "LANGUAGE": "语言",
+      "BUILD": "构建",
+      "FRAMEWORK": "框架",
+      "WEB": "Web",
+      "TEST": "测试",
+      "DATABASE": "数据库"
+    }
+  },
+  "fileType": {
+    "JAVA": "Java",
+    "JSP": "JSP",
+    "HTML": "HTML",
+    "JAVASCRIPT": "JavaScript",
+    "CSS": "CSS",
+    "XML": "XML",
+    "PROPERTIES": "Properties",
+    "YAML": "YAML",
+    "DICON": "dicon",
+    "SQL": "SQL",
+    "TLD": "TLD",
+    "MAVEN_POM": "Maven POM",
+    "GRADLE": "Gradle",
+    "TEST": "测试源代码",
+    "OTHER": "其他"
+  },
+  "status": {
+    "scan": {
+      "QUEUED": "排队中",
+      "RUNNING": "运行中",
+      "CANCEL_REQUESTED": "正在取消",
+      "CANCELLED": "已取消",
+      "COMPLETED": "已完成",
+      "FAILED": "失败"
+    },
+    "certainty": {
+      "IDENTIFIED": "已识别",
+      "ANALYZED": "已分析",
+      "INFERRED": "推断",
+      "REVIEW_REQUIRED": "需要确认",
+      "UNRESOLVED": "未确定",
+      "PARSE_FAILED": "解析失败"
+    },
+    "file": {
+      "DISCOVERED": "已发现",
+      "ANALYZED": "已分析",
+      "SKIPPED": "已跳过",
+      "PARSE_FAILED": "解析失败"
+    },
+    "parse": {
+      "NOT_APPLICABLE": "不适用",
+      "PARSED": "解析完成",
+      "PARTIAL": "部分解析",
+      "FAILED": "解析失败"
+    },
+    "change": {
+      "ADDED": "新增",
+      "MODIFIED": "修改",
+      "UNCHANGED": "未变更",
+      "DELETED": "删除"
+    }
+  }
+}

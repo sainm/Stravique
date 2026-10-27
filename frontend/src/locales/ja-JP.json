@@ -1,0 +1,406 @@
+{
+  "common": {
+    "unexpectedError": "予期しないエラーが発生しました。",
+    "requestFailed": "リクエストを完了できませんでした",
+    "retry": "再試行",
+    "loading": "読み込み中",
+    "close": "閉じる",
+    "open": "開く",
+    "continue": "続ける",
+    "previous": "前へ",
+    "next": "次へ",
+    "pageOf": "{{page}} / {{total}} ページ",
+    "refresh": "更新",
+    "scanAgain": "再スキャン",
+    "scanProject": "プロジェクトをスキャン",
+    "scanning": "スキャン中",
+    "starting": "開始中",
+    "cancel": "キャンセル",
+    "creating": "作成中",
+    "create": "作成",
+    "notDetected": "未検出",
+    "never": "未実施",
+    "evidenceCount": "エビデンス {{count}} 件",
+    "saving": "保存中",
+    "saveChanges": "変更を保存",
+    "saved": "保存済み",
+    "add": "追加"
+  },
+  "brand": {
+    "tagline": "既存システムの洞察",
+    "readOnly": "読み取り専用棚卸"
+  },
+  "language": {
+    "label": "表示言語",
+    "en": "English",
+    "zh": "简体中文",
+    "ja": "日本語"
+  },
+  "nav": {
+    "overview": "概要",
+    "inventory": "棚卸",
+    "frameworks": "フレームワーク",
+    "reports": "レポート",
+    "settings": "設定",
+    "projects": "すべてのプロジェクト",
+    "primary": "メインナビゲーション",
+    "workspace": "ワークスペース",
+    "openMenu": "ナビゲーションを開く"
+  },
+  "project": {
+    "current": "現在のプロジェクト",
+    "switch": "プロジェクトを切り替え"
+  },
+  "projects": {
+    "eyebrow": "プロジェクト登録",
+    "title": "既存システムを、明確な姿へ。",
+    "description": "ローカルの Java Web ソースディレクトリを登録し、追跡可能な棚卸を作成して、次に調査すべき対象を判断します。",
+    "create": "プロジェクトを追加",
+    "registrySummary": "プロジェクト登録の概要",
+    "registeredCount": "{{count}} 件の登録プロジェクト",
+    "registryLoading": "プロジェクト登録を読み込み中",
+    "registryHint": "各プロジェクトは独立したスキャン、エビデンス、レポートを保持します。",
+    "readOnlyPolicy": "ソースディレクトリは常に読み取り専用",
+    "limit": "ファイル単位の解析上限 {{size}} MB",
+    "emptyTitle": "プロジェクトがまだ登録されていません",
+    "emptyDescription": "既存の Java Web ソースディレクトリを追加します。棚卸開始前にバックエンドがパス範囲を検証します。",
+    "listLabel": "登録済みプロジェクト",
+    "columns": {
+      "project": "プロジェクト",
+      "stack": "検出技術",
+      "lastScan": "最終スキャン",
+      "status": "状態"
+    },
+    "awaitingScan": "初回スキャン待ち",
+    "notScanned": "未スキャン",
+    "openSettings": "プロジェクト設定を開く",
+    "accessEyebrow": "ローカルアクセス境界",
+    "accessTitle": "ブラウザがファイルシステムを走査することはありません。",
+    "accessDescription": "棚卸はローカルバックエンドで実行され、設定済みの許可ルート配下であることを検証します。シンボリックリンクは追跡せず、棚卸 API にソース書き込み機能はありません。",
+    "createTitle": "既存プロジェクトを登録",
+    "createDescription": "既存のソースディレクトリを指定します。初回スキャン後もプロジェクト情報を修正できます。",
+    "createAndOpen": "作成して開く"
+  },
+  "projectType": {
+    "UNKNOWN": "不明なプロジェクト種別",
+    "MAVEN_SINGLE_MODULE": "Maven 単一モジュール",
+    "MAVEN_MULTI_MODULE": "Maven マルチモジュール",
+    "GRADLE_SINGLE_MODULE": "Gradle 単一モジュール",
+    "GRADLE_MULTI_MODULE": "Gradle マルチモジュール",
+    "ECLIPSE_WEB": "Eclipse Web プロジェクト"
+  },
+  "buildTool": {
+    "UNKNOWN": "不明なビルドツール",
+    "MAVEN": "Maven",
+    "GRADLE": "Gradle",
+    "MIXED": "Maven と Gradle"
+  },
+  "analysisScope": {
+    "FULL": "ソースと設定の全体",
+    "SOURCE_ONLY": "ソースと Web ファイル",
+    "CONFIGURATION_ONLY": "ビルドと設定ファイル"
+  },
+  "form": {
+    "name": "プロジェクト名",
+    "namePlaceholder": "顧客ポータル刷新",
+    "sourcePath": "ローカルソースディレクトリ",
+    "sourcePathPlaceholder": "/absolute/path/to/legacy-project",
+    "sourcePathHint": "登録前にバックエンドがディレクトリを解決して検証します。",
+    "description": "説明",
+    "descriptionPlaceholder": "目的、担当、現在の調査背景",
+    "sourceFramework": "移行元フレームワーク",
+    "sourceFrameworkPlaceholder": "SAStruts、Struts 1、Seasar2",
+    "targetFramework": "移行先フレームワーク",
+    "targetFrameworkPlaceholder": "Spring MVC、Spring Boot",
+    "allowedRoots": "スキャン許可ルート"
+  },
+  "overview": {
+    "eyebrow": "棚卸概要",
+    "defaultDescription": "この既存システムのエビデンスに基づく現在の状態。",
+    "noScanTitle": "最初のエビデンスを作成",
+    "noScanDescription": "読み取り専用棚卸を実行し、モジュール、ファイル種別、フレームワーク利用、確認項目を明らかにします。",
+    "runFirstScan": "初回棚卸を実行",
+    "facts": {
+      "readOnly": "ソースを書き換えない",
+      "structure": "モジュールとソースルートを検出",
+      "changeTracking": "再スキャンで変更履歴を保持"
+    },
+    "scanNumber": "棚卸スキャン #{{number}}",
+    "scanInProgress": "バックエンドがソースツリーを走査して解析しています。",
+    "metricsLabel": "棚卸スキャン指標",
+    "metrics": {
+      "files": "検出ファイル",
+      "modules": "モジュール",
+      "analyzed": "解析済みファイル",
+      "evidence": "エビデンス記録",
+      "review": "確認項目",
+      "parseFailures": "解析失敗"
+    },
+    "nextActionEyebrow": "推奨する次の操作",
+    "nextActions": {
+      "RUN_SCAN": "最初の棚卸スキャンを実行してください。",
+      "WAIT_FOR_SCAN": "実行中のスキャンが永続化された終了状態になるまで待ってください。",
+      "RETRY_SCAN": "失敗したスキャンを確認し、ソースまたはポリシーを修正して再試行してください。",
+      "REVIEW_PARSE_FAILURES": "フレームワーク集計を信頼する前に解析失敗を解消してください。",
+      "REVIEW_UNCERTAINTIES": "移行計画の前に動的・規約ベースの検出結果を確認してください。",
+      "INSPECT_RESULTS": "次の分析段階を定義する前にエビデンスとフレームワーク利用を確認してください。"
+    },
+    "stackEyebrow": "技術構成",
+    "stackTitle": "観測された技術スタック",
+    "openFrameworks": "フレームワーク利用",
+    "noTechnology": "このスキャンで利用可能な技術エビデンスはありません。",
+    "moreTechnologies": "残り {{count}} 件の技術を表示",
+    "reviewEyebrow": "人による確認",
+    "reviewTitle": "未処理の確認項目",
+    "noReviewTitle": "未解決の確認項目はありません",
+    "noReviewDescription": "現在のスキャンには要確認、未解決、解析失敗のエビデンスが保存されていません。",
+    "openAllReviews": "すべての確認項目を開く",
+    "compositionEyebrow": "ファイル構成",
+    "compositionTitle": "システムの構成要素",
+    "openExplorer": "棚卸を開く",
+    "structureEyebrow": "モジュール構成",
+    "structureTitle": "検出されたソースルート",
+    "rootCount": "{{count}} ルート",
+    "historyEyebrow": "スキャン履歴",
+    "historyTitle": "棚卸実行",
+    "historyNote": "新しいスキャンは変更不可の記録として保存されます。",
+    "historyFiles": "{{count}} ファイル",
+    "historyReviews": "確認 {{count}} 件"
+  },
+  "inventory": {
+    "eyebrow": "棚卸エクスプローラー",
+    "title": "すべての結果をソースまで追跡。",
+    "description": "永続化されたスキャンツリーを閲覧し、ファイルと正確な行番号のエビデンスを確認します。",
+    "scanOverview": "スキャン概要",
+    "noScanTitle": "棚卸はスキャンを待っています",
+    "noScanDescription": "読み取り専用スキャンを実行し、リポジトリツリーとエビデンスインスペクターを作成します。",
+    "viewLabel": "棚卸ビュー",
+    "filesTab": "ファイル {{count}}",
+    "reviewTab": "確認 {{count}}",
+    "analyzerVersion": "アナライザー v{{version}}",
+    "treeEyebrow": "リポジトリ",
+    "treeTitle": "ディレクトリツリー",
+    "allFiles": "すべてのファイル",
+    "modules": "モジュール",
+    "filesEyebrow": "ファイルとエビデンス",
+    "reviewEyebrow": "要確認",
+    "fileResults": "{{count}} ファイル",
+    "reviewResults": "{{count}} 件の確認項目",
+    "search": "ファイルを検索",
+    "searchPlaceholder": "パスまたはファイル名を検索",
+    "fileType": "ファイル種別",
+    "allTypes": "すべての種別",
+    "parseStatus": "ファイル解析状態",
+    "allStates": "すべての状態",
+    "noMatchesTitle": "条件に一致するファイルがありません",
+    "noMatchesDescription": "検索をクリアするか、別のディレクトリ、種別、解析状態を選択してください。",
+    "noReviewsTitle": "このスキャンに確認項目はありません",
+    "noReviewsDescription": "未解決、推定、解析失敗の検出結果がここに表示されます。",
+    "inspectorTitle": "エビデンスインスペクター",
+    "inspectorPlaceholder": "ファイルを選択し、メタデータ、解析状態、ルール、ソースエビデンスを確認します。",
+    "inspectorEyebrow": "ファイルインスペクター",
+    "metadata": {
+      "type": "種別",
+      "size": "サイズ",
+      "encoding": "エンコーディング",
+      "modified": "最終更新",
+      "change": "変更",
+      "role": "構成ロール"
+    },
+    "parseError": "解析エラー",
+    "evidenceEyebrow": "追跡可能な検出結果",
+    "evidenceTitle": "{{count}} 件のエビデンス記録",
+    "noEvidence": "このファイルにフレームワークまたは設定のエビデンスは保存されていません。",
+    "line": "{{line}} 行目",
+    "analyzer": "アナライザー v{{version}}",
+    "openFramework": "フレームワークを開く",
+    "apiCount": "API {{count}} 件",
+    "expand": "ディレクトリを展開",
+    "collapse": "ディレクトリを折りたたむ"
+  },
+  "frameworks": {
+    "eyebrow": "フレームワーク利用",
+    "title": "シグナルと確認済み利用を区別。",
+    "description": "フレームワーク、ビルド、Web、データアクセスのエビデンスを確実性とソース位置で確認します。",
+    "noScanTitle": "フレームワーク棚卸がありません",
+    "noScanDescription": "初回スキャンを実行し、依存関係、API、設定、カスタムタグ利用を特定してください。",
+    "emptyTitle": "技術エビデンスが検出されませんでした",
+    "emptyDescription": "スキャンは完了しましたが、設定済みの技術・フレームワークルールに一致しませんでした。",
+    "indexEyebrow": "検出技術",
+    "indexTitle": "棚卸インデックス",
+    "metrics": {
+      "api": "API エビデンス",
+      "config": "設定",
+      "dependency": "宣言",
+      "total": "エビデンス合計"
+    },
+    "interpretationTitle": "状態の読み方",
+    "interpretationDeclared": "依存関係の宣言のみが検出されました。実行時の利用を証明するものではありません。",
+    "interpretationAnalyzed": "静的 API または設定エビデンスを解析しましたが、実行時ブランチの実行を意味するものではありません。",
+    "analyzedAt": "解析日時 {{date}}",
+    "evidenceEyebrow": "エビデンスチェーン",
+    "evidenceTitle": "{{count}} 件のソース関連記録",
+    "noEvidence": "集計は存在しますが、個別のエビデンス行は返されませんでした。",
+    "noLine": "行番号なし",
+    "inspectFile": "ファイルを確認"
+  },
+  "reports": {
+    "eyebrow": "棚卸レポート",
+    "title": "実際に存在するエビデンスをエクスポート。",
+    "description": "すべてのレポートは永続化されたスキャンデータから生成され、CSV、JSON、Markdown として出力できます。",
+    "policyTitle": "永続化データが唯一の正",
+    "policyDescription": "レポート件数とエクスポート内容は同じデータを使用します。クライアント側の集計やダミー検出結果は追加しません。",
+    "scanContext": "スキャン #{{sequence}} · {{date}}",
+    "noScanTitle": "レポートデータがありません",
+    "noScanDescription": "ファイル、構成、技術、確認項目レポートを出力する前に棚卸スキャンを完了してください。",
+    "catalogEyebrow": "エクスポート一覧",
+    "catalogTitle": "棚卸レポート種別",
+    "catalogDescription": "レポートと形式を選択します。空の結果も出力ファイルに明示されます。",
+    "types": {
+      "FILES": {
+        "title": "ファイル棚卸",
+        "description": "パス、種別、エンコーディング、解析状態、ハッシュ、変更分類。"
+      },
+      "STRUCTURE": {
+        "title": "プロジェクト構成",
+        "description": "モジュールと、検出されたソース、テスト、Web、リソース、設定、SQL ルート。"
+      },
+      "TECHNOLOGY": {
+        "title": "技術スタック",
+        "description": "API、設定、依存関係のエビデンス件数を含む技術シグナル集計。"
+      },
+      "FRAMEWORKS": {
+        "title": "フレームワーク API 利用",
+        "description": "パス、行番号、ルール ID を含むフレームワーク API と設定の検出結果。"
+      },
+      "CONFIGURATION": {
+        "title": "設定棚卸",
+        "description": "解析済み設定検出、クラス参照、dicon コンポーネント、タグライブラリ。"
+      },
+      "PARSE_ERRORS": {
+        "title": "解析例外",
+        "description": "設定済みパーサーが信頼できる結果を返せなかったファイルと記録。"
+      },
+      "REVIEWS": {
+        "title": "確認キュー",
+        "description": "推定、未解決、要確認、解析失敗の検出結果。"
+      }
+    },
+    "rows": "行",
+    "ready": "出力可能",
+    "unavailable": "スキャンなし",
+    "downloadFormat": "{{report}} を {{format}} でダウンロード"
+  },
+  "settings": {
+    "eyebrow": "プロジェクト設定",
+    "title": "自動化で判断できない情報を修正。",
+    "description": "ソースツリーを変更せずに、プロジェクト情報、除外規則、構成上の前提を調整します。",
+    "identityEyebrow": "識別情報",
+    "identityTitle": "プロジェクト背景",
+    "identityDescription": "分析調査を説明する値です。スキャンがソースディレクトリを書き換えることはありません。",
+    "stackEyebrow": "検出",
+    "stackTitle": "技術スタックと範囲",
+    "stackDescription": "検出値を修正できます。既存のスキャン記録は変更されません。",
+    "projectType": "プロジェクト種別",
+    "buildTool": "ビルドツール",
+    "jdkVersion": "JDK バージョン",
+    "jdkPlaceholder": "1.7、8、11",
+    "sourceFrameworkPlaceholder": "SAStruts、Struts 1、Seasar2",
+    "analysisScope": "分析範囲",
+    "scopeEyebrow": "スキャン境界",
+    "scopeTitle": "除外規則",
+    "scopeDescription": "1 行に 1 つのディレクトリ名、相対パス、または glob を追加します。既定の除外も適用されます。",
+    "excludedDirectories": "除外ディレクトリ",
+    "excludedFiles": "除外ファイル",
+    "exclusionsPlaceholder": "generated-modules\n**/*.min.js",
+    "defaultExclusions": "ビルド成果物、VCS メタデータ、依存関係、一般的な生成パスは既定で除外されます。",
+    "projectSaved": "プロジェクト情報を保存しました。",
+    "pathPolicyTitle": "バックエンドパスポリシー",
+    "pathPolicyDescription": "読み取り専用スキャンの対象にできるローカルルートは次のとおりです。",
+    "maxFiles": "最大ファイル数",
+    "maxFileSize": "ファイル単位上限",
+    "analyzerVersion": "アナライザー",
+    "overridesEyebrow": "構成修正",
+    "overridesTitle": "ディレクトリロール上書き",
+    "overridesDescription": "規約だけではディレクトリを確実に分類できない場合に明示的なロールを指定します。上書きは今後のスキャンに適用されます。",
+    "noOverrides": "明示的なディレクトリロール上書きはありません。",
+    "removeOverride": "ディレクトリ上書きを削除",
+    "overridePath": "ディレクトリパス",
+    "overrideRole": "ディレクトリロール",
+    "overridePathPlaceholder": "src/custom-web",
+    "saveOverrides": "上書きを保存"
+  },
+  "pathRole": {
+    "JAVA_SOURCE": "Java ソース",
+    "TEST_SOURCE": "テストソース",
+    "RESOURCE": "リソース",
+    "WEB_ROOT": "Web ルート",
+    "JSP_ROOT": "JSP ルート",
+    "STATIC_RESOURCE": "静的リソース",
+    "CONFIGURATION": "設定",
+    "SQL": "SQL"
+  },
+  "technology": {
+    "category": {
+      "LANGUAGE": "言語",
+      "BUILD": "ビルド",
+      "FRAMEWORK": "フレームワーク",
+      "WEB": "Web",
+      "TEST": "テスト",
+      "DATABASE": "データベース"
+    }
+  },
+  "fileType": {
+    "JAVA": "Java",
+    "JSP": "JSP",
+    "HTML": "HTML",
+    "JAVASCRIPT": "JavaScript",
+    "CSS": "CSS",
+    "XML": "XML",
+    "PROPERTIES": "Properties",
+    "YAML": "YAML",
+    "DICON": "dicon",
+    "SQL": "SQL",
+    "TLD": "TLD",
+    "MAVEN_POM": "Maven POM",
+    "GRADLE": "Gradle",
+    "TEST": "テストソース",
+    "OTHER": "その他"
+  },
+  "status": {
+    "scan": {
+      "QUEUED": "待機中",
+      "RUNNING": "実行中",
+      "CANCEL_REQUESTED": "キャンセル中",
+      "CANCELLED": "キャンセル済み",
+      "COMPLETED": "完了",
+      "FAILED": "失敗"
+    },
+    "certainty": {
+      "IDENTIFIED": "識別済み",
+      "ANALYZED": "解析済み",
+      "INFERRED": "推定",
+      "REVIEW_REQUIRED": "要確認",
+      "UNRESOLVED": "未解決",
+      "PARSE_FAILED": "解析失敗"
+    },
+    "file": {
+      "DISCOVERED": "検出済み",
+      "ANALYZED": "解析済み",
+      "SKIPPED": "スキップ",
+      "PARSE_FAILED": "解析失敗"
+    },
+    "parse": {
+      "NOT_APPLICABLE": "対象外",
+      "PARSED": "解析済み",
+      "PARTIAL": "部分解析",
+      "FAILED": "解析失敗"
+    },
+    "change": {
+      "ADDED": "追加",
+      "MODIFIED": "変更",
+      "UNCHANGED": "変更なし",
+      "DELETED": "削除"
+    }
+  }
+}

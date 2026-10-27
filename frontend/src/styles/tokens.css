@@ -1,0 +1,53 @@
+:root {
+  --canvas: #f5f4f7;
+  --canvas-deep: #eeecf1;
+  --surface: #ffffff;
+  --surface-subtle: #faf9fb;
+  --surface-strong: #efedf2;
+  --ink: #19171f;
+  --ink-muted: #696474;
+  --ink-faint: #99929f;
+  --line: #e5e1e8;
+  --line-strong: #d4ced9;
+  --accent: #6650d9;
+  --accent-deep: #4934bd;
+  --accent-soft: #efebff;
+  --accent-faint: #f7f4ff;
+  --success: #247a5b;
+  --success-soft: #e8f5ef;
+  --warning: #a66613;
+  --warning-soft: #fff4df;
+  --danger: #b63d4c;
+  --danger-soft: #fdecef;
+  --info: #49668f;
+  --info-soft: #edf3fa;
+  --rail: #1b1823;
+  --rail-raised: #26222f;
+  --rail-ink: #f5f2f8;
+  --rail-muted: #aaa3b5;
+  --rail-line: #35303e;
+  --font-sans: "Avenir Next", "Segoe UI", "Hiragino Sans", "Noto Sans CJK SC",
+    "Yu Gothic UI", sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono",
+    monospace;
+  --radius-xs: 4px;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --shadow-popover: 0 16px 48px rgba(25, 23, 31, 0.13);
+  --shadow-dialog: 0 24px 80px rgba(25, 23, 31, 0.2);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rail-width: 232px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

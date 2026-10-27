@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components>
+    <component name="orderService" class="com.example.legacy.service.OrderService">
+        <property name="orderDao">
+            <component class="com.example.legacy.dao.OrderDao">
+                <initMethod name="initialize"/>
+            </component>
+        </property>
+    </component>
+</components>
