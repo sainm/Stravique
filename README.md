@@ -183,7 +183,7 @@ Reports are available from the UI and at:
 GET /api/v1/projects/{projectId}/reports/{type}.{format}
 ```
 
-Types: `FILES`, `STRUCTURE`, `TECHNOLOGY`, `FRAMEWORKS`, `CONFIGURATION`, `PARSE_ERRORS`, and `REVIEWS`.
+Types: `FILES`, `STRUCTURE`, `TECHNOLOGY`, `FRAMEWORKS`, `RELATIONS`, `CONFIGURATION`, `PARSE_ERRORS`, and `REVIEWS`.
 
 Formats: `csv`, `json`, and `markdown`.
 

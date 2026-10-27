@@ -7,11 +7,13 @@ import dev.stravique.api.dto.ReportDescriptorDto;
 import dev.stravique.domain.AnalysisFinding;
 import dev.stravique.domain.AnalysisKind;
 import dev.stravique.domain.AnalysisProject;
+import dev.stravique.domain.AnalysisRelation;
 import dev.stravique.domain.Certainty;
 import dev.stravique.domain.ProjectFile;
 import dev.stravique.domain.ScanRun;
 import dev.stravique.infrastructure.AnalysisFindingRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
+import dev.stravique.infrastructure.AnalysisRelationRepository;
 import dev.stravique.infrastructure.ProjectFileRepository;
 import dev.stravique.infrastructure.ProjectModuleRepository;
 import dev.stravique.infrastructure.ModuleDependencyRepository;
@@ -48,6 +50,7 @@ public class ReportService {
     private final ProjectModuleRepository moduleRepository;
     private final ModuleDependencyRepository moduleDependencyRepository;
     private final AnalysisFindingRepository findingRepository;
+    private final AnalysisRelationRepository relationRepository;
     private final TechnologyUsageRepository technologyRepository;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
@@ -57,6 +60,7 @@ public class ReportService {
                          ProjectFileRepository fileRepository, ProjectModuleRepository moduleRepository,
                          ModuleDependencyRepository moduleDependencyRepository,
                          AnalysisFindingRepository findingRepository,
+                         AnalysisRelationRepository relationRepository,
                          TechnologyUsageRepository technologyRepository, AuditService auditService,
                          ObjectMapper objectMapper, MessageSource messageSource) {
         this.projectRepository = projectRepository;
@@ -65,6 +69,7 @@ public class ReportService {
         this.moduleRepository = moduleRepository;
         this.moduleDependencyRepository = moduleDependencyRepository;
         this.findingRepository = findingRepository;
+        this.relationRepository = relationRepository;
         this.technologyRepository = technologyRepository;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
@@ -118,6 +123,7 @@ public class ReportService {
             case STRUCTURE -> structure(scan);
             case TECHNOLOGY -> technology(scan);
             case FRAMEWORKS -> frameworkFindings(scan);
+            case RELATIONS -> relations(scan);
             case CONFIGURATION -> findingRows(findingRepository
                     .findByScanIdAndAnalysisKindOrderByFilePathAscLineStartAsc(
                             scan.getId(), AnalysisKind.CONFIGURATION));
@@ -202,6 +208,11 @@ public class ReportService {
         }).toList();
     }
 
+    private List<LinkedHashMap<String, Object>> relations(ScanRun scan) {
+        return relationRepository.findByScanIdOrderByEvidencePathAscLineStartAsc(scan.getId()).stream()
+                .map(this::relationRow).toList();
+    }
+
     private List<LinkedHashMap<String, Object>> frameworkFindings(ScanRun scan) {
         Set<String> technologyKeys = new LinkedHashSet<>();
         technologyRepository.findByScanIdOrderByCategoryAscNameAsc(scan.getId())
@@ -236,6 +247,24 @@ public class ReportService {
         return row;
     }
 
+    private LinkedHashMap<String, Object> relationRow(AnalysisRelation relation) {
+        LinkedHashMap<String, Object> row = new LinkedHashMap<>();
+        row.put("id", relation.getId());
+        row.put("sourceFileId", relation.getSourceFileId());
+        row.put("targetFileId", relation.getTargetFileId());
+        row.put("sourceObjectKey", relation.getSourceObjectKey());
+        row.put("targetObjectKey", relation.getTargetObjectKey());
+        row.put("relationType", relation.getRelationType().name());
+        row.put("evidencePath", relation.getEvidencePath());
+        row.put("lineStart", relation.getLineStart());
+        row.put("evidence", relation.getEvidence());
+        row.put("ruleId", relation.getRuleId());
+        row.put("certainty", relation.getCertainty().name());
+        row.put("analyzerVersion", relation.getAnalyzerVersion());
+        row.put("analyzedAt", relation.getAnalyzedAt());
+        return row;
+    }
+
     private static final List<String> FILE_COLUMNS = List.of(
             "id", "path", "type", "moduleId", "sizeBytes", "encoding", "lastModifiedAt",
             "scanStatus", "parseStatus", "parseError", "frameworkApiCount", "generated",
@@ -255,12 +284,18 @@ public class ReportService {
             "ruleId", "evidence", "certainty", "analyzerVersion", "analyzedAt", "parseStatus",
             "metadata");
 
+    private static final List<String> RELATION_COLUMNS = List.of(
+            "id", "sourceFileId", "targetFileId", "sourceObjectKey", "targetObjectKey",
+            "relationType", "evidencePath", "lineStart", "evidence", "ruleId", "certainty",
+            "analyzerVersion", "analyzedAt");
+
     private static List<String> columns(ReportType type) {
         return switch (type) {
             case FILES -> FILE_COLUMNS;
             case STRUCTURE -> STRUCTURE_COLUMNS;
             case TECHNOLOGY -> TECHNOLOGY_COLUMNS;
             case FRAMEWORKS, CONFIGURATION, PARSE_ERRORS, REVIEWS -> FINDING_COLUMNS;
+            case RELATIONS -> RELATION_COLUMNS;
         };
     }
 
@@ -385,6 +420,7 @@ public class ReportService {
         STRUCTURE,
         TECHNOLOGY,
         FRAMEWORKS,
+        RELATIONS,
         CONFIGURATION,
         PARSE_ERRORS,
         REVIEWS;

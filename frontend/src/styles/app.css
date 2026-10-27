@@ -1523,6 +1523,46 @@ textarea {
   font-size: 8px;
 }
 
+.analysis-coverage {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  margin-top: 12px;
+  background: var(--accent-faint);
+  border: 1px solid #e7e1f8;
+  border-radius: var(--radius-sm);
+}
+
+.analysis-coverage-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid #e5def7;
+  border-radius: 7px;
+}
+
+.analysis-coverage > div:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.analysis-coverage strong {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.analysis-coverage span {
+  color: var(--ink-faint);
+  font-size: 8px;
+}
+
 .scan-history {
   margin-top: 14px;
 }

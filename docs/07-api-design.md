@@ -75,7 +75,7 @@ The configured default is authoritative when the request carries no `Accept-Lang
 
 Formats: `csv`, `json`, `markdown`.
 
-Report types: `files`, `structure`, `technology`, `frameworks`, `configuration`, `parse-errors`, `reviews`.
+Report types: `files`, `structure`, `technology`, `frameworks`, `relations`, `configuration`, `parse-errors`, `reviews`.
 
 Exports accept optional `scanId` and `lang` query parameters. The export inherits the language resolution described above.
 

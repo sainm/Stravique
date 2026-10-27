@@ -102,7 +102,7 @@ public class InventoryQueryService {
                 .limit(6).map(ScanDto::from).toList();
         if (scan == null) {
             return new OverviewDto(projectId, null, 0, 0, 0, 0, 0,
-                    Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), recentScans,
+                    0, 0, Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), recentScans,
                     "RUN_SCAN", true);
         }
 
@@ -116,6 +116,12 @@ public class InventoryQueryService {
                 .collect(java.util.stream.Collectors.groupingBy(
                         ProjectFile::getStructureRole, TreeMap::new,
                         java.util.stream.Collectors.counting())));
+        List<Object[]> relationEndpoints = relationRepository.findFileEndpoints(scan.getId());
+        long relationCount = relationEndpoints.size();
+        long linkedFileCount = relationEndpoints.stream()
+                .flatMap(row -> java.util.stream.Stream.of((UUID) row[0], (UUID) row[1]))
+                .distinct()
+                .count();
         List<dev.stravique.domain.ProjectModule> moduleEntities =
                 moduleRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
         List<ModuleDto> modules = moduleEntities.stream().map(ModuleDto::from).toList();
@@ -140,6 +146,8 @@ public class InventoryQueryService {
                 parseFailures,
                 scan.getReviewCount(),
                 modules.size(),
+                relationCount,
+                linkedFileCount,
                 fileTypes,
                 roles,
                 modules,

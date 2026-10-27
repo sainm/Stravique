@@ -12,6 +12,8 @@ public record OverviewDto(
         long parseFailures,
         long reviewItems,
         long moduleCount,
+        long relationCount,
+        long linkedFileCount,
         Map<String, Long> fileTypes,
         Map<String, Long> structureRoles,
         List<ModuleDto> modules,

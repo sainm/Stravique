@@ -226,6 +226,8 @@ export interface Overview {
   parseFailures: number;
   reviewItems: number;
   moduleCount: number;
+  relationCount: number;
+  linkedFileCount: number;
   fileTypes: Record<string, number>;
   structureRoles: Record<string, number>;
   modules: ModuleInfo[];

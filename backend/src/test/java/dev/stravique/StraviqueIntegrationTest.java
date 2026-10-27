@@ -133,6 +133,19 @@ class StraviqueIntegrationTest {
                         org.hamcrest.Matchers.greaterThan(20)))
                 .andExpect(jsonPath("$.nodes").isNotEmpty())
                 .andExpect(jsonPath("$.edges").isNotEmpty());
+        String overviewResponse = mockMvc.perform(get("/api/v1/projects/{id}/overview", projectId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode overview = objectMapper.readTree(overviewResponse);
+        int relationCount = overview.get("relationCount").asInt();
+        assertThat(relationCount).isGreaterThan(20);
+        assertThat(overview.get("linkedFileCount").asInt()).isGreaterThan(0);
+        mockMvc.perform(get("/api/v1/projects/{id}/reports/RELATIONS.json", projectId))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    JsonNode rows = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+                    assertThat(rows.size()).isEqualTo(relationCount);
+                });
 
         String filesResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
                         .param("fileType", "JAVA")

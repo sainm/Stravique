@@ -163,6 +163,9 @@
     "structureTitle": "検出されたソースルート",
     "rootCount": "{{count}} ルート",
     "moduleDependency": "{{target}} に依存",
+    "analysisCoverage": "解析済み {{analyzed}} ファイル中 {{linked}} ファイルが関係に参加",
+    "relationCoverage": "エビデンス付き関係 {{count}} 件",
+    "openRelations": "関係分析を開く",
     "historyEyebrow": "スキャン履歴",
     "historyTitle": "棚卸実行",
     "historyNote": "新しいスキャンは変更不可の記録として保存されます。",
@@ -324,6 +327,10 @@
       "FRAMEWORKS": {
         "title": "フレームワーク API 利用",
         "description": "パス、行番号、ルール ID を含むフレームワーク API と設定の検出結果。"
+      },
+      "RELATIONS": {
+        "title": "ファイル間関係",
+        "description": "ソースエビデンスを含む Java、フレームワーク、設定、Web、データベース、メッセージの関係。"
       },
       "CONFIGURATION": {
         "title": "設定棚卸",

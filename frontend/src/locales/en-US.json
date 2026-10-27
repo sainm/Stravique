@@ -163,6 +163,9 @@
     "structureTitle": "Detected source roots",
     "rootCount": "{{count}} roots",
     "moduleDependency": "Depends on {{target}}",
+    "analysisCoverage": "{{linked}} of {{analyzed}} analyzed files participate in relationships",
+    "relationCoverage": "{{count}} evidence-backed relationships",
+    "openRelations": "Open relations",
     "historyEyebrow": "Scan history",
     "historyTitle": "Inventory runs",
     "historyNote": "New scans create immutable records.",
@@ -324,6 +327,10 @@
       "FRAMEWORKS": {
         "title": "Framework API usage",
         "description": "Persisted framework API and configuration findings with paths, lines, and rule IDs."
+      },
+      "RELATIONS": {
+        "title": "Cross-file relationships",
+        "description": "Persisted Java, framework, configuration, web, database, and message relationships with source evidence."
       },
       "CONFIGURATION": {
         "title": "Configuration inventory",

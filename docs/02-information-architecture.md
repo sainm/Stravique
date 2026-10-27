@@ -29,6 +29,7 @@ The persistent left rail contains brand, project navigation, language selection,
 - Leads with project identity, latest scan state, and the next useful action.
 - Shows file, module, evidence, parse-failure, and review counts as a compact status strip rather than isolated metric cards.
 - Shows detected technologies with their certainty state.
+- Shows how many analyzed files participate in evidence-backed cross-file relationships.
 - Highlights review-required and unresolved findings.
 - Shows the latest scan history and explicit no-scan state.
 - Starts or observes scanning without fake progress animation.

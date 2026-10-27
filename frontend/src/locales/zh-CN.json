@@ -163,6 +163,9 @@
     "structureTitle": "检测到的源码根目录",
     "rootCount": "{{count}} 个根目录",
     "moduleDependency": "依赖 {{target}}",
+    "analysisCoverage": "{{linked}} / {{analyzed}} 个已分析文件参与关系",
+    "relationCoverage": "{{count}} 条有证据的关系",
+    "openRelations": "打开关系分析",
     "historyEyebrow": "扫描历史",
     "historyTitle": "棚卸运行记录",
     "historyNote": "每次扫描都会创建不可变记录。",
@@ -324,6 +327,10 @@
       "FRAMEWORKS": {
         "title": "框架 API 使用",
         "description": "包含路径、行号和规则 ID 的框架 API 与配置发现。"
+      },
+      "RELATIONS": {
+        "title": "跨文件关系",
+        "description": "包含源代码证据的 Java、框架、配置、Web、数据库和消息关系。"
       },
       "CONFIGURATION": {
         "title": "配置清单",

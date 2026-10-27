@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface AnalysisRelationRepository extends JpaRepository<AnalysisRelation, UUID>,
         JpaSpecificationExecutor<AnalysisRelation> {
 
+    List<AnalysisRelation> findByScanIdOrderByEvidencePathAscLineStartAsc(UUID scanId);
+
     @Query("""
             select relation
             from AnalysisRelation relation
@@ -37,4 +39,11 @@ public interface AnalysisRelationRepository extends JpaRepository<AnalysisRelati
             group by relation.certainty
             """)
     List<Object[]> countByCertainty(@Param("scanId") UUID scanId);
+
+    @Query("""
+            select relation.sourceFileId, relation.targetFileId
+            from AnalysisRelation relation
+            where relation.scanId = :scanId
+            """)
+    List<Object[]> findFileEndpoints(@Param("scanId") UUID scanId);
 }

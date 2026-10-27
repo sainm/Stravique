@@ -5,6 +5,7 @@ import {
   FileJson2,
   FileSpreadsheet,
   FileText,
+  Network,
   ScrollText,
   ShieldCheck
 } from "lucide-react";
@@ -24,6 +25,7 @@ const reportIcons = {
   STRUCTURE: Braces,
   TECHNOLOGY: ScrollText,
   FRAMEWORKS: ScrollText,
+  RELATIONS: Network,
   CONFIGURATION: FileText,
   PARSE_ERRORS: FileJson2,
   REVIEWS: ShieldCheck

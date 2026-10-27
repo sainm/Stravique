@@ -87,6 +87,7 @@ Persisted screenshots are verification artifacts, not product data.
 - Confirms Markdown titles and column labels follow the resolved language.
 - Confirms localized API errors in Chinese and Japanese.
 - Confirms an unscanned report still emits a complete header row.
+- Confirms the relations report contains the same persisted relationship count shown by analysis APIs.
 
 It exists because MockMvc substitutes the servlet request. Locale resolution and response bytes are only trustworthy when observed through a real container.
 

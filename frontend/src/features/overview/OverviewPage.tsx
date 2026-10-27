@@ -10,6 +10,7 @@ import {
   FolderTree,
   GitCompareArrows,
   Layers3,
+  Network,
   Play,
   RefreshCw,
   ScanSearch,
@@ -365,6 +366,28 @@ export default function OverviewPage() {
                     </div>
                   );
                 })}
+              </div>
+              <div className="analysis-coverage">
+                <div className="analysis-coverage-icon">
+                  <Network size={17} />
+                </div>
+                <div>
+                  <strong>
+                    {t("overview.analysisCoverage", {
+                      linked: data.linkedFileCount,
+                      analyzed: data.analyzedFiles
+                    })}
+                  </strong>
+                  <span>
+                    {t("overview.relationCoverage", {
+                      count: data.relationCount
+                    })}
+                  </span>
+                </div>
+                <Link to={`/projects/${projectId}/relations`} className="text-link">
+                  {t("overview.openRelations")}
+                  <ArrowRight size={14} />
+                </Link>
               </div>
             </section>
           </div>
