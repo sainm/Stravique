@@ -225,6 +225,13 @@ else
 fi
 check "CSV response is served as an attachment" "1" "${attachment}"
 
+echo "== Asserting the relations report =="
+relations_header='"id","sourceFileId","targetFileId","sourceObjectKey","targetObjectKey","relationType","evidencePath","lineStart","evidence","ruleId","certainty","analyzerVersion","analyzedAt"'
+curl -s "${base_url}/projects/${project_id}/reports/RELATIONS.csv" -o "${reports}/relations.csv"
+curl -s "${base_url}/projects/${project_id}/reports/RELATIONS.markdown?lang=zh-CN" -o "${reports}/relations.zh.md"
+check "relations report emits its declared columns" "${relations_header}" "$(first_line "${reports}/relations.csv")"
+check "relations report title is localized" "# 跨文件关系" "$(first_line "${reports}/relations.zh.md")"
+
 echo "== Asserting localized errors =="
 error_zh="$(curl -s -H 'Accept-Language: zh-CN' "${base_url}/projects/${unknown_project}" | json_field message)"
 error_ja="$(curl -s -H 'Accept-Language: ja-JP' "${base_url}/projects/${unknown_project}" | json_field message)"

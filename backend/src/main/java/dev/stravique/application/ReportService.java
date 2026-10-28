@@ -289,7 +289,7 @@ public class ReportService {
             "relationType", "evidencePath", "lineStart", "evidence", "ruleId", "certainty",
             "analyzerVersion", "analyzedAt");
 
-    private static List<String> columns(ReportType type) {
+    static List<String> columns(ReportType type) {
         return switch (type) {
             case FILES -> FILE_COLUMNS;
             case STRUCTURE -> STRUCTURE_COLUMNS;
@@ -415,7 +415,7 @@ public class ReportService {
     public record ReportDownload(byte[] content, String contentType, String filename) {
     }
 
-    private enum ReportType {
+    enum ReportType {
         FILES,
         STRUCTURE,
         TECHNOLOGY,

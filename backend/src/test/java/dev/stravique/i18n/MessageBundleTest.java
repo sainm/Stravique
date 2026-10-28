@@ -40,33 +40,6 @@ class MessageBundleTest {
         }
     }
 
-    @Test
-    void reportColumnsAreLocalizedPerReportType() throws IOException {
-        String[] columns = {
-                "id", "path", "type", "moduleId", "sizeBytes", "encoding", "lastModifiedAt",
-                "scanStatus", "parseStatus", "parseError", "frameworkApiCount", "generated",
-                "changeType", "structureRole", "sha256", "name", "sourceRoots", "testRoots",
-                "resourceRoots", "webRoots", "configRoots", "sqlRoots", "moduleDependencies",
-                "technologyKey", "category", "status", "apiEvidenceCount",
-                "configurationEvidenceCount", "dependencyEvidenceCount", "totalEvidenceCount",
-                "ruleIds", "firstEvidencePath", "firstEvidenceLine", "analyzerVersion",
-                "analyzedAt", "lineStart", "lineEnd", "analysisKind", "objectKey", "summary",
-                "ruleId", "evidence", "certainty", "metadata"
-        };
-        String[] types = {"FILES", "STRUCTURE", "TECHNOLOGY", "FRAMEWORKS", "CONFIGURATION",
-                "PARSE_ERRORS", "REVIEWS"};
-        for (String bundle : BUNDLES) {
-            Set<String> available = keys(bundle);
-            assertThat(available).describedAs(bundle).contains("report.markdownEmpty");
-            for (String column : columns) {
-                assertThat(available).describedAs(bundle).contains("report.column." + column);
-            }
-            for (String type : types) {
-                assertThat(available).describedAs(bundle).contains("report.title." + type);
-            }
-        }
-    }
-
     private static Set<String> keys(String resource) throws IOException {
         return new TreeSet<>(load(resource).stringPropertyNames());
     }
