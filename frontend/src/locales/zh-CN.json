@@ -282,7 +282,7 @@
     "mapLabel": "跨文件关系图",
     "mapHint": "拖动画布、滚动缩放，选择节点可检查对应文件。",
     "fitGraph": "适应视图",
-    "graphTruncated": "该扫描的关系数量超过关系图的绘制上限，完整列表请查看表格视图。",
+    "graphTruncated": "关系图最多绘制 {{limit}} 条关系，完整列表请查看表格视图。",
     "openInventory": "打开棚卸工作区",
     "nodeCounts": "输入 {{incoming}} · 输出 {{outgoing}}",
     "search": "搜索关系",

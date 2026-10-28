@@ -235,8 +235,10 @@ check "relations report title is localized" "# 跨文件关系" "$(first_line "$
 graph_json="$(curl -s "${base_url}/projects/${project_id}/relations/graph")"
 graph_truncated="$(printf '%s' "${graph_json}" | python3 -c 'import sys,json;print("true" if json.load(sys.stdin).get("truncated") else "false")')"
 graph_has_nodes="$(printf '%s' "${graph_json}" | python3 -c 'import sys,json;print(1 if json.load(sys.stdin).get("nodes") else 0)')"
+graph_limit="$(printf '%s' "${graph_json}" | python3 -c 'import sys,json;print(1 if (json.load(sys.stdin).get("limit") or 0) > 0 else 0)')"
 check "graph reports no truncation for the fixture" "false" "${graph_truncated}"
 check "graph derives nodes from persisted rows" "1" "${graph_has_nodes}"
+check "graph publishes its relationship cap" "1" "${graph_limit}"
 
 echo "== Asserting localized errors =="
 error_zh="$(curl -s -H 'Accept-Language: zh-CN' "${base_url}/projects/${unknown_project}" | json_field message)"

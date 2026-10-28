@@ -7,6 +7,7 @@ public record RelationGraphDto(
         UUID projectId,
         UUID scanId,
         int relationCount,
+        int limit,
         List<RelationGraphNodeDto> nodes,
         List<RelationGraphEdgeDto> edges,
         boolean truncated

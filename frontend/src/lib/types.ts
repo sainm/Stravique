@@ -127,6 +127,7 @@ export interface RelationGraph {
   projectId: string;
   scanId?: string;
   relationCount: number;
+  limit?: number;
   nodes: RelationGraphNode[];
   edges: RelationGraphEdge[];
   truncated?: boolean;

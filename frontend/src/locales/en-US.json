@@ -282,7 +282,7 @@
     "mapLabel": "Cross-file relationship map",
     "mapHint": "Drag the canvas and scroll to zoom. Select a node to inspect its file.",
     "fitGraph": "Fit graph to view",
-    "graphTruncated": "This scan persists more relationships than the map draws. The table view lists every relationship.",
+    "graphTruncated": "The map draws at most {{limit}} relationships for this scan. The table view lists every relationship.",
     "openInventory": "Open inventory",
     "nodeCounts": "{{incoming}} in · {{outgoing}} out",
     "search": "Search relationships",

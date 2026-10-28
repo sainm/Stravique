@@ -415,7 +415,8 @@ public class InventoryQueryService {
                                           String query) {
         ScanRun scan = resolveScan(projectId, requestedScanId);
         if (scan == null) {
-            return new RelationGraphDto(projectId, null, 0, List.of(), List.of(), false);
+            return new RelationGraphDto(projectId, null, 0, MAX_GRAPH_RELATIONS,
+                    List.of(), List.of(), false);
         }
         Specification<AnalysisRelation> specification = relationSpecification(
                 scan.getId(), relationType, certainty, query);
@@ -453,7 +454,7 @@ public class InventoryQueryService {
                 .sorted(Comparator.comparing(RelationGraphEdgeDto::id))
                 .toList();
         return new RelationGraphDto(projectId, scan.getId(), (int) Math.min(total, Integer.MAX_VALUE),
-                nodes, graphEdges, total > relations.size());
+                MAX_GRAPH_RELATIONS, nodes, graphEdges, total > relations.size());
     }
 
     private List<FindingDto> reviewFindings(UUID scanId, int limit) {

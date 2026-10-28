@@ -286,7 +286,9 @@ export default function RelationsPage() {
                 <>
                   {graph.data.truncated ? (
                     <p className="relation-map-truncated">
-                      {t("relations.graphTruncated")}
+                      {t("relations.graphTruncated", {
+                        limit: formatNumber(graph.data.limit ?? 0, i18n.language)
+                      })}
                     </p>
                   ) : null}
                   <RelationMap

@@ -132,6 +132,8 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.relationCount").value(
                         org.hamcrest.Matchers.greaterThan(20)))
                 .andExpect(jsonPath("$.truncated").value(false))
+                .andExpect(jsonPath("$.limit").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
                 .andExpect(jsonPath("$.nodes").isNotEmpty())
                 .andExpect(jsonPath("$.edges").isNotEmpty());
         mockMvc.perform(get("/api/v1/projects/{id}/relations/graph", projectId)
