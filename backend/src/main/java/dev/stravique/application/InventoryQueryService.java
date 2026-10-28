@@ -67,6 +67,11 @@ public class InventoryQueryService {
             ScanStatus.QUEUED, ScanStatus.RUNNING, ScanStatus.CANCEL_REQUESTED
     );
 
+    private static final int MAX_GRAPH_RELATIONS = 3000;
+    private static final Sort GRAPH_ORDER = Sort.by(Sort.Direction.ASC, "relationType")
+            .and(Sort.by(Sort.Direction.ASC, "evidencePath"))
+            .and(Sort.by(Sort.Direction.ASC, "lineStart"));
+
     private final AnalysisProjectRepository projectRepository;
     private final ScanRunRepository scanRepository;
     private final ProjectModuleRepository moduleRepository;
@@ -410,11 +415,14 @@ public class InventoryQueryService {
                                           String query) {
         ScanRun scan = resolveScan(projectId, requestedScanId);
         if (scan == null) {
-            return new RelationGraphDto(projectId, null, 0, List.of(), List.of());
+            return new RelationGraphDto(projectId, null, 0, List.of(), List.of(), false);
         }
         Specification<AnalysisRelation> specification = relationSpecification(
                 scan.getId(), relationType, certainty, query);
-        List<AnalysisRelation> relations = relationRepository.findAll(specification);
+        long total = relationRepository.count(specification);
+        List<AnalysisRelation> relations = relationRepository.findAll(specification,
+                        PageRequest.of(0, MAX_GRAPH_RELATIONS, GRAPH_ORDER))
+                .getContent();
         Map<UUID, ProjectFile> filesById = relationFiles(relations);
         Map<UUID, int[]> counts = new LinkedHashMap<>();
         Map<String, EdgeAccumulator> edges = new LinkedHashMap<>();
@@ -444,7 +452,8 @@ public class InventoryQueryService {
                 .map(EdgeAccumulator::toDto)
                 .sorted(Comparator.comparing(RelationGraphEdgeDto::id))
                 .toList();
-        return new RelationGraphDto(projectId, scan.getId(), relations.size(), nodes, graphEdges);
+        return new RelationGraphDto(projectId, scan.getId(), (int) Math.min(total, Integer.MAX_VALUE),
+                nodes, graphEdges, total > relations.size());
     }
 
     private List<FindingDto> reviewFindings(UUID scanId, int limit) {

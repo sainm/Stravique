@@ -131,8 +131,19 @@ class StraviqueIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.relationCount").value(
                         org.hamcrest.Matchers.greaterThan(20)))
+                .andExpect(jsonPath("$.truncated").value(false))
                 .andExpect(jsonPath("$.nodes").isNotEmpty())
                 .andExpect(jsonPath("$.edges").isNotEmpty());
+        mockMvc.perform(get("/api/v1/projects/{id}/relations/graph", projectId)
+                        .param("relationType", "JAVA_IMPORT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.truncated").value(false))
+                .andExpect(jsonPath("$.relationCount").value(
+                        org.hamcrest.Matchers.greaterThan(0)));
+        mockMvc.perform(get("/api/v1/projects/{id}/relations/graph", projectId)
+                        .param("relationType", "NOT_A_RELATION_TYPE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_FILTER"));
         String overviewResponse = mockMvc.perform(get("/api/v1/projects/{id}/overview", projectId))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();

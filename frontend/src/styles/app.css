@@ -2784,6 +2784,17 @@ textarea {
     #fcfbfd;
 }
 
+.relation-map-truncated {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  color: var(--accent-deep);
+  background: var(--accent-faint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .relation-canvas {
   position: absolute;
   inset: 0;

@@ -129,6 +129,7 @@ export interface RelationGraph {
   relationCount: number;
   nodes: RelationGraphNode[];
   edges: RelationGraphEdge[];
+  truncated?: boolean;
 }
 
 export interface ProjectFile {

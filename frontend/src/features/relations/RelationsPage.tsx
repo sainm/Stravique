@@ -283,13 +283,20 @@ export default function RelationsPage() {
 
             {view === "map" ? (
               graph.data && graph.data.nodes.length > 0 ? (
-                <RelationMap
-                  projectId={projectId}
-                  graph={graph.data}
-                  onNodeClick={(fileId) =>
-                    navigate(`/projects/${projectId}/inventory?fileId=${fileId}`)
-                  }
-                />
+                <>
+                  {graph.data.truncated ? (
+                    <p className="relation-map-truncated">
+                      {t("relations.graphTruncated")}
+                    </p>
+                  ) : null}
+                  <RelationMap
+                    projectId={projectId}
+                    graph={graph.data}
+                    onNodeClick={(fileId) =>
+                      navigate(`/projects/${projectId}/inventory?fileId=${fileId}`)
+                    }
+                  />
+                </>
               ) : (
                 <EmptyState
                   icon={Network}

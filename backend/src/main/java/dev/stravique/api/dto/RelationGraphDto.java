@@ -8,6 +8,7 @@ public record RelationGraphDto(
         UUID scanId,
         int relationCount,
         List<RelationGraphNodeDto> nodes,
-        List<RelationGraphEdgeDto> edges
+        List<RelationGraphEdgeDto> edges,
+        boolean truncated
 ) {
 }
