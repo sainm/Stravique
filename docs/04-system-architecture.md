@@ -88,6 +88,16 @@ Phase 1 uses PostgreSQL for canonical project, scan, file, evidence, technology,
 
 Reports query scan-scoped persisted rows. CSV, JSON, and Markdown serializers share DTOs and counts. Export operations are audited.
 
+## Relations
+
+A scan derives cross-file relations from static evidence only. Each row records a source file, a target file, a relation type, the evidence path and line, the rule that matched, its certainty, and the analyzer version. A unique constraint over scan, endpoints, type, evidence path, and line keeps repeated scans from duplicating a relation.
+
+Relation types are: `JAVA_IMPORT`, `JAVA_INHERITANCE`, `SEASAR_BINDING`, `SEASAR_DICON_INJECTION`, `CONFIG_CLASS_REFERENCE`, `STRUTS_ACTION_TO_JSP`, `JSP_FORM_TO_ACTION`, `SASTRUTS_ACTION_TO_JSP`, `DAO_SQL_REFERENCE`, `MESSAGE_PRODUCTION`, and `MESSAGE_DISPLAY`.
+
+Relations are scan-scoped and cascade with the scan row. Every read resolves the scan through its owning project, so a scan identifier alone cannot expose another project's rows. A relation is evidence of a static reference, never proof that a branch executes.
+
+The graph endpoint materializes every relation of one scan in memory and returns a single payload; it is not paginated. The paged relation table with type, certainty, and text filters is the bounded entry point. Measured on the shipped fixture, a scan of 29 files yields 26 relations and an 8 KB graph response, roughly 300 bytes per relation. Because `STRAVIQUE_MAX_FILES` defaults to 100000, a very large scan will produce a graph payload and a browser layout far beyond interactive size. Treat the graph as a navigation aid for small and medium scans.
+
 ## Internationalization
 
 Frontend interface strings live in locale JSON resources. The backend returns stable error codes, message keys, and argument arrays. Technical statuses and technology keys remain language-neutral.
