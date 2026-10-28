@@ -34,18 +34,13 @@ import java.util.regex.Pattern;
 @Component
 public class CrossFileRelationDiscovery {
 
-    private static final Pattern JSP_FORM = Pattern.compile(
-            "(?i)<form\\b[^>]*action\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>"
-    );
     private static final Pattern CONFIG_CLASS = Pattern.compile(
             "(?:[a-z_][\\w$]*\\.){2,}[A-Z][\\w$]*(?:\\.[A-Z][\\w$]*)*"
     );
     private static final Pattern ACTION_MESSAGE = Pattern.compile(
             "ActionMessage\\s*\\(\\s*[\"']([^\"']+)[\"']"
     );
-    private static final Pattern JSP_MESSAGE = Pattern.compile(
-            "(?i)<(?:fmt:message|spring:message)\\b[^>]*\\bkey\\s*=\\s*[\"']([^\"']+)[\"']"
-    );
+    private static final Set<String> MESSAGE_PREFIXES = Set.of("fmt", "bean", "spring");
     private static final Pattern SQL_TABLE = Pattern.compile(
             "(?i)\\b(?:FROM|JOIN|UPDATE|INTO)\\s+([A-Za-z_][A-Za-z0-9_.$]*)"
     );
@@ -372,22 +367,33 @@ public class CrossFileRelationDiscovery {
             }
             try {
                 TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(jsp.getRelativePath()));
+                JspTagScanner.Document document = JspTagScanner.scan(decoded.text());
+                Map<String, JspTagScanner.Directive> taglibs = document.taglibsByPrefix();
                 List<String> lines = decoded.text().lines().toList();
-                for (int index = 0; index < lines.size(); index++) {
-                    Matcher matcher = JSP_MESSAGE.matcher(lines.get(index));
-                    while (matcher.find()) {
-                        ProjectFile messageFile = uniqueTarget(keyFiles.get(matcher.group(1)));
-                        if (messageFile == null) {
-                            continue;
-                        }
-                        add(relations, seen, AnalysisRelation.create(
-                                projectId, scanId, jsp.getId(), messageFile.getId(),
-                                jsp.getRelativePath(), matcher.group(1),
-                                AnalysisRelationType.MESSAGE_DISPLAY,
-                                jsp.getRelativePath(), index + 1, lines.get(index).strip(),
-                                "JSP-MESSAGE-DISPLAY-001", Certainty.ANALYZED, analyzerVersion
-                        ));
+                for (JspTagScanner.Tag tag : document.tags()) {
+                    if (tag.closing() || !tag.name().equalsIgnoreCase("message")) {
+                        continue;
                     }
+                    String prefix = tag.prefix();
+                    String uri = taglibUri(taglibs, prefix);
+                    if (!MESSAGE_PREFIXES.contains(prefix) && !isStrutsTaglib(uri)
+                            && !uri.toLowerCase(java.util.Locale.ROOT).contains("jstl")) {
+                        continue;
+                    }
+                    String key = tag.attribute("key").strip();
+                    ProjectFile messageFile = uniqueTarget(keyFiles.get(key));
+                    if (messageFile == null) {
+                        continue;
+                    }
+                    String lineText = tag.line() <= lines.size()
+                            ? lines.get(tag.line() - 1).strip() : "";
+                    add(relations, seen, AnalysisRelation.create(
+                            projectId, scanId, jsp.getId(), messageFile.getId(),
+                            jsp.getRelativePath(), key,
+                            AnalysisRelationType.MESSAGE_DISPLAY,
+                            jsp.getRelativePath(), tag.line(), lineText,
+                            "JSP-MESSAGE-DISPLAY-001", Certainty.ANALYZED, analyzerVersion
+                    ));
                 }
             } catch (Exception ignored) {
                 // Parse failures are persisted by the per-file analyzer.
@@ -531,27 +537,67 @@ public class CrossFileRelationDiscovery {
             }
             try {
                 TextDecoder.DecodedSource decoded = decoder.decode(root.resolve(jsp.getRelativePath()));
+                JspTagScanner.Document document = JspTagScanner.scan(decoded.text());
+                Map<String, JspTagScanner.Directive> taglibs = document.taglibsByPrefix();
                 List<String> lines = decoded.text().lines().toList();
-                for (int index = 0; index < lines.size(); index++) {
-                    Matcher matcher = JSP_FORM.matcher(lines.get(index));
-                    while (matcher.find()) {
-                        JavaSource action = actionPaths.get(matcher.group(1));
-                        if (action == null) {
-                            continue;
-                        }
-                        add(relations, seen, AnalysisRelation.create(
-                                projectId, scanId, jsp.getId(), action.file().getId(),
-                                jsp.getRelativePath(), action.fqn(),
-                                AnalysisRelationType.JSP_FORM_TO_ACTION,
-                                jsp.getRelativePath(), index + 1, lines.get(index).strip(),
-                                "JSP-FORM-TO-ACTION-001", Certainty.INFERRED, analyzerVersion
-                        ));
+                for (JspTagScanner.Tag tag : document.tags()) {
+                    if (tag.closing() || !tag.name().equalsIgnoreCase("form")) {
+                        continue;
                     }
+                    if (!tag.prefix().isEmpty()
+                            && !isStrutsTaglib(taglibUri(taglibs, tag.prefix()))) {
+                        continue;
+                    }
+                    String actionPath = normalizeActionPath(tag.attribute("action"));
+                    if (actionPath.isEmpty()) {
+                        continue;
+                    }
+                    JavaSource action = actionPaths.get(actionPath);
+                    if (action == null) {
+                        continue;
+                    }
+                    String lineText = tag.line() <= lines.size()
+                            ? lines.get(tag.line() - 1).strip() : "";
+                    add(relations, seen, AnalysisRelation.create(
+                            projectId, scanId, jsp.getId(), action.file().getId(),
+                            jsp.getRelativePath(), action.fqn(),
+                            AnalysisRelationType.JSP_FORM_TO_ACTION,
+                            jsp.getRelativePath(), tag.line(), lineText,
+                            "JSP-FORM-TO-ACTION-001", Certainty.INFERRED, analyzerVersion
+                    ));
                 }
             } catch (Exception ignored) {
                 // Parse failures are persisted by the per-file analyzer.
             }
         }
+    }
+
+    private String taglibUri(Map<String, JspTagScanner.Directive> taglibs, String prefix) {
+        JspTagScanner.Directive directive = taglibs.get(prefix);
+        return directive == null ? "" : directive.attribute("uri");
+    }
+
+    private boolean isStrutsTaglib(String uri) {
+        String lower = uri == null ? "" : uri.strip().toLowerCase(java.util.Locale.ROOT);
+        return lower.startsWith("http://struts.apache.org") || lower.startsWith("https://struts.apache.org")
+                || lower.startsWith("http://jakarta.apache.org/struts")
+                || lower.startsWith("https://jakarta.apache.org/struts");
+    }
+
+    private String normalizeActionPath(String action) {
+        String value = action == null ? "" : action.strip();
+        if (value.contains("${") || value.contains("#{") || !value.startsWith("/")) {
+            return "";
+        }
+        int query = value.indexOf('?');
+        if (query >= 0) {
+            value = value.substring(0, query);
+        }
+        int fragment = value.indexOf('#');
+        if (fragment >= 0) {
+            value = value.substring(0, fragment);
+        }
+        return value;
     }
 
     private ProjectFile uniquePathSuffix(Map<String, ProjectFile> files, String suffix,

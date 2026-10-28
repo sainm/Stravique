@@ -41,6 +41,8 @@ The sample scan should report these minimum characteristics:
 - One parse failure.
 - At least two skipped generated/source-limit records.
 - Review-required dynamic loading and reflection evidence.
+- Struts tag-form actions and fields, Struts action mappings, forwards, and message resources.
+- dicon component, injection, lifecycle, and scope evidence.
 
 Exact counts can change when the fixture changes, but must remain derived from the current persisted scan.
 

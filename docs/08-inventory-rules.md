@@ -69,14 +69,19 @@ Example evidence keys:
 - `SERVLET_API`
 - `JUNIT_TEST`
 
+SAStruts validation annotations and `@ActionForm` fields produce separate evidence (`JAVA-SAST-VALIDATION-001`, `JAVA-SAST-FORM-001`). Struts 1 `validate(...ActionMapping...)` and `findForward("...")` calls produce `STRUTS1` evidence. Seasar container startup calls and S2 transaction API imports are recorded without claiming that the container or a transaction ran.
+
 AST parse failure produces `PARSE_FAILED`; text is never promoted to an AST result.
 
 ### JSP and TLD
 
-- Parse taglib declarations and tag URI/prefix usage.
-- Locate form actions, message/error tags, JavaScript, and static references.
+- Parse taglib declarations and tag URI/prefix usage with a markup scanner that understands quoted attributes, multi-line tags, JSP comments, scriptlets, directives, and expressions; commented-out markup is not evidence.
+- Locate plain `<form>` submissions and Struts tag submissions such as `<html:form>` or `<s:form>`; every submission remains `REVIEW_REQUIRED` because runtime routing is not resolved.
+- Locate plain field tags (`input`, `select`, `textarea`) and Struts field tags (`html:text`, `html:select`, `html:checkbox`, and related `property`-based tags).
+- Locate message and error display tags: JSTL `fmt:message`, Struts `bean:message`, `html:errors`, and `html:messages`.
+- Locate JavaScript and static references from `script`, `link`, `img`, and `source` elements.
+- Treat page-to-action linkage as `INFERRED` only when a form action resolves exactly to one configured Struts action path; unresolved or dynamic targets produce no relationship.
 - Parse TLD XML securely.
-- Treat page-to-action linkage as review-required unless the destination is explicit.
 
 ### Build files
 
@@ -90,7 +95,10 @@ AST parse failure produces `PARSE_FAILED`; text is never promoted to an AST resu
 - Parse well-formed XML with DTDs and external entities disabled.
 - Obtain components, classes, filters, servlets, mappings, and references from supported elements.
 - Preserve parse failure evidence.
-- dicon component/injection findings map to Seasar2.
+- dicon findings map to Seasar2: components with `instance`/`autoBinding` attributes, property and constructor injection, lifecycle methods, includes, aspects, and interceptors.
+- `struts-config.xml` findings map to Struts 1: message resources, form beans, action mappings with path, type, form name, and validation flag, forwards, and plug-ins.
+- `web.xml` declarations cover servlets, filters, and listeners with class references.
+- Line evidence comes from literal source lookup of the matched tag, class name, or coordinate; a lookup that cannot locate the token reports line 1 rather than inventing a position.
 
 ### Properties, YAML, SQL, and text-backed config
 

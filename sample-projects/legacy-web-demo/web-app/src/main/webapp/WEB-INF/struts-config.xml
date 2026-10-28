@@ -5,5 +5,8 @@
         <action path="/orders" type="com.example.legacy.action.OrderAction">
             <forward name="list" path="/WEB-INF/jsp/order/list.jsp"/>
         </action>
+        <action path="/orders/save" type="com.example.legacy.action.OrderAction">
+            <forward name="edit" path="/WEB-INF/jsp/order/edit.jsp"/>
+        </action>
     </action-mappings>
 </struts-config>

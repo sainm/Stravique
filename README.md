@@ -16,7 +16,7 @@ Phase 1 is implemented as a runnable local application:
 - Module, source, test, resource, web, configuration, and SQL root discovery.
 - Evidence-linked Maven and Gradle dependencies between modules.
 - JavaParser-based API evidence for SAStruts, Struts 1, Seasar2, S2JDBC, Servlet, JSTL, JUnit, and JDBC.
-- Secure XML parsing, dicon component/injection evidence, TLD and JSP tag/form evidence.
+- Secure XML parsing with dicon component, scope, injection, lifecycle, and AOP evidence, Struts action mapping and message-resource evidence, and TLD/JSP tag-form evidence including Struts tag forms, fields, and message or error tags.
 - Repeated-scan change classification using SHA-256.
 - Asynchronous scan state, cancellation, restart recovery, parse-error records, and review items.
 - Project-scoped audit history for registration, correction, scan, cancellation, failure, and export operations.

@@ -7,6 +7,7 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import dev.stravique.domain.AnalysisFinding;
 import dev.stravique.domain.AnalysisKind;
@@ -25,6 +26,10 @@ public class JavaInventoryAnalyzer {
 
     private static final Set<String> SEASAR_BINDINGS = Set.of(
             "Binding", "AutoBinding", "Component", "Aspect", "Interceptor", "Resource"
+    );
+    private static final Set<String> SASTRUTS_VALIDATION_ANNOTATIONS = Set.of(
+            "Required", "Validators", "Validator", "Min", "Max", "Size", "Pattern", "Email",
+            "Number", "Date", "IntegerRange", "LongRange", "DoubleRange", "FloatRange"
     );
 
     private final FindingFactory findings;
@@ -80,6 +85,11 @@ public class JavaInventoryAnalyzer {
             if (imported.startsWith("org.seasar.extension.jdbc")) {
                 api(context, result, "S2JDBC", "S2JDBC", line,
                         "S2JDBC API import detected.", "JAVA-IMPORT-S2JDBC-001");
+            }
+            if (imported.startsWith("org.seasar.extension.tx")
+                    || imported.startsWith("org.seasar.extension.jta")) {
+                api(context, result, "S2JDBC", "S2JDBC", line,
+                        "S2 transaction API import detected.", "JAVA-S2JDBC-TX-001");
             }
             if (imported.startsWith("javax.servlet") || imported.startsWith("jakarta.servlet")) {
                 api(context, result, "SERVLET", "Servlet API", line,
@@ -171,6 +181,16 @@ public class JavaInventoryAnalyzer {
                                 "Seasar2 field injection or binding annotation detected.",
                                 "JAVA-SEASAR-FIELD-001");
                     }
+                    if (annotationName.equals("ActionForm") && saStrutsContext) {
+                        api(context, result, "SASTRUTS", "SAStruts", line(annotation.getBegin()),
+                                "SAStruts action form binding annotation detected.",
+                                "JAVA-SAST-FORM-001");
+                    }
+                    if (SASTRUTS_VALIDATION_ANNOTATIONS.contains(annotationName) && saStrutsContext) {
+                        api(context, result, "SASTRUTS", "SAStruts", line(annotation.getBegin()),
+                                "SAStruts validation annotation detected.",
+                                "JAVA-SAST-VALIDATION-001");
+                    }
                 }
             }
 
@@ -187,6 +207,13 @@ public class JavaInventoryAnalyzer {
                         .anyMatch(parameter -> parameter.getType().asString().endsWith("ActionMapping"))) {
                     api(context, result, "STRUTS1", "Struts 1", line(method.getBegin()),
                             "Struts 1 execute method signature detected.", "JAVA-STR1-EXECUTE-001");
+                }
+                if (method.getNameAsString().equals("validate") && strutsContext
+                        && method.getParameters().stream()
+                        .anyMatch(parameter -> parameter.getType().asString().endsWith("ActionMapping"))) {
+                    api(context, result, "STRUTS1", "Struts 1", line(method.getBegin()),
+                            "Struts 1 validation method signature detected.",
+                            "JAVA-STR1-VALIDATION-001");
                 }
             }
         }
@@ -211,6 +238,23 @@ public class JavaInventoryAnalyzer {
                     && (name.contains("Message") || name.contains("Error"))) {
                 api(context, result, "STRUTS1", "Struts 1", line,
                         "Struts message or error lifecycle API detected.", "JAVA-STR1-MESSAGE-001");
+            }
+            if (strutsContext && name.equals("findForward")) {
+                String target = call.getArgument(0) instanceof StringLiteralExpr literal
+                        ? literal.getValue() : "";
+                context.ledger().recordApi("STRUTS1", "Struts 1", context.relativePath(),
+                        line, "JAVA-STR1-FORWARD-001");
+                result.add(findings.create(context, AnalysisKind.FRAMEWORK_API, "STRUTS1",
+                        "Struts forward candidate" + (target.isBlank() ? "" : " " + target) + ".",
+                        "JAVA-STR1-FORWARD-001", line, Certainty.ANALYZED, ParseStatus.PARSED,
+                        "{\"target\":\"" + target.replace("\\", "\\\\").replace("\"", "\\\"")
+                                + "\"}"));
+            }
+            if ((scope.endsWith("SingletonS2ContainerFactory") && name.equals("init"))
+                    || (scope.endsWith("S2ContainerFactory") && name.equals("create"))) {
+                api(context, result, "SEASAR2", "Seasar2", line,
+                        "Seasar2 container initialization call detected.",
+                        "JAVA-SEASAR-CONTAINER-001");
             }
             if (name.startsWith("forward") || name.startsWith("redirect")) {
                 result.add(findings.create(context, AnalysisKind.FRAMEWORK_API,

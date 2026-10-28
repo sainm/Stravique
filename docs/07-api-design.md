@@ -64,9 +64,9 @@ The configured default is authoritative when the request carries no `Accept-Lang
 | `GET` | `/projects/{id}/relations` | Paged and filtered cross-file relationships |
 | `GET` | `/projects/{id}/relations/overview` | Relationship totals by type and certainty |
 | `GET` | `/projects/{id}/relations/graph` | Aggregated nodes and edges derived only from persisted relationships |
+| `GET` | `/projects/{id}/reviews` | Review-required, unresolved, and failed items |
 
 The graph response carries `relationCount`, the true total under the current filters, `limit`, the cap the endpoint applied, and `truncated`, which is `true` when only the first `limit` relationships were returned in relation type, evidence path, and line order. Aggregated nodes and edges are always computed from the returned rows, so a truncated graph stays internally consistent; `relationCount` still reports what the scan actually holds, so a partial graph is never mistaken for a complete one. Clients should surface the flag, state the cap from `limit` rather than hard-coding it, and offer the paged relation table for exhaustive review.
-| `GET` | `/projects/{id}/reviews` | Review-required, unresolved, and failed items |
 
 ## Reports
 

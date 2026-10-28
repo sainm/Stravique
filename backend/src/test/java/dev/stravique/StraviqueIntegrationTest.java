@@ -208,7 +208,16 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.relations[?(@.relationType == 'JSP_FORM_TO_ACTION' "
                         + "&& @.certainty == 'INFERRED')]").isNotEmpty())
                 .andExpect(jsonPath("$.relations[?(@.relationType == 'MESSAGE_DISPLAY' "
-                        + "&& @.targetObjectKey == 'common.search')]").isNotEmpty());
+                        + "&& @.targetObjectKey == 'common.search')]").isNotEmpty())
+                .andExpect(jsonPath("$.findings[?(@.ruleId == 'JSP-FORM-FIELD-001')]").isNotEmpty());
+        String editJspId = fileIdByPath(jspResponse,
+                "web-app/src/main/webapp/WEB-INF/jsp/order/edit.jsp");
+        mockMvc.perform(get("/api/v1/files/{id}", editJspId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.relations[?(@.relationType == 'JSP_FORM_TO_ACTION' "
+                        + "&& @.targetObjectKey == 'com.example.legacy.action.OrderAction')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.findings[?(@.ruleId == 'JSP-FORM-FIELD-001')]").isNotEmpty());
 
         String diconResponse = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
                         .param("fileType", "DICON")
@@ -241,6 +250,20 @@ class StraviqueIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.technology.status").value("ANALYZED"))
                 .andExpect(jsonPath("$.evidence[?(@.certainty == 'ANALYZED')]").isNotEmpty());
+        mockMvc.perform(get("/api/v1/projects/{id}/frameworks/STRUTS1", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidence[?(@.ruleId == 'STRUTS-CONFIG-ACTION-001')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.evidence[?(@.ruleId == 'STRUTS-CONFIG-FORWARD-001')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.evidence[?(@.ruleId == 'STRUTS-CONFIG-MESSAGES-001')]")
+                        .isNotEmpty());
+        mockMvc.perform(get("/api/v1/projects/{id}/frameworks/SEASAR2", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evidence[?(@.ruleId == 'DICON-COMPONENT-001')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.evidence[?(@.ruleId == 'DICON-LIFECYCLE-001')]")
+                        .isNotEmpty());
 
         mockMvc.perform(get("/api/v1/projects/{id}/reviews", projectId))
                 .andExpect(status().isOk())

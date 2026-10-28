@@ -48,6 +48,90 @@ class JavaInventoryAnalyzerTest {
     }
 
     @Test
+    void capturesSaStrutsValidationFormBindingContainerStartupAndTransactionImports() {
+        String source = """
+                package example;
+
+                import org.seasar.struts.annotation.ActionForm;
+                import org.seasar.struts.annotation.Required;
+                import org.seasar.framework.container.factory.SingletonS2ContainerFactory;
+                import org.seasar.extension.tx.TransactionManager;
+
+                public class EditAction {
+                    @ActionForm
+                    protected OrderForm orderForm;
+                    @Required
+                    public String customerName;
+
+                    public void boot() {
+                        SingletonS2ContainerFactory.init();
+                    }
+                }
+                """;
+        TechEvidenceLedger ledger = new TechEvidenceLedger();
+        AnalyzerContext context = new AnalyzerContext(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "web-app/src/main/java/example/EditAction.java", FileType.JAVA, source,
+                "test-analyzer", ledger
+        );
+
+        AnalysisResult result = analyzer.analyze(context);
+
+        assertThat(result.findings())
+                .anyMatch(finding -> finding.getRuleId().equals("JAVA-SAST-FORM-001")
+                        && finding.getLineStart() == 9);
+        assertThat(result.findings())
+                .anyMatch(finding -> finding.getRuleId().equals("JAVA-SAST-VALIDATION-001")
+                        && finding.getLineStart() == 11
+                        && finding.getObjectKey().equals("SASTRUTS"));
+        assertThat(result.findings())
+                .anyMatch(finding -> finding.getRuleId().equals("JAVA-SEASAR-CONTAINER-001")
+                        && finding.getLineStart() == 15);
+        assertThat(result.findings())
+                .anyMatch(finding -> finding.getRuleId().equals("JAVA-S2JDBC-TX-001")
+                        && finding.getLineStart() == 6);
+        assertThat(ledger.keys()).contains("SASTRUTS", "SEASAR2", "S2JDBC");
+    }
+
+    @Test
+    void capturesStrutsValidationAndFindForwardCalls() {
+        String source = """
+                package example;
+
+                import org.apache.struts.action.Action;
+                import org.apache.struts.action.ActionMapping;
+
+                public class LegacyAction extends Action {
+
+                    public void validate(ActionMapping mapping) {
+                    }
+
+                    public void go(ActionMapping mapping) {
+                        mapping.findForward("list");
+                    }
+                }
+                """;
+        TechEvidenceLedger ledger = new TechEvidenceLedger();
+        AnalyzerContext context = new AnalyzerContext(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "src/main/java/example/LegacyAction.java", FileType.JAVA, source,
+                "test-analyzer", ledger
+        );
+
+        AnalysisResult result = analyzer.analyze(context);
+
+        assertThat(result.findings())
+                .anyMatch(finding -> finding.getRuleId().equals("JAVA-STR1-VALIDATION-001")
+                        && finding.getLineStart() == 8);
+        assertThat(result.findings())
+                .anyMatch(finding -> finding.getRuleId().equals("JAVA-STR1-FORWARD-001")
+                        && finding.getLineStart() == 12
+                        && finding.getMetadata().contains("list")
+                        && finding.getObjectKey().equals("STRUTS1"));
+        assertThat(ledger.keys()).contains("STRUTS1");
+    }
+
+    @Test
     void marksJavaParseFailureWithoutTextFallbackClaims() {
         AnalyzerContext context = new AnalyzerContext(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
