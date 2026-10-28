@@ -12,6 +12,7 @@ public class StraviqueProperties {
     private String defaultLocale = "en-US";
     private final Scan scan = new Scan();
     private final Cors cors = new Cors();
+    private final Transformation transformation = new Transformation();
 
     public String getAnalyzerVersion() {
         return analyzerVersion;
@@ -35,6 +36,22 @@ public class StraviqueProperties {
 
     public Cors getCors() {
         return cors;
+    }
+
+    public Transformation getTransformation() {
+        return transformation;
+    }
+
+    public static class Transformation {
+        private String backupDirectory = "";
+
+        public String getBackupDirectory() {
+            return backupDirectory;
+        }
+
+        public void setBackupDirectory(String backupDirectory) {
+            this.backupDirectory = backupDirectory == null ? "" : backupDirectory;
+        }
     }
 
     public static class Scan {

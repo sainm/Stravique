@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 
 interface StatusBadgeProps {
   value?: string;
-  kind?: "scan" | "certainty" | "file" | "parse" | "change";
+  kind?: "scan" | "certainty" | "file" | "parse" | "change" | "migration" | "transformation";
   label?: string;
 }
 
@@ -27,12 +27,14 @@ export default function StatusBadge({
 
 function toneFor(value: string): string {
   if (
-    ["COMPLETED", "ANALYZED", "PARSED", "UNCHANGED"].includes(value)
+    ["COMPLETED", "ANALYZED", "PARSED", "UNCHANGED", "READY", "TRANSFORMED", "VALIDATED", "APPLIED"].includes(
+      value
+    )
   ) {
     return "success";
   }
   if (
-    ["FAILED", "PARSE_FAILED", "VALIDATION_FAILED"].includes(value)
+    ["FAILED", "PARSE_FAILED", "VALIDATION_FAILED", "BLOCKED"].includes(value)
   ) {
     return "danger";
   }

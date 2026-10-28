@@ -5,6 +5,7 @@ import {
   FileSearch2,
   FolderKanban,
   Gauge,
+  ListChecks,
   Network,
   Menu,
   PanelLeft,
@@ -40,6 +41,7 @@ export default function AppShell() {
     { suffix: "inventory", label: t("nav.inventory"), icon: FileSearch2 },
     { suffix: "frameworks", label: t("nav.frameworks"), icon: Boxes },
     { suffix: "relations", label: t("nav.relations"), icon: Network },
+    { suffix: "migration", label: t("nav.migration"), icon: ListChecks },
     { suffix: "reports", label: t("nav.reports"), icon: ScrollText },
     { suffix: "settings", label: t("nav.settings"), icon: Settings2 }
   ];

@@ -16,3 +16,5 @@ stravique:
       - ""
   cors:
     allowed-origins: http://localhost:5173
+  transformation:
+    backup-directory: build/test-transformation-backups

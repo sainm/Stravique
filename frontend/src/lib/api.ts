@@ -5,6 +5,11 @@ import type {
   Finding,
   FrameworkDetail,
   InventoryTree,
+  MigrationGraph,
+  MigrationItem,
+  MigrationItemDetail,
+  MigrationPlan,
+  MigrationPlanSummary,
   ModuleInfo,
   Overview,
   PageResponse,
@@ -18,7 +23,9 @@ import type {
   ReportDescriptor,
   RuntimeInfo,
   Scan,
-  Technology
+  Technology,
+  TransformationProposal,
+  TransformationRun
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -203,5 +210,76 @@ export const api = {
   ) =>
     request<RelationGraph>(`/projects/${projectId}/relations/graph`, {
       query: filters
-    })
+    }),
+  migrationPlans: (projectId: string) =>
+    request<MigrationPlanSummary[]>(`/projects/${projectId}/migration-plans`),
+  migrationPlan: (projectId: string, planId: string) =>
+    request<MigrationPlan>(`/projects/${projectId}/migration-plans/${planId}`),
+  generateMigrationPlan: (
+    projectId: string,
+    input: { targetProfile?: string; scanId?: string }
+  ) =>
+    request<MigrationPlan>(`/projects/${projectId}/migration-plans`, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+  migrationItems: (
+    projectId: string,
+    planId: string,
+    filters: {
+      status?: string;
+      itemType?: string;
+      phase?: number;
+      attention?: boolean;
+      included?: boolean;
+      q?: string;
+      page?: number;
+      size?: number;
+    }
+  ) =>
+    request<PageResponse<MigrationItem>>(
+      `/projects/${projectId}/migration-plans/${planId}/items`,
+      { query: filters }
+    ),
+  migrationItem: (projectId: string, planId: string, itemId: string) =>
+    request<MigrationItemDetail>(
+      `/projects/${projectId}/migration-plans/${planId}/items/${itemId}`
+    ),
+  updateMigrationScope: (
+    projectId: string,
+    planId: string,
+    itemId: string,
+    included: boolean
+  ) =>
+    request<MigrationItem>(
+      `/projects/${projectId}/migration-plans/${planId}/items/${itemId}`,
+      { method: "PATCH", body: JSON.stringify({ included }) }
+    ),
+  migrationGraph: (projectId: string, planId: string) =>
+    request<MigrationGraph>(
+      `/projects/${projectId}/migration-plans/${planId}/graph`
+    ),
+  transformationProposals: (projectId: string, planId: string, itemId: string) =>
+    request<TransformationProposal[]>(
+      `/projects/${projectId}/migration-plans/${planId}/items/${itemId}/transformation-proposals`
+    ),
+  proposeTransformation: (projectId: string, planId: string, itemId: string) =>
+    request<TransformationProposal>(
+      `/projects/${projectId}/migration-plans/${planId}/items/${itemId}/transformation-proposals`,
+      { method: "POST" }
+    ),
+  transformationRuns: (projectId: string, planId: string, itemId: string) =>
+    request<TransformationRun[]>(
+      `/projects/${projectId}/migration-plans/${planId}/items/${itemId}/transformation-runs`
+    ),
+  applyTransformation: (projectId: string, proposalId: string, confirmed: boolean) =>
+    request<TransformationRun>(
+      `/projects/${projectId}/transformation-proposals/${proposalId}/apply`,
+      { method: "POST", body: JSON.stringify({ confirmed }) }
+    ),
+  restoreTransformation: (projectId: string, runId: string, confirmed: boolean) =>
+    request<TransformationRun>(
+      `/projects/${projectId}/transformation-runs/${runId}/restore`,
+      { method: "POST", body: JSON.stringify({ confirmed }) }
+    )
 };

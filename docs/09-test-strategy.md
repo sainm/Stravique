@@ -16,6 +16,8 @@
 - Localized Markdown titles and column labels with stable CSV and JSON field names.
 - Report message coverage derived from the report declarations, so a new type or column cannot ship without labels or leave orphaned keys.
 - Technology certainty aggregation.
+- Migration plan graph adaptation and prerequisite-before-dependent layout.
+- Seasar2 DI → Spring DI AST-range rule: imports, component/binding annotations, supported scopes, formatting preservation, and rejected constructs.
 
 ### Integration tests
 
@@ -27,6 +29,10 @@
 - Report counts matching persisted rows.
 - Localized Markdown exports with locale-independent CSV and JSON field names.
 - i18n error response keys in all three locales.
+- Migration plan generation from a completed scan, item type coverage, evidence links, phases, dependency counts, graph limits, and staleness.
+- Scope guards: excluding a required prerequisite and re-including an item with an excluded prerequisite are both rejected.
+- Transformation preview, apply, and restore on an isolated fixture copy, including confirmation, backup, hash, and changed-source guards.
+- The shipped fixture remains byte-identical after transformation tests.
 
 ### Fixture tests
 
@@ -52,7 +58,9 @@ Use MockMvc for successful and failure paths:
 - Disallowed scan root.
 - Duplicate active scan.
 - Cancellation state.
-- Unknown project/file/report.
+- Unknown project/file/report/plan/item.
+- Missing completed scan and unsupported migration target profile.
+- Migration scope conflicts in both directions.
 - Stable error code and message key under English, Chinese, and Japanese headers.
 
 ## Frontend tests
@@ -64,6 +72,7 @@ Use MockMvc for successful and failure paths:
 - Evidence display with line labels.
 - Cross-file relationship filters, counts, and source/target navigation.
 - Relation graph layout: layered depth, sibling stacking, cycles, isolated nodes, and inferred propagation.
+- Migration dependency graph conversion and prerequisite-before-dependent layers.
 - Report URL generation.
 - Navigation and responsive class contracts.
 
@@ -71,10 +80,11 @@ Use MockMvc for successful and failure paths:
 
 When a browser runtime is available:
 
-- Render all Phase 1 routes at 1440 px and 390 px.
+- Render the project routes, including migration plan, review, and dependency map, at 1440 px and 390 px.
 - Inspect English, Chinese, and Japanese navigation, tables, buttons, and error wrapping.
 - Check evidence panes and status labels for overflow.
 - Check relation filters and source/target rows for overflow.
+- Check migration item rows, plan metrics, and the migration dependency canvas for content and overflow.
 - Verify no locale produces clipped primary actions.
 
 Persisted screenshots are verification artifacts, not product data.
@@ -90,6 +100,7 @@ Persisted screenshots are verification artifacts, not product data.
 - Confirms localized API errors in Chinese and Japanese.
 - Confirms an unscanned report still emits a complete header row.
 - Confirms the relations report contains the same persisted relationship count shown by analysis APIs.
+- Generates a migration plan over HTTP, asserts evidence-derived item types and dependency edges, and confirms the scope guard rejects excluding a required prerequisite.
 
 It exists because MockMvc substitutes the servlet request. Locale resolution and response bytes are only trustworthy when observed through a real container.
 

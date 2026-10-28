@@ -68,6 +68,38 @@ The configured default is authoritative when the request carries no `Accept-Lang
 
 The graph response carries `relationCount`, the true total under the current filters, `limit`, the cap the endpoint applied, and `truncated`, which is `true` when only the first `limit` relationships were returned in relation type, evidence path, and line order. Aggregated nodes and edges are always computed from the returned rows, so a truncated graph stays internally consistent; `relationCount` still reports what the scan actually holds, so a partial graph is never mistaken for a complete one. Clients should surface the flag, state the cap from `limit` rather than hard-coding it, and offer the paged relation table for exhaustive review.
 
+## Migration planning
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/projects/{id}/migration-plans` | Plan history, newest first, with staleness |
+| `POST` | `/projects/{id}/migration-plans` | Generate a plan from a completed scan |
+| `GET` | `/projects/{id}/migration-plans/{planId}` | Plan summary and phase counts |
+| `GET` | `/projects/{id}/migration-plans/{planId}/items` | Filtered, paged migration items |
+| `GET` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Item evidence and dependencies |
+| `PATCH` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Include or exclude an item |
+| `GET` | `/projects/{id}/migration-plans/{planId}/graph` | Dependency graph from persisted relations |
+
+Plan generation accepts optional `scanId` and `targetProfile`. With no `scanId`, the latest `COMPLETED` scan is used. The only supported target profile is `SPRING_BOOT_MVC`.
+
+Plans are immutable analysis snapshots; each `POST` creates a new per-project sequence. Excluding an item that another included item depends on is rejected with `MIGRATION_DEPENDENCY_CONFLICT` and the count of included dependents. Re-including an item whose prerequisite is excluded is rejected with `MIGRATION_PREREQUISITE_EXCLUDED`. Excluded items remain visible for traceability.
+
+The migration graph is capped at 800 items and 3000 dependency edges. `itemCount` and `edgeCount` report true included totals; `itemLimit`, `edgeLimit`, and `truncated` state the boundary. Graph edges point from prerequisite to dependent item.
+
+Phase 3 only emits `READY`, `REVIEW_REQUIRED`, and `BLOCKED`. The other migration item statuses are reserved for later phases.
+
+## Transformation preview
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/projects/{id}/migration-plans/{planId}/items/{itemId}/transformation-proposals` | Proposal history for one item |
+| `POST` | `/projects/{id}/migration-plans/{planId}/items/{itemId}/transformation-proposals` | Generate a read-only preview |
+| `GET` | `/projects/{id}/migration-plans/{planId}/items/{itemId}/transformation-runs` | Execution and restore history |
+| `POST` | `/projects/{id}/transformation-proposals/{proposalId}/apply` | Apply a proposal with explicit confirmation |
+| `POST` | `/projects/{id}/transformation-runs/{runId}/restore` | Restore an applied file from backup |
+
+The only vetted rule is `SEASAR-DI-SPRING-DI` for `COMPONENT_BEAN` items targeting `SPRING_DI`. Proposal generation returns `422` for an item without a vetted rule. Apply and restore require `{ "confirmed": true }`; missing confirmation returns `400`. A proposal stores the diff, original/proposed hashes, rule/version, and syntax-validation result. Apply refuses a stale plan, a changed source file, a superseded proposal, or a result that no longer matches the stored hash. Restore refuses if the file changed after apply. The original file is backed up outside the project; the backup path is not returned by the API.
+
 ## Reports
 
 | Method | Path | Purpose |
@@ -102,6 +134,6 @@ Report types, formats, and report counts do not change with language.
 - `202`: asynchronous scan accepted (response includes its persisted scan ID).
 - `400`: malformed input or invalid metadata.
 - `404`: project, scan, file, or report is absent.
-- `409`: source path conflict, concurrent scan, or invalid terminal transition.
-- `422`: path fails read/allowlist policy.
+- `409`: source path conflict, concurrent scan, invalid terminal transition, missing completed scan for planning, an item still required by included items, a stale transformation plan, or a source file that changed after the proposal.
+- `422`: path fails read/allowlist policy, the migration target profile is unsupported, or no vetted transformation rule supports the item.
 - `500`: unexpected failure; no source content is included in the error.

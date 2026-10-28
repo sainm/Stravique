@@ -275,3 +275,147 @@ export interface AuditEvent {
   detail?: string;
   occurredAt: string;
 }
+
+export interface MigrationPlanSummary {
+  id: string;
+  projectId: string;
+  scanId: string;
+  sequence: number;
+  sourceProfile: string;
+  targetProfile: string;
+  sourceScanSequence: number;
+  createdAt: string;
+  updatedAt: string;
+  itemCount: number;
+  includedCount: number;
+  readyCount: number;
+  reviewCount: number;
+  blockedCount: number;
+  dependencyCount: number;
+  phaseCount: number;
+  analyzerVersion: string;
+  stale: boolean;
+}
+
+export interface MigrationPhase {
+  phase: number;
+  itemCount: number;
+  readyCount: number;
+  reviewCount: number;
+  blockedCount: number;
+}
+
+export interface MigrationPlan {
+  summary: MigrationPlanSummary;
+  phases: MigrationPhase[];
+}
+
+export interface MigrationItem {
+  id: string;
+  planId: string;
+  itemKey: string;
+  itemType: string;
+  targetKey: string;
+  title: string;
+  primaryFileId?: string;
+  primaryFilePath?: string;
+  phase: number;
+  priority: number;
+  automationLevel: string;
+  riskLevel: string;
+  status: string;
+  included: boolean;
+  reasonCode: string;
+  findingCount: number;
+  dependencyCount: number;
+  dependentCount: number;
+}
+
+export interface MigrationDependency {
+  id: string;
+  fromItemId: string;
+  fromTitle: string;
+  toItemId: string;
+  toTitle: string;
+  relationId?: string;
+  relationType: string;
+  evidencePath: string;
+  lineStart?: number;
+  certainty: string;
+}
+
+export interface MigrationItemDetail {
+  item: MigrationItem;
+  findings: Finding[];
+  dependencies: MigrationDependency[];
+  dependents: MigrationDependency[];
+}
+
+export interface MigrationGraphNode {
+  id: string;
+  title: string;
+  filePath?: string;
+  itemType: string;
+  targetKey: string;
+  status: string;
+  riskLevel: string;
+  phase: number;
+  priority: number;
+}
+
+export interface MigrationGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  relationTypes: string[];
+  certainties: string[];
+  count: number;
+}
+
+export interface MigrationGraph {
+  planId: string;
+  itemCount: number;
+  edgeCount: number;
+  itemLimit: number;
+  edgeLimit: number;
+  truncated: boolean;
+  nodes: MigrationGraphNode[];
+  edges: MigrationGraphEdge[];
+}
+
+export interface TransformationProposal {
+  id: string;
+  projectId: string;
+  planId: string;
+  itemId: string;
+  sourceFileId: string;
+  relativePath: string;
+  ruleId: string;
+  ruleVersion: string;
+  originalSha256: string;
+  proposedSha256: string;
+  diff: string;
+  validationStatus: string;
+  validationMessage?: string;
+  status: string;
+  createdAt: string;
+  appliedAt?: string;
+  restoredAt?: string;
+}
+
+export interface TransformationRun {
+  id: string;
+  projectId: string;
+  planId: string;
+  proposalId: string;
+  itemId: string;
+  status: string;
+  relativePath: string;
+  originalSha256: string;
+  appliedSha256: string;
+  ruleId: string;
+  ruleVersion: string;
+  errorMessage?: string;
+  createdAt: string;
+  finishedAt?: string;
+}

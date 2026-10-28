@@ -43,6 +43,8 @@ stravique:
     max-files: ${STRAVIQUE_MAX_FILES:100000}
   cors:
     allowed-origins: ${STRAVIQUE_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  transformation:
+    backup-directory: ${STRAVIQUE_TRANSFORMATION_BACKUP_DIR:}
 
 logging:
   level:

@@ -4,7 +4,8 @@ set -uo pipefail
 # End-to-end verification against a real HTTP server.
 #
 # Starts the packaged application, runs a full scan of the shipped fixture,
-# and asserts the documented export contract. The server is stopped on exit.
+# and asserts the documented export and migration-planning contracts. The
+# server is stopped on exit.
 #
 # This covers what unit and MockMvc tests cannot: real servlet locale
 # resolution, response headers, and the bytes a client actually receives.
@@ -239,6 +240,40 @@ graph_limit="$(printf '%s' "${graph_json}" | python3 -c 'import sys,json;print(1
 check "graph reports no truncation for the fixture" "false" "${graph_truncated}"
 check "graph derives nodes from persisted rows" "1" "${graph_has_nodes}"
 check "graph publishes its relationship cap" "1" "${graph_limit}"
+
+echo "== Asserting migration planning =="
+plan_json="$(curl -s -X POST "${base_url}/projects/${project_id}/migration-plans" \
+  -H 'Content-Type: application/json' \
+  -d '{"targetProfile":"SPRING_BOOT_MVC"}')"
+plan_id="$(printf '%s' "${plan_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("id",""))')"
+plan_target="$(printf '%s' "${plan_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("targetProfile",""))')"
+plan_item_count="$(printf '%s' "${plan_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("itemCount",0))')"
+check "migration plan targets the vetted profile" "SPRING_BOOT_MVC" "${plan_target}"
+if [[ "${plan_item_count}" -gt 8 ]]; then
+  plan_has_items=1
+else
+  plan_has_items=0
+fi
+check "migration plan derives items from persisted evidence" "1" "${plan_has_items}"
+migration_items="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/items?size=200")"
+migration_types="$(printf '%s' "${migration_items}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(",".join(sorted({i["itemType"] for i in d.get("content",[])})))')"
+migration_has_action=0
+case ",${migration_types}," in
+  *",ACTION_CONTROLLER,"*) migration_has_action=1 ;;
+esac
+check "migration plan includes action-controller work" "1" "${migration_has_action}"
+migration_graph="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/graph")"
+migration_edge_count="$(printf '%s' "${migration_graph}" | python3 -c 'import sys,json;print(len(json.load(sys.stdin).get("edges",[])))')"
+if [[ "${migration_edge_count}" -gt 0 ]]; then
+  migration_has_edges=1
+else
+  migration_has_edges=0
+fi
+check "migration graph uses persisted dependencies" "1" "${migration_has_edges}"
+dependent_item="$(printf '%s' "${migration_items}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next((i["id"] for i in d.get("content",[]) if i.get("dependentCount",0)>0),""))')"
+scope_error="$(curl -s -X PATCH "${base_url}/projects/${project_id}/migration-plans/${plan_id}/items/${dependent_item}" \
+  -H 'Content-Type: application/json' -d '{"included":false}' | json_field code)"
+check "migration scope guard rejects a required item" "MIGRATION_DEPENDENCY_CONFLICT" "${scope_error}"
 
 echo "== Asserting localized errors =="
 error_zh="$(curl -s -H 'Accept-Language: zh-CN' "${base_url}/projects/${unknown_project}" | json_field message)"

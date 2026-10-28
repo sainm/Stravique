@@ -10,6 +10,7 @@ import SettingsPage from "../features/settings/SettingsPage";
 import LoadingBlock from "../components/LoadingBlock";
 
 const RelationsPage = lazy(() => import("../features/relations/RelationsPage"));
+const MigrationPage = lazy(() => import("../features/migration/MigrationPage"));
 
 export default function App() {
   return (
@@ -26,6 +27,14 @@ export default function App() {
           element={
             <Suspense fallback={<LoadingBlock />}>
               <RelationsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/projects/:projectId/migration"
+          element={
+            <Suspense fallback={<LoadingBlock />}>
+              <MigrationPage />
             </Suspense>
           }
         />

@@ -19,7 +19,8 @@
 |       |   |   |-- config/
 |       |   |   |-- domain/
 |       |   |   |-- infrastructure/
-|       |   |   `-- inventory/
+|       |   |   |-- inventory/
+|       |   |   `-- transformation/
 |       |   `-- resources/
 |       |       |-- application.yml
 |       |       |-- application-test.yml
@@ -52,6 +53,7 @@
 
 - `frontend` never imports source-file APIs from the operating system.
 - `backend/inventory` contains scanner-only code and cannot write project files.
+- `backend/transformation` contains deterministic proposal rules; only the guarded application service writes a single confirmed file after backing it up outside the project.
 - `domain` owns persisted state and certainty language.
 - `api` maps transport concerns but does not perform parsing.
 - `docs` is the source of design intent; runtime results remain authoritative for observed scans.

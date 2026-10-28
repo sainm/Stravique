@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -373,6 +374,345 @@ class StraviqueIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(result -> assertThat(objectMapper.readTree(
                         result.getResponse().getContentAsByteArray()).isEmpty()).isTrue());
+    }
+
+    @Test
+    void generatesTraceableMigrationPlanWithRealDependenciesAndScopeGuard() throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Migration Fixture",
+                                "sourcePath", SAMPLE.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode completed = awaitScan(objectMapper.readTree(scanResponse).get("id").asText());
+        assertThat(completed.get("status").asText()).isEqualTo("COMPLETED");
+
+        String planResponse = mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProfile\":\"SPRING_BOOT_MVC\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.summary.targetProfile").value("SPRING_BOOT_MVC"))
+                .andExpect(jsonPath("$.summary.sourceProfile").value(
+                        org.hamcrest.Matchers.containsString("SASTRUTS")))
+                .andExpect(jsonPath("$.summary.sourceProfile").value(
+                        org.hamcrest.Matchers.containsString("STRUTS1")))
+                .andExpect(jsonPath("$.summary.itemCount").value(
+                        org.hamcrest.Matchers.greaterThan(8)))
+                .andExpect(jsonPath("$.summary.stale").value(false))
+                .andExpect(jsonPath("$.summary.phaseCount").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.phases").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode plan = objectMapper.readTree(planResponse);
+        String planId = plan.at("/summary/id").asText();
+        int planItemCount = plan.at("/summary/itemCount").asInt();
+
+        String itemsResponse = mockMvc.perform(
+                        get("/api/v1/projects/{id}/migration-plans/{plan}/items", projectId, planId)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode items = objectMapper.readTree(itemsResponse).get("content");
+        assertThat(items.size()).isEqualTo(planItemCount);
+        java.util.Set<String> types = new java.util.HashSet<>();
+        java.util.Set<String> statuses = new java.util.HashSet<>();
+        for (JsonNode item : items) {
+            types.add(item.get("itemType").asText());
+            statuses.add(item.get("status").asText());
+        }
+        assertThat(types).contains("ACTION_CONTROLLER", "COMPONENT_BEAN", "DATA_ACCESS",
+                "MESSAGE_FLOW", "MESSAGE_RESOURCE", "JSP_VIEW", "CONFIGURATION", "REVIEW");
+        assertThat(statuses).contains("READY", "REVIEW_REQUIRED", "BLOCKED");
+
+        JsonNode actionItem = null;
+        for (JsonNode item : items) {
+            if (item.get("itemType").asText().equals("ACTION_CONTROLLER")
+                    && item.get("title").asText().contains("OrderAction")) {
+                actionItem = item;
+                break;
+            }
+        }
+        assertThat(actionItem).isNotNull();
+        String actionItemId = actionItem.get("id").asText();
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        projectId, planId, actionItemId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.findings").isNotEmpty())
+                .andExpect(jsonPath("$.item.status").value("REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.dependencies").isNotEmpty())
+                .andExpect(jsonPath("$.dependencies[?(@.fromItemId == '"
+                        + actionItemId + "')]").isNotEmpty());
+
+        String migrationGraphResponse = mockMvc.perform(
+                        get("/api/v1/projects/{id}/migration-plans/{plan}/graph", projectId, planId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nodes").isNotEmpty())
+                .andExpect(jsonPath("$.edges").isNotEmpty())
+                .andExpect(jsonPath("$.itemLimit").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.edgeLimit").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.truncated").value(false))
+                .andReturn().getResponse().getContentAsString();
+
+        String dependentsItemId = null;
+        String leafItemId = null;
+        for (JsonNode item : items) {
+            if (item.get("dependentCount").asInt() > 0 && dependentsItemId == null) {
+                dependentsItemId = item.get("id").asText();
+            }
+            if (item.get("dependentCount").asInt() == 0 && item.get("included").asBoolean()) {
+                leafItemId = item.get("id").asText();
+            }
+        }
+        assertThat(dependentsItemId).isNotNull();
+        assertThat(leafItemId).isNotNull();
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        projectId, planId, dependentsItemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":false}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MIGRATION_DEPENDENCY_CONFLICT"));
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        projectId, planId, leafItemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.included").value(false));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}", projectId, planId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.includedCount").value(
+                        org.hamcrest.Matchers.lessThan(planItemCount)));
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        projectId, planId, leafItemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.included").value(true));
+
+        JsonNode migrationGraph = objectMapper.readTree(migrationGraphResponse);
+        java.util.List<String> actionDependents = new java.util.ArrayList<>();
+        for (JsonNode edge : migrationGraph.get("edges")) {
+            if (edge.get("source").asText().equals(actionItemId)) {
+                actionDependents.add(edge.get("target").asText());
+            }
+        }
+        assertThat(actionDependents).isNotEmpty();
+        for (String dependentId : actionDependents) {
+            mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                            projectId, planId, dependentId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"included\":false}"))
+                    .andExpect(status().isOk());
+        }
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        projectId, planId, actionItemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":false}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        projectId, planId, actionDependents.getFirst())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PREREQUISITE_EXCLUDED"));
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProfile\":\"UNSUPPORTED\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("MIGRATION_TARGET_UNSUPPORTED"));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}",
+                        projectId, "00000000-0000-0000-0000-000000000000"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_NOT_FOUND"));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(planId));
+    }
+
+    @Test
+    void previewsAppliesAndRestoresAVettedTransformationOnACopy() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build", "transformation-fixture")
+                .toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Path transformedFile = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java");
+        byte[] originalBytes = Files.readAllBytes(transformedFile);
+        byte[] fixtureBytes = Files.readAllBytes(SAMPLE.resolve(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java"));
+
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Transformation Copy",
+                                "sourcePath", tempProject.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode scan = awaitScan(objectMapper.readTree(scanResponse).get("id").asText());
+        assertThat(scan.get("status").asText()).isEqualTo("COMPLETED");
+
+        String planResponse = mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProfile\":\"SPRING_BOOT_MVC\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String planId = objectMapper.readTree(planResponse).at("/summary/id").asText();
+        String itemsResponse = mockMvc.perform(
+                        get("/api/v1/projects/{id}/migration-plans/{plan}/items", projectId, planId)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode items = objectMapper.readTree(itemsResponse).get("content");
+        JsonNode component = null;
+        JsonNode action = null;
+        for (JsonNode item : items) {
+            if (item.get("itemType").asText().equals("COMPONENT_BEAN")
+                    && item.get("title").asText().equals("OrderService.java")) {
+                component = item;
+            }
+            if (item.get("itemType").asText().equals("ACTION_CONTROLLER")) {
+                action = item;
+            }
+        }
+        assertThat(component).isNotNull();
+        assertThat(action).isNotNull();
+        String componentId = component.get("id").asText();
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                        + "transformation-proposals", projectId, planId,
+                        action.get("id").asText()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_UNSUPPORTED"));
+
+        String proposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, componentId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PROPOSED"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("org.springframework")))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode proposal = objectMapper.readTree(proposalResponse);
+        String proposalId = proposal.get("id").asText();
+        String appliedSha = proposal.get("proposedSha256").asText();
+
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, proposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":false}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_CONFIRMATION_REQUIRED"));
+        String runResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, proposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andExpect(jsonPath("$.appliedSha256").value(appliedSha))
+                .andReturn().getResponse().getContentAsString();
+        String runId = objectMapper.readTree(runResponse).get("id").asText();
+        byte[] appliedBytes = Files.readAllBytes(transformedFile);
+        assertThat(appliedBytes).isNotEqualTo(originalBytes);
+        assertThat(new String(appliedBytes, StandardCharsets.UTF_8))
+                .contains("org.springframework.stereotype.Component")
+                .contains("org.springframework.beans.factory.annotation.Autowired")
+                .doesNotContain("org.seasar.framework");
+        assertThat(Files.readAllBytes(SAMPLE.resolve(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java")))
+                .isEqualTo(fixtureBytes);
+        try (Stream<Path> backups = Files.walk(Path.of(System.getProperty("user.dir"),
+                "build", "test-transformation-backups"))) {
+            assertThat(backups.anyMatch(Files::isRegularFile)).isTrue();
+        }
+
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, proposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_ALREADY_APPLIED"));
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, runId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(transformedFile)).isEqualTo(originalBytes);
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                        + "transformation-runs", projectId, planId, componentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("RESTORED"));
+
+        String secondProposal = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, componentId))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Files.writeString(transformedFile, new String(originalBytes, StandardCharsets.UTF_8) + "\n");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, objectMapper.readTree(secondProposal).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SOURCE_CHANGED"));
+
+        deleteRecursively(tempProject);
+    }
+
+    private void copyRecursively(Path source, Path target) throws Exception {
+        try (Stream<Path> paths = Files.walk(source)) {
+            for (Path path : paths.toList()) {
+                Path destination = target.resolve(source.relativize(path).toString());
+                if (Files.isDirectory(path)) {
+                    Files.createDirectories(destination);
+                } else {
+                    Files.createDirectories(destination.getParent());
+                    Files.copy(path, destination);
+                }
+            }
+        }
+    }
+
+    private void deleteRecursively(Path target) throws Exception {
+        if (!Files.exists(target)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(target)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        }
+    }
+
+    @Test
+    void requiresACompletedScanBeforePlanning() throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "No Scan Migration Project",
+                                "sourcePath", SAMPLE.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MIGRATION_SCAN_REQUIRED"));
     }
 
     @Test

@@ -32,6 +32,71 @@ if (scanId) {
     "";
 }
 
+const createMigrationPlan = async () => {
+  const generated = await fetch(
+    `${apiUrl}/projects/${project.id}/migration-plans`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetProfile: "SPRING_BOOT_MVC" })
+    }
+  );
+  if (!generated.ok) {
+    return "";
+  }
+  const body = await generated.json();
+  return body.summary?.id || "";
+};
+
+let migrationPlanId = "";
+const existingPlans = await fetch(
+  `${apiUrl}/projects/${project.id}/migration-plans`
+).then((response) => (response.ok ? response.json() : []));
+if (existingPlans.length > 0) {
+  migrationPlanId = existingPlans[0].id;
+  if (
+    project.latestScan?.status === "COMPLETED" &&
+    existingPlans[0].scanId !== project.latestScan.id
+  ) {
+    migrationPlanId = (await createMigrationPlan()) || migrationPlanId;
+  }
+} else if (project.latestScan?.status === "COMPLETED") {
+  migrationPlanId = await createMigrationPlan();
+}
+let transformationTitle = "";
+if (migrationPlanId) {
+  const migrationItems = await fetch(
+    `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items?size=200`
+  ).then((response) => (response.ok ? response.json() : { content: [] }));
+  const component =
+    migrationItems.content?.find(
+      (item) =>
+        item.itemType === "COMPONENT_BEAN" &&
+        item.targetKey === "SPRING_DI" &&
+        item.title === "OrderService.java"
+    ) ||
+    migrationItems.content?.find(
+      (item) => item.itemType === "COMPONENT_BEAN" && item.targetKey === "SPRING_DI"
+    );
+  if (component) {
+    transformationTitle = component.title;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${component.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${component.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+}
+const migrationQuery = migrationPlanId ? `?plan=${migrationPlanId}` : "";
+const migrationView = (view) =>
+  `/projects/${project.id}/migration${
+    migrationQuery ? `${migrationQuery}&view=${view}` : `?view=${view}`
+  }`;
+
 const routes = [
   ["projects", "/projects"],
   ["overview", `/projects/${project.id}/overview`],
@@ -42,6 +107,9 @@ const routes = [
   ["frameworks", `/projects/${project.id}/frameworks?key=SASTRUTS`],
   ["relations", `/projects/${project.id}/relations`],
   ["relations-map", `/projects/${project.id}/relations?view=map`],
+  ["migration", `/projects/${project.id}/migration${migrationQuery}`],
+  ["migration-dependencies", migrationView("dependencies")],
+  ["migration-review", migrationView("review")],
   ["reports", `/projects/${project.id}/reports`],
   ["settings", `/projects/${project.id}/settings`]
 ];
@@ -98,6 +166,7 @@ for (const language of languages) {
               "inventory",
               "relations",
               "relations-map",
+              "migration",
               "settings"
             ].includes(name)
           );
@@ -184,6 +253,93 @@ for (const language of languages) {
             graphCanvas: painted.found,
             paintedPixels: painted.painted
           });
+        }
+      }
+      if (name === "migration" && migrationPlanId) {
+        const migrationRows = await page.locator(".migration-row").count();
+        if (migrationRows === 0) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            migrationRows: 0
+          });
+        }
+      }
+      if (name === "migration-review" && migrationPlanId) {
+        const reviewRows = await page.locator(".migration-row").count();
+        if (reviewRows === 0) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            reviewRows: 0
+          });
+        }
+      }
+      if (name === "migration-dependencies") {
+        const painted = await page.evaluate(() => {
+          const canvas = document.querySelector(".migration-map canvas");
+          if (!(canvas instanceof HTMLCanvasElement)) {
+            return { found: false, painted: 0 };
+          }
+          const context = canvas.getContext("2d");
+          if (!context || canvas.width === 0 || canvas.height === 0) {
+            return { found: true, painted: 0 };
+          }
+          const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          let count = 0;
+          for (let index = 3; index < data.length; index += 4) {
+            if (data[index] !== 0) {
+              count += 1;
+            }
+          }
+          return { found: true, painted: count };
+        });
+        if (!painted.found || painted.painted < 200) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            migrationGraph: painted.found,
+            paintedPixels: painted.painted
+          });
+        }
+      }
+
+      if (name === "migration" && transformationTitle) {
+        const transformationRow = page
+          .locator(".migration-row-open")
+          .filter({ hasText: transformationTitle })
+          .first();
+        if ((await transformationRow.count()) > 0) {
+          await transformationRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page.locator(".migration-transformation").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
         }
       }
 

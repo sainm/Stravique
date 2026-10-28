@@ -14,12 +14,15 @@ React + Vite frontend
 Spring Boot local backend (loopback by default)
   |-- Project and scan application services
   |-- Read-only inventory engine
+  |-- Migration planning service
+  |-- Transformation preview and guarded apply service
   |-- Report service
   |-- Internationalized API errors
   |
   +--> PostgreSQL relational database
   |
-  +--> Allowlisted local source roots (read-only)
+  +--> Allowlisted local source roots
+  +--> External transformation backups
 ```
 
 The backend owns filesystem access. The browser never receives unrestricted directory-reading capability.
@@ -98,6 +101,44 @@ Relation types are: `JAVA_IMPORT`, `JAVA_INHERITANCE`, `SEASAR_BINDING`, `SEASAR
 Relations are scan-scoped and cascade with the scan row. Every read resolves the scan through its owning project, so a scan identifier alone cannot expose another project's rows. A relation is evidence of a static reference, never proof that a branch executes.
 
 The graph endpoint caps a scan at 3000 relationships, ordered by relation type, evidence path, and line. It reports the true total in `relationCount`, the cap in `limit`, and sets `truncated` when the cap applied, so a partial graph is never presented as complete and the interface never hard-codes the number. Rendering keeps the browser responsive past the cap because the graph is drawn on a canvas with viewport culling and level-of-detail, so no DOM element is created per file, and label text stays crisp at any zoom because it is drawn in screen space. The paged relation table with type, certainty, and text filters remains the bounded entry point for exhaustive review. Measured on the shipped fixture, a scan of 29 files yields 26 relations and an 8 KB graph response, roughly 300 bytes per relation.
+
+## Migration planning
+
+Phase 3 adds a planning layer over a completed scan. It does not invoke the inventory parsers again and exposes no source-write operation.
+
+- A plan is generated synchronously from persisted files, findings, technologies, and cross-file relations.
+- Plan versions are immutable analysis snapshots; regeneration creates a new sequence, and scope exclusions update only the included flag and aggregate counts.
+- Migration items reference their primary file, primary finding, all supporting findings, and the generating analyzer version.
+- Dependencies reference the originating relation ID, type, evidence path, line, and certainty. Items without both endpoints are never connected.
+- Phases are a topological projection of included dependencies. Cycles are surfaced as review-required items, not silently broken.
+- The planning graph is capped at 800 items and 3000 dependency edges; true totals and the applied limits accompany the response.
+- Planning status is limited to `READY`, `REVIEW_REQUIRED`, and `BLOCKED`. `TRANSFORMED`, `VALIDATED`, and `VALIDATION_FAILED` remain reserved for later phases.
+
+The first vetted target profile is `SPRING_BOOT_MVC`: Spring MVC controllers, Spring DI, Spring JDBC data access, Spring message resources, and retained JSP views. Unsupported profiles are rejected.
+
+## Transformation preview and guarded apply
+
+Phase 4A adds one vetted Java rule: `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI. The rule uses JavaParser source ranges and edits only imports and annotation ranges; it does not pretty-print the file.
+
+Proposal generation is read-only:
+
+- It requires a current plan and a source hash equal to the scanned file.
+- It persists a unified diff, original/proposed hashes, rule version, and syntax-validation result.
+- It supersedes earlier proposals for the same item.
+
+Apply and restore are separate guarded operations:
+
+- Explicit confirmation is required.
+- The current source hash must match the proposal or applied run.
+- The rule version and proposed hash are rechecked before writing.
+- The original bytes are copied to an external backup before an atomic single-file write.
+- A database failure triggers a best-effort byte restore.
+- Restore writes only from a verified backup and refuses if the file changed after apply.
+- The backup directory cannot be inside the project.
+
+Automated validation is syntactic only. A proposal is never presented as semantically equivalent, compiled, or runtime-validated. The migration item's planning status is not upgraded by a transformation run.
+
+Only component items are eligible. Struts actions, S2JDBC, messages, configuration, and JSP reports explicitly have no vetted rule yet.
 
 ## Internationalization
 

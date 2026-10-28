@@ -4,11 +4,11 @@
 
 Stravique is a local-first workbench for turning an existing Java web system into a traceable inventory. Phase 1 scans source without modifying it, records evidence down to file and line, separates declarations from analyzed use, and exports reports from persisted scan data.
 
-The product deliberately stops before automated migration. Its first responsibility is to help engineering teams understand what is actually present.
+The product deliberately starts with evidence and planning before broad automated migration. Its first responsibility is to help engineering teams understand what is actually present. Phase 4A adds one narrow, vetted transformation path with preview, confirmation, backup, and restore.
 
 ## Current status
 
-Phase 1 is implemented as a runnable local application:
+Phase 1 acceptance plus the Phase 2 relations, Phase 3 migration-planning, and Phase 4A transformation-preview workspaces are implemented as a runnable local application:
 
 - Multi-project registration with backend-enforced path policy.
 - Read-only Maven/Gradle and Java web inventory.
@@ -23,7 +23,9 @@ Phase 1 is implemented as a runnable local application:
 - English, Simplified Chinese, and Japanese interfaces.
 - CSV, JSON, and Markdown reports generated from persisted rows.
 - Project metadata and directory-role corrections.
-- Automated source-immutability, REST, parser, localization, responsive, and browser visual checks.
+- Evidence-linked migration planning with immutable versions, dependency phases, scope protection, and a review queue.
+- A vetted Seasar2 DI → Spring DI proposal rule with persisted diff, syntax validation, explicit-confirmation apply, external backups, hash guards, and safe restore.
+- Automated source-immutability, REST, parser, transformation-safety, localization, responsive, and browser visual checks.
 
 ## Architecture
 
@@ -35,13 +37,16 @@ React + TypeScript + Vite
 Spring Boot local backend
   |-- project and scan application services
   |-- read-only inventory engine
+  |-- migration planning service
+  |-- transformation preview and guarded apply service
   |-- PostgreSQL relational persistence
   |-- report service
   |
   +--> allowlisted local source directories
+  +--> external transformation backups
 ```
 
-The browser never scans the filesystem. The local backend resolves and validates every project path, does not follow symbolic links during inventory, disables external XML entities, and contains no source-write operation in the inventory API.
+The browser never scans the filesystem. The local backend resolves and validates every project path, does not follow symbolic links during inventory, disables external XML entities, and contains no source-write operation in the inventory API. Transformation apply/restore is a separate API that requires explicit confirmation and creates a backup first.
 
 Detailed contracts are in [docs/](docs/).
 
@@ -129,6 +134,7 @@ Additional runtime controls:
 | `STRAVIQUE_DB_USER` | Current OS user | PostgreSQL role |
 | `STRAVIQUE_DB_PASSWORD` | Empty | PostgreSQL password |
 | `STRAVIQUE_TEST_DB_URL` | `jdbc:postgresql://127.0.0.1:5432/stravique_test` | Isolated test database |
+| `STRAVIQUE_TRANSFORMATION_BACKUP_DIR` | `~/.stravique/transformation-backups` | External backup directory for applied transformations; must be outside the project |
 
 ## Sample project
 
@@ -159,6 +165,16 @@ Start a scan with the returned project ID:
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/projects/<project-id>/scans
 ```
+
+After the scan completes, generate a migration plan:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/projects/<project-id>/migration-plans \
+  -H 'Content-Type: application/json' \
+  -d '{"targetProfile":"SPRING_BOOT_MVC"}'
+```
+
+Planning reads persisted scan rows only. It does not modify the fixture or generate patches.
 
 ## Certainty model
 
@@ -201,7 +217,8 @@ The verification command checks:
 - PostgreSQL-backed Flyway migration, JPA validation, API, parser, localization, report, and source-immutability tests.
 - Frontend locale-key parity, status localization, language switching, and responsive contracts.
 - TypeScript compilation and production Vite build.
-- A packaged-application end-to-end run that scans the fixture over HTTP and asserts the export contract.
+- A packaged-application end-to-end run that scans the fixture over HTTP, generates a migration plan, and asserts the export, planning, dependency, and scope-guard contracts.
+- Transformation unit and integration tests on an isolated fixture copy, including preview, confirmation, backup, apply, restore, changed-source rejection, and shipped-fixture immutability.
 
 The end-to-end stage starts the built application on a free local port, runs a full scan, and checks the bytes a client receives. It can also be run on its own:
 
@@ -240,15 +257,19 @@ Implemented:
 - Initial Phase 2 cross-file relations for Java, Seasar2 injection, configuration references, Struts/SAStruts/JSP flows, DAO/SQL candidates, and message lifecycle.
 - A Relations workspace with persisted counts, filters, certainty, and source/target navigation.
 - A table/map switch where graph nodes and edges are aggregated only from persisted relationships.
+- Evidence-derived Phase 3 migration planning with immutable versions, risk, automation, priority, evidence links, scope protection, and dependency phases.
+- A Migration workspace with item lists, phase lanes, a persisted dependency map, review queue, and plan history.
+- Phase 4A Seasar2 DI → Spring DI preview with persisted diffs, syntax validation, guarded single-file apply, external backups, execution records, and restore.
 - Review visibility.
 - Reports.
 
 Not implemented:
 
-- Migration planning.
-- Code transformation.
-- Runtime dependency or behavior verification.
+- Struts/SAStruts → Spring MVC transformation.
+- S2JDBC, message, validation, XML, dicon, JSP, or TLD transformation.
+- Compile or runtime validation.
+- Batch execution across a plan.
 - Graph database projections.
 - AI conclusions treated as evidence.
 
-The next phase should add cross-file relations only when every relation can retain source provenance and explicit uncertainty.
+Phase 3 planning status is limited to `READY`, `REVIEW_REQUIRED`, and `BLOCKED`. A planned item is never presented as transformed or validated. Phase 4A persists transformation proposals and runs separately and requires explicit confirmation before writing a file.

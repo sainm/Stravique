@@ -13,6 +13,12 @@
 | `analysis_finding` | scan_id, file_id, kind, object_key, range, evidence, rule, certainty | Traceable static/config observation |
 | `analysis_relation` | scan_id, source/target file and object, type, evidence path/line, certainty | Evidence-backed cross-file relation |
 | `technology_usage` | scan_id, technology_key, category, status, evidence counts | Technology aggregate for a scan |
+| `migration_plan` | project_id, scan_id, sequence, source/target profile, counts | Immutable planning snapshot for one scan |
+| `migration_item` | plan_id, item_key, type, target, reason, risk, automation, status, phase, included | Ordered, evidence-linked migration work item |
+| `migration_item_finding` | item_id, finding_id, role | Primary or supporting analysis evidence for an item |
+| `migration_dependency` | plan_id, from/to item, relation_id, type, evidence path/line, certainty | Item dependency derived from a persisted relation |
+| `transformation_proposal` | plan/item/file, rule/version, hashes, diff, validation status | Read-only diff proposal for a vetted rule |
+| `transformation_run` | proposal/item/file, status, backup path, hashes, rule/version | Explicit apply or restore audit record |
 | `audit_event` | project_id, action, entity_type, entity_id, detail, occurred_at | Project-scoped operation trace |
 
 ## Scan state
@@ -71,6 +77,54 @@ A technology can have API evidence and still be marked review-required when its 
 - XML/configuration syntax findings use secure parser success plus source locator evidence.
 - Module dependencies reference both module endpoints and the build-file declaration line.
 - Relationships across files are not introduced in Phase 1 merely to make the UI look complete.
+
+## Migration planning model
+
+A `migration_plan` references exactly one completed scan and one target profile. It is created by a deterministic rule pass over persisted rows; generation never calls a source parser and never writes project files.
+
+A `migration_item` carries:
+
+- A plan-scoped deterministic key.
+- Item type, target key, title, primary file and primary finding.
+- Automation level, risk level, priority, phase, and planning status.
+- A reason code explaining the disposition.
+- Counting fields for linked findings, dependencies, and dependents.
+- An `included` flag for scope adjustment.
+
+Only these planning statuses are emitted in Phase 3:
+
+- `READY`
+- `REVIEW_REQUIRED`
+- `BLOCKED`
+
+`TRANSFORMED`, `VALIDATED`, and `VALIDATION_FAILED` are reserved for later transformation phases.
+
+Dependencies are directed from a dependent item to its prerequisite (`from_item_id` depends on `to_item_id`). Each row keeps the originating relation ID, relation type, evidence path, start line, and certainty. A dependency is created only when both relation endpoints map to different items.
+
+Phases are computed over included items with a topological pass. A cycle is preserved as review-required evidence rather than hidden.
+
+Plan versions are never rewritten. A newer scan makes older plans `stale`; the caller regenerates a new version.
+
+## Transformation model
+
+A `transformation_proposal` is a read-only diff snapshot:
+
+- Plan, item, and source-file identifiers.
+- Rule ID and rule version.
+- Original and proposed SHA-256 values.
+- Unified diff.
+- Syntax-validation status and message.
+- `PROPOSED`, `APPLIED`, `RESTORED`, or `SUPERSEDED`.
+
+A `transformation_run` records an explicit write:
+
+- Proposal, item, and source file.
+- Rule ID and version.
+- Original and applied hashes.
+- Backup path outside the project.
+- `APPLIED`, `RESTORED`, or `FAILED`.
+
+Apply requires confirmation, a current plan, matching current-file hash, rule-version match, and re-derivation of the proposed hash. Restore requires confirmation, an `APPLIED` run, a matching applied hash, and a verified backup. Neither operation changes the migration item's planning status.
 
 ## Identifiers and time
 

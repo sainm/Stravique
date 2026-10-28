@@ -28,6 +28,7 @@ dependencies {
     implementation 'org.flywaydb:flyway-core:11.20.3'
     implementation 'com.github.javaparser:javaparser-core:3.28.2'
     implementation 'com.github.albfernandez:juniversalchardet:2.5.2'
+    implementation 'io.github.java-diff-utils:java-diff-utils:4.18'
 
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql:11.20.3'
