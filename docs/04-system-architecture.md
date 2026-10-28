@@ -33,6 +33,7 @@ The backend owns filesystem access. The browser never receives unrestricted dire
 - i18next and react-i18next for all interface text.
 - Lucide line icons.
 - A lightweight custom evidence viewer in Phase 1.
+- The relation graph is drawn on a canvas with viewport culling and level-of-detail, not as one DOM element per file.
 
 UI state is not treated as evidence. After a scan transition, affected queries are invalidated and reload persisted server data.
 
@@ -96,7 +97,7 @@ Relation types are: `JAVA_IMPORT`, `JAVA_INHERITANCE`, `SEASAR_BINDING`, `SEASAR
 
 Relations are scan-scoped and cascade with the scan row. Every read resolves the scan through its owning project, so a scan identifier alone cannot expose another project's rows. A relation is evidence of a static reference, never proof that a branch executes.
 
-The graph endpoint materializes every relation of one scan in memory and returns a single payload; it is not paginated. The paged relation table with type, certainty, and text filters is the bounded entry point. Measured on the shipped fixture, a scan of 29 files yields 26 relations and an 8 KB graph response, roughly 300 bytes per relation. Because `STRAVIQUE_MAX_FILES` defaults to 100000, a very large scan will produce a graph payload and a browser layout far beyond interactive size. Treat the graph as a navigation aid for small and medium scans.
+The graph endpoint materializes every relation of one scan in memory and returns a single payload; it is not paginated. Rendering keeps the browser responsive past the sample size because the graph is drawn on a canvas with viewport culling and level-of-detail, so no DOM element is created per file, and label text stays crisp at any zoom because it is drawn in screen space. The paged relation table with type, certainty, and text filters remains the bounded entry point. Measured on the shipped fixture, a scan of 29 files yields 26 relations and an 8 KB graph response, roughly 300 bytes per relation. Because `STRAVIQUE_MAX_FILES` defaults to 100000, the response payload itself still grows linearly with scan size; treat the graph as a navigation aid and use the table for exhaustive review.
 
 ## Internationalization
 

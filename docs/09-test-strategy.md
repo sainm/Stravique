@@ -63,6 +63,7 @@ Use MockMvc for successful and failure paths:
 - Empty/no-scan state.
 - Evidence display with line labels.
 - Cross-file relationship filters, counts, and source/target navigation.
+- Relation graph layout: layered depth, sibling stacking, cycles, isolated nodes, and inferred propagation.
 - Report URL generation.
 - Navigation and responsive class contracts.
 

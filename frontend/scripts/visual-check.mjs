@@ -158,13 +158,31 @@ for (const language of languages) {
         }
       }
       if (name === "relations-map") {
-        const graphNodes = await page.locator(".react-flow__node").count();
-        if (graphNodes === 0) {
+        const painted = await page.evaluate(() => {
+          const canvas = document.querySelector(".relation-canvas-surface");
+          if (!(canvas instanceof HTMLCanvasElement)) {
+            return { found: false, painted: 0 };
+          }
+          const context = canvas.getContext("2d");
+          if (!context || canvas.width === 0 || canvas.height === 0) {
+            return { found: true, painted: 0 };
+          }
+          const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          let count = 0;
+          for (let index = 3; index < data.length; index += 4) {
+            if (data[index] !== 0) {
+              count += 1;
+            }
+          }
+          return { found: true, painted: count };
+        });
+        if (!painted.found || painted.painted < 200) {
           issues.push({
             language,
             viewport: viewport.name,
             route: name,
-            graphNodes: 0
+            graphCanvas: painted.found,
+            paintedPixels: painted.painted
           });
         }
       }

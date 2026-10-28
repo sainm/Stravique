@@ -281,6 +281,7 @@
     "mapView": "関係マップ",
     "mapLabel": "ファイル間関係マップ",
     "mapHint": "キャンバスをドラッグし、スクロールで拡大縮小します。ノードを選択するとファイルを確認できます。",
+    "fitGraph": "全体を表示",
     "openInventory": "棚卸を開く",
     "nodeCounts": "入力 {{incoming}} · 出力 {{outgoing}}",
     "search": "関係を検索",
