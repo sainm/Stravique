@@ -106,4 +106,4 @@ Technical acceptance does not establish migration readiness. A human must still 
 - Transformation previews: annotation mapping, import side effects, dicon remains, and whether the resulting code compiles with the target stack.
 - Apply/restore records and backup retention.
 
-Phase 3 acceptance does not imply that any plan item has been transformed or validated. Phase 4 acceptance covers eight assisted rules—DI annotations, `@Required`, simple ActionForm inheritance, supported `javax.*` namespace imports, read-only S2JDBC queries, a create-only controller skeleton, UTF-8 message bundles, and JSTL message tags—and does not establish semantic equivalence, compilation, or runtime behavior.
+Phase 3 acceptance does not imply that any plan item has been transformed or validated. Phase 4 acceptance covers nine assisted rules—DI annotations, `@Required`, simple ActionForm inheritance, supported `javax.*` namespace imports, read-only S2JDBC queries, bare S2 transaction annotations, a create-only controller skeleton, UTF-8 message bundles, and JSTL message tags—and does not establish semantic equivalence, compilation, or runtime behavior.

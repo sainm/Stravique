@@ -642,6 +642,7 @@
       "FORM_MODEL": "ActionForm → model",
       "COMPONENT_BEAN": "Component → bean",
       "DATA_ACCESS": "Data access",
+      "TRANSACTION": "Transaction",
       "MESSAGE_FLOW": "Message lifecycle",
       "MESSAGE_RESOURCE": "Message resource",
       "VALIDATION": "Validation",

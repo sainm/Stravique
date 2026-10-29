@@ -24,11 +24,12 @@ It cannot yet migrate Struts controller method bodies, request binding, message 
 | `STRUTS-ACTIONFORM-MODEL` | `FORM_MODEL` | `SPRING_MVC` | Java |
 | `JAVAX-TO-JAKARTA` | `JAKARTA_NAMESPACE` | `JAKARTA_EE` | Java |
 | `S2JDBC-QUERY-SPRING-JDBC` | `DATA_ACCESS` | `SPRING_JDBC` | Java |
+| `S2TX-SPRING-TRANSACTIONAL` | `TRANSACTION` | `SPRING_JDBC` | Java |
 | `STRUTS-CONTROLLER-SKELETON` | `ACTION_CONTROLLER` | `SPRING_MVC` | Java |
 | `MESSAGE-RESOURCE-SPRING-UTF8` | `MESSAGE_RESOURCE` | `SPRING_MESSAGES` | Properties |
 | `JSP-BEAN-MESSAGE-JSTL` | `JSP_VIEW` | `KEEP_JSP` | JSP |
 
-The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives and rewrites only supported message tags. No rule pretty-prints or rewrites unrelated code.
+The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The transaction rule accepts only a bare Seasar2 `@TransactionAttribute`, because both it and Spring's `@Transactional` require a transaction when no attributes are present; a parameterized annotation is refused rather than mapped onto a propagation name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives and rewrites only supported message tags. No rule pretty-prints or rewrites unrelated code.
 
 ### Seasar2 DI → Spring DI
 
@@ -261,4 +262,4 @@ Not implemented:
 - Compile or runtime validation.
 - Batch execution across a plan.
 
-Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently eight rules; unsupported items remain explicitly unsupported.
+Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently nine rules; unsupported items remain explicitly unsupported.

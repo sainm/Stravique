@@ -5,6 +5,7 @@ public enum MigrationItemType {
     FORM_MODEL,
     COMPONENT_BEAN,
     DATA_ACCESS,
+    TRANSACTION,
     MESSAGE_FLOW,
     MESSAGE_RESOURCE,
     VALIDATION,

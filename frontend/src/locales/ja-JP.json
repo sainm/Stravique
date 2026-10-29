@@ -642,6 +642,7 @@
       "FORM_MODEL": "ActionForm → モデル",
       "COMPONENT_BEAN": "コンポーネント → Bean",
       "DATA_ACCESS": "データアクセス",
+      "TRANSACTION": "トランザクション",
       "MESSAGE_FLOW": "メッセージライフサイクル",
       "MESSAGE_RESOURCE": "メッセージリソース",
       "VALIDATION": "バリデーション",

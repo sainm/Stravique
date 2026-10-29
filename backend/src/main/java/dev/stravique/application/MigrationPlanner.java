@@ -64,6 +64,9 @@ public class MigrationPlanner {
     private static final Set<String> MESSAGE_RULES = Set.of(
             "JAVA-STR1-MESSAGE-001"
     );
+    private static final Set<String> TRANSACTION_RULES = Set.of(
+            "JAVA-S2JDBC-TX-001"
+    );
     private static final Set<String> VALIDATION_RULES = Set.of(
             "JAVA-SAST-VALIDATION-001"
     );
@@ -133,6 +136,7 @@ public class MigrationPlanner {
                     addForm(file, fileFindings, candidates);
                     addComponent(file, fileFindings, candidates);
                     addData(file, fileFindings, candidates);
+                    addTransaction(file, fileFindings, candidates);
                     addMessageFlow(file, fileFindings, candidates);
                     addValidation(file, fileFindings, candidates);
                     addJakarta(file, fileFindings, candidates);
@@ -257,6 +261,19 @@ public class MigrationPlanner {
                 MigrationItemType.MESSAGE_FLOW, MigrationTarget.SPRING_MVC,
                 file.getFileName(), file, triggers, MigrationAutomation.ASSISTED,
                 MigrationRisk.HIGH, MigrationItemStatus.REVIEW_REQUIRED, "MESSAGE_LIFECYCLE");
+        candidate.addFindings(triggers);
+    }
+
+    private void addTransaction(ProjectFile file, List<AnalysisFinding> findings,
+                                Map<String, Candidate> candidates) {
+        List<AnalysisFinding> triggers = matching(findings, TRANSACTION_RULES);
+        if (triggers.isEmpty()) {
+            return;
+        }
+        Candidate candidate = candidate(candidates, "TRANSACTION:" + file.getRelativePath(),
+                MigrationItemType.TRANSACTION, MigrationTarget.SPRING_JDBC,
+                file.getFileName(), file, triggers, MigrationAutomation.ASSISTED,
+                MigrationRisk.MEDIUM, MigrationItemStatus.REVIEW_REQUIRED, "TRANSACTION_SEMANTICS");
         candidate.addFindings(triggers);
     }
 

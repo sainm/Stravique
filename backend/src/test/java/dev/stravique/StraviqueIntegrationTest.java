@@ -556,6 +556,8 @@ class StraviqueIntegrationTest {
                 "domain/src/main/java/com/example/legacy/domain/Order.java");
         Path queryDaoFile = tempProject.resolve(
                 "domain/src/main/java/com/example/legacy/dao/OrderQueryDao.java");
+        Path daoFile = tempProject.resolve(
+                "domain/src/main/java/com/example/legacy/dao/OrderDao.java");
         Path messageFile = tempProject.resolve(
                 "web-app/src/main/resources/messages.properties");
         Path jspFile = tempProject.resolve(
@@ -567,6 +569,7 @@ class StraviqueIntegrationTest {
         byte[] originalFormBytes = Files.readAllBytes(formFile);
         byte[] originalJakartaBytes = Files.readAllBytes(jakartaFile);
         byte[] originalQueryDaoBytes = Files.readAllBytes(queryDaoFile);
+        byte[] originalDaoBytes = Files.readAllBytes(daoFile);
         byte[] originalMessageBytes = Files.readAllBytes(messageFile);
         byte[] originalJspBytes = Files.readAllBytes(jspFile);
         byte[] fixtureBytes = Files.readAllBytes(SAMPLE.resolve(
@@ -604,6 +607,7 @@ class StraviqueIntegrationTest {
         JsonNode form = null;
         JsonNode jakarta = null;
         JsonNode queryDao = null;
+        JsonNode transaction = null;
         JsonNode messageFlow = null;
         JsonNode messageResource = null;
         JsonNode jspView = null;
@@ -631,6 +635,9 @@ class StraviqueIntegrationTest {
                     && item.get("title").asText().equals("OrderQueryDao.java")) {
                 queryDao = item;
             }
+            if (item.get("itemType").asText().equals("TRANSACTION")) {
+                transaction = item;
+            }
             if (item.get("itemType").asText().equals("MESSAGE_FLOW")) {
                 messageFlow = item;
             }
@@ -649,6 +656,7 @@ class StraviqueIntegrationTest {
         assertThat(form).isNotNull();
         assertThat(jakarta).isNotNull();
         assertThat(queryDao).isNotNull();
+        assertThat(transaction).isNotNull();
         assertThat(messageFlow).isNotNull();
         assertThat(messageResource).isNotNull();
         assertThat(jspView).isNotNull();
@@ -957,6 +965,35 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.status").value("RESTORED"));
         assertThat(Files.exists(controllerFile)).isFalse();
 
+        String transactionItemId = transaction.get("id").asText();
+        String transactionProposal = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, transactionItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("S2TX-SPRING-TRANSACTIONAL"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("org.springframework.transaction")))
+                .andReturn().getResponse().getContentAsString();
+        String transactionRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, objectMapper.readTree(transactionProposal).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(daoFile), StandardCharsets.UTF_8))
+                .contains("@Transactional")
+                .doesNotContain("org.seasar.extension.tx");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(transactionRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(daoFile)).isEqualTo(originalDaoBytes);
+
         String secondProposal = mockMvc.perform(post(
                         "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
                                 + "transformation-proposals", projectId, planId, componentId))
@@ -1007,6 +1044,7 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-ACTIONFORM-MODEL')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'JAVAX-TO-JAKARTA')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'S2JDBC-QUERY-SPRING-JDBC')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'S2TX-SPRING-TRANSACTIONAL')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONTROLLER-SKELETON')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'MESSAGE-RESOURCE-SPRING-UTF8')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'MESSAGE-RESOURCE-SPRING-UTF8'"

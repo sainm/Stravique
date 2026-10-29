@@ -642,6 +642,7 @@
       "FORM_MODEL": "ActionForm → 模型",
       "COMPONENT_BEAN": "组件 → Bean",
       "DATA_ACCESS": "数据访问",
+      "TRANSACTION": "事务",
       "MESSAGE_FLOW": "消息生命周期",
       "MESSAGE_RESOURCE": "消息资源",
       "VALIDATION": "校验",

@@ -74,7 +74,7 @@ Gate: a completed fixture scan yields an ordered plan whose item counts, evidenc
 
 ## Phase 4 Transformation previews
 
-- Eight vetted rules: six Java rules—Seasar2 component/binding annotations to Spring DI, plain SAStruts `@Required` to Bean Validation `@NotNull`, simple Struts ActionForm inheritance removal, supported `javax.*` to Jakarta imports, a read-only S2JDBC query chain to Spring JdbcTemplate, and a create-only Spring controller skeleton from explicit Struts mappings—plus a message-bundle rule that rewrites non-ASCII escapes as UTF-8 and a JSP rule that rewrites self-closing `bean:message` tags as JSTL `fmt:message`.
+- Nine vetted rules: seven Java rules—Seasar2 component/binding annotations to Spring DI, plain SAStruts `@Required` to Bean Validation `@NotNull`, simple Struts ActionForm inheritance removal, supported `javax.*` to Jakarta imports, a read-only S2JDBC query chain to Spring JdbcTemplate, a bare Seasar2 `@TransactionAttribute` to Spring `@Transactional`, and a create-only Spring controller skeleton from explicit Struts mappings—plus a message-bundle rule that rewrites non-ASCII escapes as UTF-8 and a JSP rule that rewrites self-closing `bean:message` tags as JSTL `fmt:message`.
 - AST-range edits that preserve unrelated source formatting, a create-only artifact that never overwrites an existing file, properties edits that preserve keys, placeholders, comments, and continuations, and JSP tag edits that preserve tag structure.
 - Persisted unified diff, rule version, hashes, and syntax validation.
 - Guarded single-file apply with explicit confirmation, external backup for edits, no-overwrite creation, hash rechecks, and best-effort transaction rollback.
@@ -91,7 +91,7 @@ The first constraint on any new rule is the item slot, not the source construct.
 | Domain | Evidence available today | Verdict |
 | --- | --- | --- |
 | S2JDBC write chains | `JAVA-S2JDBC-QUERY-001` fires on select, insert, update, and delete without recording which | Joins the read-only rule as an extra form, but the finding has to record the operation kind first, and the resulting item must not stay `READY` |
-| S2 transaction annotations | `JAVA-S2JDBC-TX-001` exists; the fixture has no sample, so the path is untested | Needs a new item type before a rule can claim it |
+| S2 transaction annotations | `JAVA-S2JDBC-TX-001` exists, and the fixture now carries a sample | Done: `TRANSACTION` items plus `S2TX-SPRING-TRANSACTIONAL`, which accepts only the bare annotation and leaves transaction-manager configuration in review |
 | Message APIs (`MessageResources#getMessage`) | `JAVA-STR1-MESSAGE-001` records message lifecycle calls only | Not mechanical. The Spring equivalent needs a `MessageSource` dependency the class does not have and a locale source the action does not carry; on an action that the controller skeleton is meant to replace, the rewrite is churn on code that will be deleted |
 | Message lifecycle (`saveMessages`, `addErrors`) | Same finding | No local equivalent; it needs a `BindingResult` that does not exist yet |
 | JSP error and message blocks | `JSP-MESSAGE-DISPLAY-001`, `JSP-STRUTS-MESSAGE-DISPLAY-001` | `<form:errors>` only resolves inside a `<form:form>` element with a model attribute, so a tag-level rewrite produces a page that fails at runtime |

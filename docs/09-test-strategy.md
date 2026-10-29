@@ -22,6 +22,7 @@
 - Struts ActionForm inheritance removal rule, including lifecycle-method and residual-reference rejection.
 - Supported `javax.*` → `jakarta.*` import rule, including wildcard imports and unsupported-package refusal.
 - Read-only S2JDBC `selectBySql` → JdbcTemplate rule, including rejection of update calls and unsupported manager usage.
+- Seasar2 `@TransactionAttribute` → Spring `@Transactional` rule: bare annotation and import replacement, an existing Spring import reused, and rejection of parameterized annotations, a missing import, and an import with no annotation.
 - Struts controller skeleton rule: explicit-mapping generation, package and forward filtering, no invented routes, and supported item/target.
 - Message bundle UTF-8 rule: non-ASCII escape conversion, comment and continuation preservation, surrogate pairs, rejected malformed bundles, and unchanged message maps.
 - JSP `bean:message` → JSTL rule: taglib reuse and insertion, unused taglib removal, rejected attribute and body forms, and unbalanced tag structure rejection.
