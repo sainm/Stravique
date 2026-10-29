@@ -126,12 +126,13 @@ Proposal generation is read-only:
 - It persists an artifact type, target path, unified diff, original/proposed hashes, rule version, and syntax-validation result.
 - It validates Java syntax for Java rules, properties syntax plus UTF-8 round-tripping for the message rule, and tag structure for the JSP rule.
 - It supersedes earlier proposals for the same item.
+- When several rules match an item, the lowest rule identifier wins, so the same item is always handled by the same rule regardless of bean registration order.
 
 Apply and restore are separate guarded operations:
 
 - Explicit confirmation is required.
 - The current source hash must match the proposal or applied run.
-- The rule version and proposed hash are rechecked before writing.
+- The rule version and proposed hash are rechecked before writing, by re-running the same rule over the same request the proposal was made from, including the persisted Struts routes, so a route-aware rule cannot produce a different outcome at apply time.
 - For edits, the original bytes are copied to an external backup before an atomic single-file write.
 - For creates, the target must not exist; the new file is written atomically without a backup.
 - The write replaces bytes and nothing else: a replaced file keeps its own POSIX permissions, including the executable bit, and a created file takes the platform default for a new file. A temporary file is used only as the staging point for the atomic move, never as the delivered inode.

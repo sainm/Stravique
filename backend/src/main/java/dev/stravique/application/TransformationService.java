@@ -230,7 +230,8 @@ public class TransformationService {
         }
         TransformationOutcome outcome;
         try {
-            outcome = engine.propose(item, file, decoded.text(), file.getRelativePath());
+            outcome = engine.propose(new TransformationRequest(item, file, decoded.text(),
+                    file.getRelativePath(), routes(plan.getScanId())));
         } catch (TransformationUnsupportedException | TransformationInvalidException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");

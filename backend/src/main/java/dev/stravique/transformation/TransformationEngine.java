@@ -3,8 +3,6 @@ package dev.stravique.transformation;
 import com.github.difflib.DiffUtils;
 import com.github.difflib.UnifiedDiffUtils;
 import com.github.difflib.patch.Patch;
-import dev.stravique.domain.MigrationItem;
-import dev.stravique.domain.ProjectFile;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,15 +24,10 @@ public class TransformationEngine {
                 .toList();
     }
 
-    public TransformationOutcome propose(MigrationItem item, ProjectFile file, String source,
-                                         String relativePath) {
-        return propose(new TransformationRequest(item, file, source, relativePath, List.of()));
-    }
-
     public TransformationOutcome propose(TransformationRequest request) {
         TransformationRule rule = rules.stream()
                 .filter(candidate -> candidate.supports(request.item(), request.file()))
-                .findFirst()
+                .min(java.util.Comparator.comparing(TransformationRule::ruleId))
                 .orElseThrow(() -> new TransformationUnsupportedException(
                         "No vetted transformation rule supports this item."));
         TransformationDraft draft;
