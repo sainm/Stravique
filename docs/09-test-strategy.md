@@ -26,6 +26,7 @@
 - Message bundle UTF-8 rule: non-ASCII escape conversion, comment and continuation preservation, surrogate pairs, rejected malformed bundles, and unchanged message maps.
 - JSP `bean:message` → JSTL rule: taglib reuse and insertion, unused taglib removal, rejected attribute and body forms, and unbalanced tag structure rejection.
 - Atomic source replacement: a replaced file keeps its own permissions and executable bit, a created file takes the platform default rather than the private mode of a staging file, a shorter replacement truncates, and no staging file survives.
+- Paged query ordering ends at the row identifier and never repeats a column, so offset paging cannot duplicate or drop rows that share a sort key.
 
 ### Integration tests
 

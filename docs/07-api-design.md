@@ -6,7 +6,7 @@
 - JSON requests and responses.
 - UUID path identifiers.
 - Stable state names in English.
-- Pagination uses `page`, `size`, `totalElements`, and `totalPages`.
+- Pagination uses `page`, `size`, `totalElements`, and `totalPages`. Every paged query orders by its documented columns and then by the row identifier, so equal sort keys cannot make one page repeat a row that another page skipped.
 - API errors use a stable `code`, `messageKey`, localized `message`, `args`, timestamp, and request ID.
 - `Accept-Language` supports `en-US`, `zh-CN`, and `ja-JP`.
 

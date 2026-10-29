@@ -67,6 +67,10 @@ public class MigrationPlanService {
 
     private static final int MAX_GRAPH_ITEMS = 800;
     private static final int MAX_GRAPH_EDGES = 3000;
+    static final Sort ITEM_ORDER = Sort.by(Sort.Direction.ASC, "phase")
+            .and(Sort.by(Sort.Direction.ASC, "priority"))
+            .and(Sort.by(Sort.Direction.ASC, "title"))
+            .and(Sort.by(Sort.Direction.ASC, "id"));
     private static final List<MigrationItemStatus> ATTENTION_STATUSES = List.of(
             MigrationItemStatus.REVIEW_REQUIRED, MigrationItemStatus.BLOCKED
     );
@@ -206,10 +210,7 @@ public class MigrationPlanService {
                                                 String itemType, Integer phase, Boolean attention,
                                                 Boolean included, String query, int page, int size) {
         MigrationPlan plan = requirePlan(projectId, planId);
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size),
-                Sort.by(Sort.Direction.ASC, "phase")
-                        .and(Sort.by(Sort.Direction.ASC, "priority"))
-                        .and(Sort.by(Sort.Direction.ASC, "title")));
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size), ITEM_ORDER);
         MigrationItemStatus statusFilter = status == null || status.isBlank()
                 ? null : parseStatus(status);
         MigrationItemType typeFilter = itemType == null || itemType.isBlank()
@@ -314,7 +315,7 @@ public class MigrationPlanService {
     public MigrationGraphDto graph(UUID projectId, UUID planId) {
         MigrationPlan plan = requirePlan(projectId, planId);
         List<MigrationItem> included = itemRepository
-                .findByPlanIdAndIncludedTrueOrderByPhaseAscPriorityAscTitleAsc(plan.getId());
+                .findByPlanIdAndIncludedTrueOrderByPhaseAscPriorityAscTitleAscIdAsc(plan.getId());
         List<MigrationDependency> dependencies =
                 dependencyRepository.findByPlanIdOrderByEvidencePathAscLineStartAsc(plan.getId());
         Set<UUID> includedIds = new HashSet<>();
@@ -364,7 +365,7 @@ public class MigrationPlanService {
     private MigrationPlanDto planDto(MigrationPlan plan) {
         UUID latestScanId = latestCompletedScan(plan.getProjectId()).map(ScanRun::getId).orElse(null);
         List<MigrationItem> included = itemRepository
-                .findByPlanIdAndIncludedTrueOrderByPhaseAscPriorityAscTitleAsc(plan.getId());
+                .findByPlanIdAndIncludedTrueOrderByPhaseAscPriorityAscTitleAscIdAsc(plan.getId());
         Map<Integer, int[]> counts = new TreeMap<>();
         for (MigrationItem item : included) {
             int[] bucket = counts.computeIfAbsent(item.getPhase(), ignored -> new int[4]);

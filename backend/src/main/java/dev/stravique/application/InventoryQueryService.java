@@ -68,9 +68,15 @@ public class InventoryQueryService {
     );
 
     private static final int MAX_GRAPH_RELATIONS = 3000;
-    private static final Sort GRAPH_ORDER = Sort.by(Sort.Direction.ASC, "relationType")
+    static final Sort FILE_ORDER = Sort.by(Sort.Direction.ASC, "relativePath")
+            .and(Sort.by(Sort.Direction.ASC, "id"));
+    static final Sort FINDING_ORDER = Sort.by(Sort.Direction.ASC, "filePath")
+            .and(Sort.by(Sort.Direction.ASC, "lineStart"))
+            .and(Sort.by(Sort.Direction.ASC, "id"));
+    static final Sort GRAPH_ORDER = Sort.by(Sort.Direction.ASC, "relationType")
             .and(Sort.by(Sort.Direction.ASC, "evidencePath"))
-            .and(Sort.by(Sort.Direction.ASC, "lineStart"));
+            .and(Sort.by(Sort.Direction.ASC, "lineStart"))
+            .and(Sort.by(Sort.Direction.ASC, "id"));
 
     private final AnalysisProjectRepository projectRepository;
     private final ScanRunRepository scanRepository;
@@ -173,8 +179,7 @@ public class InventoryQueryService {
         if (scan == null) {
             return PageResponse.empty(page, size);
         }
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size),
-                Sort.by(Sort.Direction.ASC, "relativePath"));
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size), FILE_ORDER);
         Specification<ProjectFile> specification = (root, criteriaQuery, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.equal(root.get("scanId"), scan.getId()));
@@ -255,8 +260,7 @@ public class InventoryQueryService {
         if (scan == null) {
             return PageResponse.empty(page, size);
         }
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size),
-                Sort.by(Sort.Direction.ASC, "filePath").and(Sort.by(Sort.Direction.ASC, "lineStart")));
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size), FINDING_ORDER);
         Specification<AnalysisFinding> specification = (root, criteriaQuery, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.equal(root.get("scanId"), scan.getId()));
@@ -290,8 +294,7 @@ public class InventoryQueryService {
         if (scan == null) {
             return PageResponse.empty(page, size);
         }
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size),
-                Sort.by(Sort.Direction.ASC, "filePath").and(Sort.by(Sort.Direction.ASC, "lineStart")));
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size), FINDING_ORDER);
         Specification<AnalysisFinding> specification = (root, criteriaQuery, builder) ->
                 builder.and(
                         builder.equal(root.get("scanId"), scan.getId()),
@@ -365,10 +368,7 @@ public class InventoryQueryService {
         if (scan == null) {
             return PageResponse.empty(page, size);
         }
-        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size),
-                Sort.by(Sort.Direction.ASC, "relationType")
-                        .and(Sort.by(Sort.Direction.ASC, "evidencePath"))
-                        .and(Sort.by(Sort.Direction.ASC, "lineStart")));
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size), GRAPH_ORDER);
         Specification<AnalysisRelation> specification = (root, criteriaQuery, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.equal(root.get("scanId"), scan.getId()));
@@ -463,8 +463,7 @@ public class InventoryQueryService {
                                 builder.equal(root.get("scanId"), scanId),
                                 root.get("certainty").in(REVIEW_STATES)
                         ),
-                PageRequest.of(0, limit,
-                        Sort.by(Sort.Direction.ASC, "filePath").and(Sort.by(Sort.Direction.ASC, "lineStart"))));
+                PageRequest.of(0, limit, FINDING_ORDER));
         return page.getContent().stream().map(FindingDto::from).toList();
     }
 
