@@ -42,6 +42,8 @@ const ITEM_TYPES = [
   "DATA_ACCESS",
   "MESSAGE_FLOW",
   "MESSAGE_RESOURCE",
+  "VALIDATION",
+  "JAKARTA_NAMESPACE",
   "JSP_VIEW",
   "CONFIGURATION",
   "REVIEW"
@@ -899,7 +901,10 @@ function ItemRow({
 }) {
   const { t } = useTranslation();
   return (
-    <article className={`migration-row ${item.included ? "" : "migration-row-excluded"}`}>
+    <article
+      className={`migration-row ${item.included ? "" : "migration-row-excluded"}`}
+      data-item-id={item.id}
+    >
       <button className="migration-row-open" onClick={() => onSelect(item.id)}>
         <span className="migration-row-identity">
           <span className="migration-row-title">

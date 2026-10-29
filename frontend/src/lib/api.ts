@@ -25,6 +25,7 @@ import type {
   Scan,
   Technology,
   TransformationProposal,
+  TransformationRule,
   TransformationRun
 } from "./types";
 
@@ -255,6 +256,8 @@ export const api = {
       `/projects/${projectId}/migration-plans/${planId}/items/${itemId}`,
       { method: "PATCH", body: JSON.stringify({ included }) }
     ),
+  transformationRules: () =>
+    request<TransformationRule[]>("/transformation-rules"),
   migrationGraph: (projectId: string, planId: string) =>
     request<MigrationGraph>(
       `/projects/${projectId}/migration-plans/${planId}/graph`

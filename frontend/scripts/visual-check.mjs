@@ -64,6 +64,13 @@ if (existingPlans.length > 0) {
   migrationPlanId = await createMigrationPlan();
 }
 let transformationTitle = "";
+let validationItemId = "";
+let formItemId = "";
+let jakartaItemId = "";
+let dataItemId = "";
+let controllerItemId = "";
+let messageItemId = "";
+let jspItemId = "";
 if (migrationPlanId) {
   const migrationItems = await fetch(
     `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items?size=200`
@@ -86,6 +93,126 @@ if (migrationPlanId) {
     if (proposals.length === 0) {
       await fetch(
         `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${component.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const validation = migrationItems.content?.find(
+    (item) => item.itemType === "VALIDATION" && item.title === "OrderAction.java"
+  );
+  if (validation) {
+    validationItemId = validation.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${validation.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${validation.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const form = migrationItems.content?.find(
+    (item) => item.itemType === "FORM_MODEL" && item.title === "OrderForm.java"
+  );
+  if (form) {
+    formItemId = form.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${form.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${form.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const data = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "DATA_ACCESS" &&
+      item.targetKey === "SPRING_JDBC" &&
+      item.title === "OrderQueryDao.java"
+  );
+  if (data) {
+    dataItemId = data.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${data.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${data.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const jakarta = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "JAKARTA_NAMESPACE" &&
+      item.targetKey === "JAKARTA_EE" &&
+      item.title === "Order.java"
+  );
+  if (jakarta) {
+    jakartaItemId = jakarta.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${jakarta.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${jakarta.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const controller = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "ACTION_CONTROLLER" &&
+      item.targetKey === "SPRING_MVC" &&
+      item.title === "OrderAction.java"
+  );
+  if (controller) {
+    controllerItemId = controller.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${controller.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${controller.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const messageResource = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "MESSAGE_RESOURCE" &&
+      item.targetKey === "SPRING_MESSAGES" &&
+      item.title === "messages.properties"
+  );
+  if (messageResource) {
+    messageItemId = messageResource.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${messageResource.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${messageResource.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const jspView = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "JSP_VIEW" &&
+      item.targetKey === "KEEP_JSP" &&
+      item.title === "edit.jsp"
+  );
+  if (jspView) {
+    jspItemId = jspView.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${jspView.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${jspView.id}/transformation-proposals`,
         { method: "POST" }
       );
     }
@@ -341,6 +468,252 @@ for (const language of languages) {
           await page.keyboard.press("Escape");
           await page.locator(".modal-card").waitFor({ state: "hidden" });
         }
+      }
+      if (name === "migration" && validationItemId) {
+        const validationRow = page
+          .locator(`[data-item-id="${validationItemId}"] .migration-row-open`)
+          .first();
+        if ((await validationRow.count()) > 0) {
+          await validationRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-validation-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-validation-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+      if (name === "migration" && formItemId) {
+        const formRow = page
+          .locator(`[data-item-id="${formItemId}"] .migration-row-open`)
+          .first();
+        if ((await formRow.count()) > 0) {
+          await formRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-form-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-form-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+      if (name === "migration" && dataItemId) {
+        const dataRow = page
+          .locator(`[data-item-id="${dataItemId}"] .migration-row-open`)
+          .first();
+        if ((await dataRow.count()) > 0) {
+          await dataRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-data-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-data-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+      if (name === "migration" && jakartaItemId) {
+        const jakartaRow = page
+          .locator(`[data-item-id="${jakartaItemId}"] .migration-row-open`)
+          .first();
+        if ((await jakartaRow.count()) > 0) {
+          await jakartaRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-jakarta-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-jakarta-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+      if (name === "migration" && controllerItemId) {
+        const controllerRow = page
+          .locator(`[data-item-id="${controllerItemId}"] .migration-row-open`)
+          .first();
+        if ((await controllerRow.count()) > 0) {
+          await controllerRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page.locator(".migration-transformation").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          const warningVisible = await page
+            .locator(".migration-transformation-warning")
+            .count();
+          if (diffVisible === 0 || warningVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-controller-inspector",
+              transformationDiff: diffVisible,
+              createWarning: warningVisible
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-controller-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+
+      if (name === "migration" && messageItemId) {
+        const messageRow = page
+          .locator(`[data-item-id="${messageItemId}"] .migration-row-open`)
+          .first();
+        if ((await messageRow.count()) > 0) {
+          await messageRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-messages-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-messages-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+
+      if (name === "migration" && jspItemId) {
+        const searchInput = page.locator(".migration-filters input").first();
+        await searchInput.fill("edit.jsp");
+        await page.waitForTimeout(300);
+        const jspRow = page
+          .locator(`[data-item-id="${jspItemId}"] .migration-row-open`)
+          .first();
+        await jspRow
+          .waitFor({ state: "visible", timeout: 5000 })
+          .catch(() => {});
+        if ((await jspRow.count()) > 0) {
+          await jspRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-jsp-message-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-jsp-message-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+        await searchInput.fill("");
+        await page.waitForTimeout(200);
       }
 
       const filename = `${language}-${viewport.name}-${name}.png`;

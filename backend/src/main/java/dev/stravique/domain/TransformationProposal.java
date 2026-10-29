@@ -38,8 +38,12 @@ public class TransformationProposal {
     @Column(name = "rule_version", nullable = false, length = 40)
     private String ruleVersion;
 
-    @Column(name = "original_sha256", nullable = false, length = 64)
+    @Column(name = "original_sha256", length = 64)
     private String originalSha256;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "artifact_type", nullable = false, length = 20)
+    private TransformationArtifactType artifactType = TransformationArtifactType.EDIT_FILE;
 
     @Column(name = "proposed_sha256", nullable = false, length = 64)
     private String proposedSha256;
@@ -71,7 +75,8 @@ public class TransformationProposal {
                                                 String ruleId, String ruleVersion,
                                                 String originalSha256, String proposedSha256,
                                                 String diff, String validationStatus,
-                                                String validationMessage) {
+                                                String validationMessage,
+                                                TransformationArtifactType artifactType) {
         TransformationProposal proposal = new TransformationProposal();
         proposal.id = UUID.randomUUID();
         proposal.projectId = projectId;
@@ -83,6 +88,7 @@ public class TransformationProposal {
         proposal.ruleVersion = ruleVersion;
         proposal.originalSha256 = originalSha256;
         proposal.proposedSha256 = proposedSha256;
+        proposal.artifactType = artifactType;
         proposal.diff = diff;
         proposal.validationStatus = validationStatus;
         proposal.validationMessage = validationMessage;
@@ -141,6 +147,10 @@ public class TransformationProposal {
 
     public String getOriginalSha256() {
         return originalSha256;
+    }
+
+    public TransformationArtifactType getArtifactType() {
+        return artifactType;
     }
 
     public String getProposedSha256() {

@@ -1,19 +1,24 @@
 package dev.stravique.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.stravique.api.ApiException;
 import dev.stravique.api.dto.TransformationProposalDto;
 import dev.stravique.api.dto.TransformationRunDto;
 import dev.stravique.config.StraviqueProperties;
+import dev.stravique.domain.AnalysisFinding;
 import dev.stravique.domain.AnalysisProject;
 import dev.stravique.domain.MigrationItem;
 import dev.stravique.domain.MigrationPlan;
 import dev.stravique.domain.ProjectFile;
 import dev.stravique.domain.ScanRun;
 import dev.stravique.domain.ScanStatus;
+import dev.stravique.domain.TransformationArtifactType;
 import dev.stravique.domain.TransformationProposal;
 import dev.stravique.domain.TransformationProposalStatus;
 import dev.stravique.domain.TransformationRun;
 import dev.stravique.domain.TransformationRunStatus;
+import dev.stravique.infrastructure.AnalysisFindingRepository;
 import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.MigrationItemRepository;
 import dev.stravique.infrastructure.MigrationPlanRepository;
@@ -22,7 +27,10 @@ import dev.stravique.infrastructure.ScanRunRepository;
 import dev.stravique.infrastructure.TransformationProposalRepository;
 import dev.stravique.infrastructure.TransformationRunRepository;
 import dev.stravique.inventory.TextDecoder;
+import dev.stravique.transformation.ControllerRoute;
+import dev.stravique.transformation.SafeFileWriter;
 import dev.stravique.transformation.TransformationEngine;
+import dev.stravique.transformation.TransformationRequest;
 import dev.stravique.transformation.TransformationInvalidException;
 import dev.stravique.transformation.TransformationOutcome;
 import dev.stravique.transformation.TransformationUnsupportedException;
@@ -34,7 +42,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -54,10 +61,12 @@ public class TransformationService {
     private final MigrationItemRepository itemRepository;
     private final ProjectFileRepository fileRepository;
     private final ScanRunRepository scanRepository;
+    private final AnalysisFindingRepository findingRepository;
     private final TransformationProposalRepository proposalRepository;
     private final TransformationRunRepository runRepository;
     private final TransformationEngine engine;
     private final TextDecoder decoder;
+    private final ObjectMapper objectMapper;
     private final StraviqueProperties properties;
     private final AuditService auditService;
     private final TransactionTemplate transactionTemplate;
@@ -68,10 +77,12 @@ public class TransformationService {
                                  MigrationItemRepository itemRepository,
                                  ProjectFileRepository fileRepository,
                                  ScanRunRepository scanRepository,
+                                 AnalysisFindingRepository findingRepository,
                                  TransformationProposalRepository proposalRepository,
                                  TransformationRunRepository runRepository,
                                  TransformationEngine engine,
                                  TextDecoder decoder,
+                                 ObjectMapper objectMapper,
                                  StraviqueProperties properties,
                                  AuditService auditService,
                                  PlatformTransactionManager transactionManager) {
@@ -80,10 +91,12 @@ public class TransformationService {
         this.itemRepository = itemRepository;
         this.fileRepository = fileRepository;
         this.scanRepository = scanRepository;
+        this.findingRepository = findingRepository;
         this.proposalRepository = proposalRepository;
         this.runRepository = runRepository;
         this.engine = engine;
         this.decoder = decoder;
+        this.objectMapper = objectMapper;
         this.properties = properties;
         this.auditService = auditService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -110,7 +123,8 @@ public class TransformationService {
         Source source = readSource(target, file);
         TransformationOutcome outcome;
         try {
-            outcome = engine.propose(item, file, source.text(), file.getRelativePath());
+            outcome = engine.propose(new TransformationRequest(item, file, source.text(),
+                    file.getRelativePath(), routes(plan.getScanId())));
         } catch (TransformationUnsupportedException exception) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "TRANSFORMATION_UNSUPPORTED", "error.transformation.unsupported");
@@ -118,7 +132,10 @@ public class TransformationService {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "TRANSFORMATION_INVALID", "error.transformation.invalid");
         }
-        byte[] proposedBytes = outcome.proposedText().getBytes(source.charset());
+        if (outcome.artifactType() == TransformationArtifactType.CREATE_FILE) {
+            safeNewTarget(root, outcome.targetRelativePath());
+        }
+        byte[] proposedBytes = proposedBytes(outcome, source.charset());
         String proposedSha = sha256(proposedBytes);
         for (TransformationProposal previous : proposalRepository
                 .findByPlanIdAndItemIdAndStatus(planId, itemId,
@@ -127,10 +144,10 @@ public class TransformationService {
             proposalRepository.save(previous);
         }
         TransformationProposal proposal = ProposalFactory.create(projectId, planId, itemId,
-                file.getId(), file.getRelativePath(), outcome, source.sha256(), proposedSha);
+                file.getId(), outcome.targetRelativePath(), outcome, source.sha256(), proposedSha);
         proposalRepository.save(proposal);
         auditService.record(projectId, "TRANSFORMATION_PROPOSED", "TRANSFORMATION_PROPOSAL",
-                proposal.getId().toString(), file.getRelativePath());
+                proposal.getId().toString(), outcome.targetRelativePath());
         return TransformationProposalDto.from(proposal);
     }
 
@@ -194,6 +211,9 @@ public class TransformationService {
         ProjectFile file = fileRepository.findById(proposal.getSourceFileId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                         "TRANSFORMATION_NOT_FOUND", "error.transformation.notFound"));
+        if (proposal.getArtifactType() == TransformationArtifactType.CREATE_FILE) {
+            return doApplyCreate(projectId, project, plan, item, proposal, file, attempt);
+        }
         Path root = projectRoot(project);
         Path target = safeSource(root, proposal.getRelativePath());
         byte[] currentBytes = readBytes(target);
@@ -220,7 +240,7 @@ public class TransformationService {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");
         }
-        byte[] proposedBytes = outcome.proposedText().getBytes(decoded.charset());
+        byte[] proposedBytes = proposedBytes(outcome, decoded.charset());
         if (!sha256(proposedBytes).equals(proposal.getProposedSha256())) {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");
@@ -238,7 +258,7 @@ public class TransformationService {
             Files.copy(target, backup, StandardCopyOption.REPLACE_EXISTING);
             attempt.target = target;
             attempt.originalBytes = currentBytes;
-            writeAtomically(target, proposedBytes);
+            SafeFileWriter.write(target, proposedBytes);
             attempt.written = true;
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -249,7 +269,67 @@ public class TransformationService {
         TransformationRun run = TransformationRun.applied(projectId, plan.getId(),
                 proposal.getId(), item.getId(), proposal.getRelativePath(), backup.toString(),
                 proposal.getOriginalSha256(), proposal.getProposedSha256(),
-                proposal.getRuleId(), proposal.getRuleVersion());
+                proposal.getRuleId(), proposal.getRuleVersion(), proposal.getArtifactType());
+        run = runRepository.save(run);
+        auditService.record(projectId, "TRANSFORMATION_APPLIED", "TRANSFORMATION_RUN",
+                run.getId().toString(), proposal.getRelativePath());
+        return TransformationRunDto.from(run);
+    }
+
+    private TransformationRunDto doApplyCreate(UUID projectId, AnalysisProject project,
+                                               MigrationPlan plan, MigrationItem item,
+                                               TransformationProposal proposal, ProjectFile file,
+                                               ApplyAttempt attempt) {
+        Path root = projectRoot(project);
+        Path sourceTarget = safeSource(root, file.getRelativePath());
+        byte[] sourceBytes = readBytes(sourceTarget);
+        if (!sha256(sourceBytes).equals(proposal.getOriginalSha256())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
+                    "error.transformation.sourceChanged");
+        }
+        TextDecoder.DecodedSource decoded;
+        try {
+            decoded = decoder.decode(sourceTarget);
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
+                    "error.transformation.sourceChanged");
+        }
+        TransformationOutcome outcome;
+        try {
+            outcome = engine.propose(new TransformationRequest(item, file, decoded.text(),
+                    file.getRelativePath(), routes(plan.getScanId())));
+        } catch (TransformationUnsupportedException | TransformationInvalidException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
+                    "error.transformation.ruleChanged");
+        }
+        if (!outcome.ruleId().equals(proposal.getRuleId())
+                || !outcome.ruleVersion().equals(proposal.getRuleVersion())
+                || outcome.artifactType() != TransformationArtifactType.CREATE_FILE
+                || !outcome.targetRelativePath().equals(proposal.getRelativePath())) {
+            throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
+                    "error.transformation.ruleChanged");
+        }
+        byte[] proposedBytes = proposedBytes(outcome, decoded.charset());
+        if (!sha256(proposedBytes).equals(proposal.getProposedSha256())) {
+            throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
+                    "error.transformation.ruleChanged");
+        }
+        Path target = safeNewTarget(root, proposal.getRelativePath());
+        try {
+            SafeFileWriter.write(target, proposedBytes);
+            attempt.target = target;
+            attempt.created = true;
+            attempt.written = true;
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "TRANSFORMATION_APPLY_FAILED", "error.transformation.applyFailed");
+        }
+        proposal.markApplied();
+        proposalRepository.save(proposal);
+        TransformationRun run = TransformationRun.applied(projectId, plan.getId(),
+                proposal.getId(), item.getId(), proposal.getRelativePath(), null,
+                proposal.getOriginalSha256(), proposal.getProposedSha256(),
+                proposal.getRuleId(), proposal.getRuleVersion(), TransformationArtifactType.CREATE_FILE);
         run = runRepository.save(run);
         auditService.record(projectId, "TRANSFORMATION_APPLIED", "TRANSFORMATION_RUN",
                 run.getId().toString(), proposal.getRelativePath());
@@ -283,6 +363,9 @@ public class TransformationService {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_SUPERSEDED",
                     "error.transformation.superseded");
         }
+        if (run.getArtifactType() == TransformationArtifactType.CREATE_FILE) {
+            return doRestoreCreate(projectId, run, attempt);
+        }
         AnalysisProject project = requireProject(projectId);
         Path root = projectRoot(project);
         Path target = safeSource(root, run.getRelativePath());
@@ -305,7 +388,7 @@ public class TransformationService {
         try {
             attempt.target = target;
             attempt.currentBytes = currentBytes;
-            writeAtomically(target, backupBytes);
+            SafeFileWriter.write(target, backupBytes);
             attempt.written = true;
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -322,10 +405,47 @@ public class TransformationService {
         return TransformationRunDto.from(run);
     }
 
+    private TransformationRunDto doRestoreCreate(UUID projectId, TransformationRun run,
+                                                   RestoreAttempt attempt) {
+        AnalysisProject project = requireProject(projectId);
+        Path root = projectRoot(project);
+        Path target = safeSource(root, run.getRelativePath());
+        byte[] currentBytes = readBytes(target);
+        if (!sha256(currentBytes).equals(run.getAppliedSha256())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
+                    "error.transformation.sourceChanged");
+        }
+        attempt.target = target;
+        attempt.currentBytes = currentBytes;
+        attempt.written = true;
+        try {
+            Files.delete(target);
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "TRANSFORMATION_APPLY_FAILED", "error.transformation.applyFailed");
+        }
+        run.markRestored();
+        runRepository.save(run);
+        proposalRepository.findById(run.getProposalId()).ifPresent(proposal -> {
+            proposal.markRestored();
+            proposalRepository.save(proposal);
+        });
+        auditService.record(projectId, "TRANSFORMATION_RESTORED", "TRANSFORMATION_RUN",
+                run.getId().toString(), run.getRelativePath());
+        return TransformationRunDto.from(run);
+    }
+
     private void restoreQuietly(ApplyAttempt attempt) {
+        if (attempt.created && attempt.target != null) {
+            try {
+                Files.deleteIfExists(attempt.target);
+            } catch (IOException ignored) {
+            }
+            return;
+        }
         if (attempt.written && attempt.target != null && attempt.originalBytes != null) {
             try {
-                writeAtomically(attempt.target, attempt.originalBytes);
+                SafeFileWriter.write(attempt.target, attempt.originalBytes);
             } catch (IOException ignored) {
             }
         }
@@ -334,7 +454,7 @@ public class TransformationService {
     private void restoreQuietly(RestoreAttempt attempt) {
         if (attempt.written && attempt.target != null && attempt.currentBytes != null) {
             try {
-                writeAtomically(attempt.target, attempt.currentBytes);
+                SafeFileWriter.write(attempt.target, attempt.currentBytes);
             } catch (IOException ignored) {
             }
         }
@@ -357,6 +477,46 @@ public class TransformationService {
         return itemRepository.findByIdAndPlanId(itemId, planId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                         "MIGRATION_ITEM_NOT_FOUND", "error.migration.itemNotFound"));
+    }
+
+    private List<ControllerRoute> routes(UUID scanId) {
+        List<AnalysisFinding> findings =
+                findingRepository.findByScanIdOrderByFilePathAscLineStartAsc(scanId);
+        java.util.Map<String, String> actionTypes = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> forwardPaths = new java.util.LinkedHashMap<>();
+        for (AnalysisFinding finding : findings) {
+            JsonNode metadata = metadata(finding);
+            if (finding.getRuleId().equals("STRUTS-CONFIG-ACTION-001")) {
+                String path = metadata.path("path").asText("");
+                String type = metadata.path("type").asText("");
+                if (!path.isBlank() && !type.isBlank()) {
+                    actionTypes.putIfAbsent(path, type);
+                }
+            } else if (finding.getRuleId().equals("STRUTS-CONFIG-FORWARD-001")) {
+                String actionPath = metadata.path("actionPath").asText("");
+                String path = metadata.path("path").asText("");
+                String redirect = metadata.path("redirect").asText("");
+                if (!actionPath.isBlank() && !path.isBlank()
+                        && !redirect.equalsIgnoreCase("true")) {
+                    forwardPaths.putIfAbsent(actionPath, path);
+                }
+            }
+        }
+        return actionTypes.entrySet().stream()
+                .map(entry -> new ControllerRoute(entry.getKey(), entry.getValue(),
+                        forwardPaths.getOrDefault(entry.getKey(), ""), ""))
+                .toList();
+    }
+
+    private JsonNode metadata(AnalysisFinding finding) {
+        if (finding.getMetadata() == null || finding.getMetadata().isBlank()) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            return objectMapper.readTree(finding.getMetadata());
+        } catch (Exception exception) {
+            return objectMapper.createObjectNode();
+        }
     }
 
     private void requirePlanCurrent(MigrationPlan plan) {
@@ -400,6 +560,29 @@ public class TransformationService {
         }
     }
 
+    private Path safeNewTarget(Path root, String relativePath) {
+        Path target = root.resolve(relativePath).normalize();
+        try {
+            if (!target.startsWith(root) || Files.exists(target)
+                    || Files.isSymbolicLink(target)) {
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "TRANSFORMATION_TARGET_EXISTS", "error.transformation.targetExists");
+            }
+            Path parent = target.getParent();
+            if (parent == null || !Files.isDirectory(parent)
+                    || !parent.toRealPath().startsWith(root)) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "TRANSFORMATION_TARGET_INVALID", "error.transformation.targetInvalid");
+            }
+            return target;
+        } catch (ApiException exception) {
+            throw exception;
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "TRANSFORMATION_TARGET_INVALID", "error.transformation.targetInvalid");
+        }
+    }
+
     private Source readSource(Path target, ProjectFile file) {
         try {
             byte[] bytes = Files.readAllBytes(target);
@@ -437,19 +620,10 @@ public class TransformationService {
         return root.toAbsolutePath().normalize();
     }
 
-    private void writeAtomically(Path target, byte[] bytes) throws IOException {
-        Path temporary = Files.createTempFile(target.getParent(), ".stravique-transform-", ".tmp");
-        try {
-            Files.write(temporary, bytes);
-            try {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException exception) {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(temporary);
-        }
+    private byte[] proposedBytes(TransformationOutcome outcome, Charset sourceCharset) {
+        Charset charset = outcome.proposedEncoding() == null
+                ? sourceCharset : Charset.forName(outcome.proposedEncoding());
+        return outcome.proposedText().getBytes(charset);
     }
 
     private String sha256(byte[] bytes) {
@@ -468,6 +642,7 @@ public class TransformationService {
         private Path target;
         private byte[] originalBytes;
         private boolean written;
+        private boolean created;
     }
 
     private static final class RestoreAttempt {
@@ -486,7 +661,8 @@ public class TransformationService {
                                                       String originalSha, String proposedSha) {
             return TransformationProposal.create(projectId, planId, itemId, fileId, relativePath,
                     outcome.ruleId(), outcome.ruleVersion(), originalSha, proposedSha,
-                    outcome.diff(), outcome.validationStatus(), outcome.validationMessage());
+                    outcome.diff(), outcome.validationStatus(), outcome.validationMessage(),
+                    outcome.artifactType());
         }
     }
 }

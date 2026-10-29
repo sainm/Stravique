@@ -118,12 +118,13 @@ The first vetted target profile is `SPRING_BOOT_MVC`: Spring MVC controllers, Sp
 
 ## Transformation preview and guarded apply
 
-Phase 4A adds one vetted Java rule: `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI. The rule uses JavaParser source ranges and edits only imports and annotation ranges; it does not pretty-print the file.
+Phase 4 adds eight vetted rules: six Java rules, one properties rule, and one JSP rule. The Java rules are `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI, `SASTRUTS-VALIDATION-BEAN` for plain SAStruts `@Required` to Jakarta `@NotNull`, `STRUTS-ACTIONFORM-MODEL` for simple ActionForm inheritance removal, `JAVAX-TO-JAKARTA` for supported namespace imports, `S2JDBC-QUERY-SPRING-JDBC` for a read-only select query chain, and `STRUTS-CONTROLLER-SKELETON` for an explicit Struts mapping and forward. The first five use JavaParser source ranges; the controller skeleton rule creates a separate `CREATE_FILE` artifact. `MESSAGE-RESOURCE-SPRING-UTF8` parses a Java properties bundle and rewrites non-ASCII Unicode escapes in message values as UTF-8 text. `JSP-BEAN-MESSAGE-JSTL` parses JSP tags and rewrites self-closing `bean:message` tags as JSTL `fmt:message`. No rule pretty-prints or rewrites unrelated code.
 
 Proposal generation is read-only:
 
 - It requires a current plan and a source hash equal to the scanned file.
-- It persists a unified diff, original/proposed hashes, rule version, and syntax-validation result.
+- It persists an artifact type, target path, unified diff, original/proposed hashes, rule version, and syntax-validation result.
+- It validates Java syntax for Java rules, properties syntax plus UTF-8 round-tripping for the message rule, and tag structure for the JSP rule.
 - It supersedes earlier proposals for the same item.
 
 Apply and restore are separate guarded operations:
@@ -131,14 +132,16 @@ Apply and restore are separate guarded operations:
 - Explicit confirmation is required.
 - The current source hash must match the proposal or applied run.
 - The rule version and proposed hash are rechecked before writing.
-- The original bytes are copied to an external backup before an atomic single-file write.
-- A database failure triggers a best-effort byte restore.
-- Restore writes only from a verified backup and refuses if the file changed after apply.
+- For edits, the original bytes are copied to an external backup before an atomic single-file write.
+- For creates, the target must not exist; the new file is written atomically without a backup.
+- The write replaces bytes and nothing else: a replaced file keeps its own POSIX permissions, including the executable bit, and a created file takes the platform default for a new file. A temporary file is used only as the staging point for the atomic move, never as the delivered inode.
+- A database failure triggers a best-effort byte restore or deletes the created file.
+- Restore writes only from a verified backup for edits, and deletes only the generated file for creates; both refuse if the file changed after apply.
 - The backup directory cannot be inside the project.
 
 Automated validation is syntactic only. A proposal is never presented as semantically equivalent, compiled, or runtime-validated. The migration item's planning status is not upgraded by a transformation run.
 
-Only component items are eligible. Struts actions, S2JDBC, messages, configuration, and JSP reports explicitly have no vetted rule yet.
+Component, validation, form-model, Jakarta-namespace, read-only data-access, action-controller, message-resource, and JSP-view items are eligible for their respective rules. Controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC updates/transactions, configuration conversion, and reports explicitly remain manual.
 
 ## Internationalization
 

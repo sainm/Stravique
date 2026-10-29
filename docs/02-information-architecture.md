@@ -63,7 +63,7 @@ Selecting a file loads persisted evidence. Evidence rows show the source range a
 - Rejects excluding an item while another included item depends on it.
 - Provides a persisted dependency map with explicit limits and truncation messaging.
 - Never presents a planning status as transformed or validated.
-- For component items with a vetted rule, shows a read-only diff preview, syntax-validation state, explicit confirmation, apply, restore, and execution history.
+- For items with a vetted rule, shows a read-only diff preview, syntax-validation state, explicit confirmation, apply, restore, and execution history. Create-only rules mark the proposal as a new file and warn that no existing file is overwritten.
 - Clearly states when no vetted transformation rule supports an item.
 
 ## Reports

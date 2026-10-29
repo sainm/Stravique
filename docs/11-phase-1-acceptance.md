@@ -34,9 +34,10 @@ It covers the following acceptance areas.
 | Protect plan scope | Excluding an item still required by an included item returns `MIGRATION_DEPENDENCY_CONFLICT` |
 | Expose planning status honestly | Plans emit only `READY`, `REVIEW_REQUIRED`, and `BLOCKED`; transformation statuses are not fabricated |
 | Plan workspace | List, phase, dependency map, review, and history views render in three languages with persisted counts |
-| Preview a vetted transformation | Integration test generates a Seasar DI → Spring DI unified diff with a persisted rule version and hash |
-| Apply with protection | Apply requires confirmation, creates a backup, writes atomically, and updates a transformation run |
-| Restore safely | Restore verifies the applied hash and backup hash before writing the original bytes |
+| Preview vetted transformations | Integration test generates Seasar DI → Spring DI, SAStruts `@Required` → `@NotNull`, ActionForm model, supported `javax.*` → `jakarta.*`, read-only S2JDBC → JdbcTemplate, create-only Spring controller skeleton, UTF-8 message-bundle, and JSTL message-tag diffs with persisted rule versions and hashes |
+| Apply with protection | Edit apply requires confirmation, creates a backup, writes atomically, and updates a transformation run; create apply requires the target to be absent |
+| Restore safely | Edit restore verifies the applied hash and backup hash before writing the original bytes; create restore deletes only the unchanged generated file |
+| Create without overwriting | Controller skeleton apply leaves the legacy action byte-identical and refuses an existing target |
 | Reject unsafe transformations | Unsupported items, stale plans, changed sources, and reused proposals are rejected |
 | Protect shipped sources | Apply/restore tests run on an isolated copy; the shipped fixture bytes remain unchanged |
 
@@ -64,7 +65,7 @@ The fixture migration plan should report these minimum characteristics:
 - More than one phase.
 - No `TRANSFORMED`, `VALIDATED`, or `VALIDATION_FAILED` item.
 
-Transformation acceptance uses a temporary copy of the fixture. It previews `OrderService.java` as a Seasar DI → Spring DI diff, applies it, verifies the backup and run record, restores the original bytes, and confirms the shipped fixture was never modified.
+Transformation acceptance uses a temporary copy of the fixture. It previews `OrderService.java` as a Seasar DI → Spring DI diff, `OrderAction.java` as a plain `@Required` → `@NotNull` diff, `OrderForm.java` as an ActionForm inheritance removal, `Order.java` as a supported `javax.*` → `jakarta.*` diff, and `OrderQueryDao.java` as a read-only S2JDBC → JdbcTemplate diff, applies each, verifies the backup and run records, restores the original bytes, and confirms the shipped fixture was never modified. It also previews `OrderAction.java` as a create-only controller skeleton, verifies the new file and `CREATE_FILE` run record, restores to remove the generated file, and rechecks the action source bytes. It previews `messages.properties` as a UTF-8 bundle, verifies the escaped Japanese message becomes literal UTF-8 text with unchanged keys, and restores the original bytes. It previews `edit.jsp` as a JSTL message-tag change, verifies the fmt taglib is added and the unused bean taglib removed, and restores the original bytes.
 
 Exact counts can change when the fixture changes, but must remain derived from the current persisted scan.
 
@@ -78,7 +79,7 @@ Exact counts can change when the fixture changes, but must remain derived from t
 - Framework Usage.
 - Relations table and map.
 - Migration plan, review, and dependency map.
-- Migration item inspector with transformation preview.
+- Migration item inspector with transformation preview for edit rules, the create-only controller skeleton, message bundles, and JSP message tags.
 - Reports.
 - Settings.
 - Desktop and mobile layouts.
@@ -105,4 +106,4 @@ Technical acceptance does not establish migration readiness. A human must still 
 - Transformation previews: annotation mapping, import side effects, dicon remains, and whether the resulting code compiles with the target stack.
 - Apply/restore records and backup retention.
 
-Phase 3 acceptance does not imply that any plan item has been transformed or validated. Phase 4A acceptance covers one assisted Seasar2 DI annotation rule only; it does not establish semantic equivalence, compilation, or runtime behavior.
+Phase 3 acceptance does not imply that any plan item has been transformed or validated. Phase 4 acceptance covers eight assisted rules—DI annotations, `@Required`, simple ActionForm inheritance, supported `javax.*` namespace imports, read-only S2JDBC queries, a create-only controller skeleton, UTF-8 message bundles, and JSTL message tags—and does not establish semantic equivalence, compilation, or runtime behavior.

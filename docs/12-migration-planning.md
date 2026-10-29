@@ -61,9 +61,13 @@ Every item carries a deterministic `itemKey` and links to its primary file and p
 | `DATA_ACCESS` | S2JDBC entity, DAO, query, transaction, or SQL statement evidence | `SPRING_JDBC` | `MANUAL` | `HIGH` | `REVIEW_REQUIRED` |
 | `MESSAGE_FLOW` | Struts/SAStruts message lifecycle findings | `SPRING_MVC` | `ASSISTED` | `HIGH` | `REVIEW_REQUIRED` |
 | `MESSAGE_RESOURCE` | Properties files referenced by message production or display relations | `SPRING_MESSAGES` | `ASSISTED` | `LOW` | `READY` |
+| `VALIDATION` | SAStruts validation annotation findings | `SPRING_VALIDATION` | `ASSISTED` | `MEDIUM` | `READY` |
+| `JAKARTA_NAMESPACE` | Supported `javax.*` imports | `JAKARTA_EE` | `ASSISTED` | `MEDIUM` | `READY` |
 | `JSP_VIEW` | JSP page findings | `KEEP_JSP` | `ASSISTED` | `LOW` | `READY` |
 | `CONFIGURATION` | web.xml, struts-config, or dicon findings | `SPRING_BOOT_CONFIG` | `ASSISTED` | `MEDIUM` | `READY` |
 | `REVIEW` | Parse failure, dynamic loading, reflection, or project-owned framework evidence without another item | `MANUAL_REVIEW` | `MANUAL` | `HIGH` | `REVIEW_REQUIRED` |
+
+`MESSAGE_RESOURCE` items carry the message bundle only. Its vetted transformation normalizes non-ASCII escapes to UTF-8; message APIs, lifecycle flow, and JSP error/message-block tags remain `MESSAGE_FLOW` or manual review work. `JSP_VIEW` items target `KEEP_JSP`; the vetted JSP rule rewrites self-closing `bean:message` tags as JSTL `fmt:message`, while form, error, and custom tags remain manual.
 
 Escalations:
 

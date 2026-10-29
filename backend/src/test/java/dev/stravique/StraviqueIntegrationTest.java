@@ -15,12 +15,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -427,7 +429,8 @@ class StraviqueIntegrationTest {
             statuses.add(item.get("status").asText());
         }
         assertThat(types).contains("ACTION_CONTROLLER", "COMPONENT_BEAN", "DATA_ACCESS",
-                "MESSAGE_FLOW", "MESSAGE_RESOURCE", "JSP_VIEW", "CONFIGURATION", "REVIEW");
+                "MESSAGE_FLOW", "MESSAGE_RESOURCE", "FORM_MODEL", "VALIDATION",
+                "JAKARTA_NAMESPACE", "JSP_VIEW", "CONFIGURATION", "REVIEW");
         assertThat(statuses).contains("READY", "REVIEW_REQUIRED", "BLOCKED");
 
         JsonNode actionItem = null;
@@ -545,7 +548,27 @@ class StraviqueIntegrationTest {
         copyRecursively(SAMPLE, tempProject);
         Path transformedFile = tempProject.resolve(
                 "web-app/src/main/java/com/example/legacy/service/OrderService.java");
+        Path validationFile = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/action/OrderAction.java");
+        Path formFile = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/dto/OrderForm.java");
+        Path jakartaFile = tempProject.resolve(
+                "domain/src/main/java/com/example/legacy/domain/Order.java");
+        Path queryDaoFile = tempProject.resolve(
+                "domain/src/main/java/com/example/legacy/dao/OrderQueryDao.java");
+        Path messageFile = tempProject.resolve(
+                "web-app/src/main/resources/messages.properties");
+        Path jspFile = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/jsp/order/edit.jsp");
         byte[] originalBytes = Files.readAllBytes(transformedFile);
+        Set<PosixFilePermission> originalPermissions =
+                Files.getPosixFilePermissions(transformedFile);
+        byte[] originalValidationBytes = Files.readAllBytes(validationFile);
+        byte[] originalFormBytes = Files.readAllBytes(formFile);
+        byte[] originalJakartaBytes = Files.readAllBytes(jakartaFile);
+        byte[] originalQueryDaoBytes = Files.readAllBytes(queryDaoFile);
+        byte[] originalMessageBytes = Files.readAllBytes(messageFile);
+        byte[] originalJspBytes = Files.readAllBytes(jspFile);
         byte[] fixtureBytes = Files.readAllBytes(SAMPLE.resolve(
                 "web-app/src/main/java/com/example/legacy/service/OrderService.java"));
 
@@ -577,6 +600,13 @@ class StraviqueIntegrationTest {
         JsonNode items = objectMapper.readTree(itemsResponse).get("content");
         JsonNode component = null;
         JsonNode action = null;
+        JsonNode validation = null;
+        JsonNode form = null;
+        JsonNode jakarta = null;
+        JsonNode queryDao = null;
+        JsonNode messageFlow = null;
+        JsonNode messageResource = null;
+        JsonNode jspView = null;
         for (JsonNode item : items) {
             if (item.get("itemType").asText().equals("COMPONENT_BEAN")
                     && item.get("title").asText().equals("OrderService.java")) {
@@ -585,13 +615,47 @@ class StraviqueIntegrationTest {
             if (item.get("itemType").asText().equals("ACTION_CONTROLLER")) {
                 action = item;
             }
+            if (item.get("itemType").asText().equals("VALIDATION")
+                    && item.get("title").asText().equals("OrderAction.java")) {
+                validation = item;
+            }
+            if (item.get("itemType").asText().equals("FORM_MODEL")
+                    && item.get("title").asText().equals("OrderForm.java")) {
+                form = item;
+            }
+            if (item.get("itemType").asText().equals("JAKARTA_NAMESPACE")
+                    && item.get("title").asText().equals("Order.java")) {
+                jakarta = item;
+            }
+            if (item.get("itemType").asText().equals("DATA_ACCESS")
+                    && item.get("title").asText().equals("OrderQueryDao.java")) {
+                queryDao = item;
+            }
+            if (item.get("itemType").asText().equals("MESSAGE_FLOW")) {
+                messageFlow = item;
+            }
+            if (item.get("itemType").asText().equals("MESSAGE_RESOURCE")
+                    && item.get("title").asText().equals("messages.properties")) {
+                messageResource = item;
+            }
+            if (item.get("itemType").asText().equals("JSP_VIEW")
+                    && item.get("title").asText().equals("edit.jsp")) {
+                jspView = item;
+            }
         }
         assertThat(component).isNotNull();
         assertThat(action).isNotNull();
+        assertThat(validation).isNotNull();
+        assertThat(form).isNotNull();
+        assertThat(jakarta).isNotNull();
+        assertThat(queryDao).isNotNull();
+        assertThat(messageFlow).isNotNull();
+        assertThat(messageResource).isNotNull();
+        assertThat(jspView).isNotNull();
         String componentId = component.get("id").asText();
         mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
                         + "transformation-proposals", projectId, planId,
-                        action.get("id").asText()))
+                        messageFlow.get("id").asText()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("TRANSFORMATION_UNSUPPORTED"));
 
@@ -633,6 +697,8 @@ class StraviqueIntegrationTest {
         assertThat(Files.readAllBytes(SAMPLE.resolve(
                 "web-app/src/main/java/com/example/legacy/service/OrderService.java")))
                 .isEqualTo(fixtureBytes);
+        assertThat(Files.getPosixFilePermissions(transformedFile))
+                .isEqualTo(originalPermissions);
         try (Stream<Path> backups = Files.walk(Path.of(System.getProperty("user.dir"),
                 "build", "test-transformation-backups"))) {
             assertThat(backups.anyMatch(Files::isRegularFile)).isTrue();
@@ -651,10 +717,245 @@ class StraviqueIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESTORED"));
         assertThat(Files.readAllBytes(transformedFile)).isEqualTo(originalBytes);
+        assertThat(Files.getPosixFilePermissions(transformedFile))
+                .isEqualTo(originalPermissions);
         mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
                         + "transformation-runs", projectId, planId, componentId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("RESTORED"));
+
+        String validationItemId = validation.get("id").asText();
+        String validationProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, validationItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("SASTRUTS-VALIDATION-BEAN"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString(
+                                "jakarta.validation.constraints.NotNull")))
+                .andReturn().getResponse().getContentAsString();
+        String validationProposalId = objectMapper.readTree(validationProposalResponse)
+                .get("id").asText();
+        String validationRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, validationProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(validationFile), StandardCharsets.UTF_8))
+                .contains("@NotNull")
+                .doesNotContain("org.seasar.struts.annotation.Required");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(validationRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(validationFile)).isEqualTo(originalValidationBytes);
+
+        String formItemId = form.get("id").asText();
+        String formProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, formItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("STRUTS-ACTIONFORM-MODEL"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("ActionForm")))
+                .andReturn().getResponse().getContentAsString();
+        String formProposalId = objectMapper.readTree(formProposalResponse).get("id").asText();
+        String formRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, formProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(formFile), StandardCharsets.UTF_8))
+                .doesNotContain("ActionForm")
+                .contains("public class OrderForm");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(formRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(formFile)).isEqualTo(originalFormBytes);
+
+        String jakartaItemId = jakarta.get("id").asText();
+        String jakartaProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, jakartaItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("JAVAX-TO-JAKARTA"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("jakarta.persistence")))
+                .andReturn().getResponse().getContentAsString();
+        String jakartaProposalId = objectMapper.readTree(jakartaProposalResponse).get("id").asText();
+        String jakartaRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, jakartaProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(jakartaFile), StandardCharsets.UTF_8))
+                .contains("jakarta.persistence")
+                .doesNotContain("javax.persistence");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(jakartaRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(jakartaFile)).isEqualTo(originalJakartaBytes);
+
+        String queryDaoItemId = queryDao.get("id").asText();
+        String queryProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, queryDaoItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("S2JDBC-QUERY-SPRING-JDBC"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("jdbcTemplate.query")))
+                .andReturn().getResponse().getContentAsString();
+        String queryProposalId = objectMapper.readTree(queryProposalResponse).get("id").asText();
+        String queryRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, queryProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(queryDaoFile), StandardCharsets.UTF_8))
+                .contains("JdbcTemplate")
+                .contains("jdbcTemplate.query")
+                .doesNotContain("selectBySql");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(queryRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(queryDaoFile)).isEqualTo(originalQueryDaoBytes);
+
+        String messageItemId = messageResource.get("id").asText();
+        String messageProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, messageItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("MESSAGE-RESOURCE-SPRING-UTF8"))
+                .andExpect(jsonPath("$.artifactType").value("EDIT_FILE"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("注文一覧")))
+                .andReturn().getResponse().getContentAsString();
+        String messageProposalId = objectMapper.readTree(messageProposalResponse)
+                .get("id").asText();
+        String messageRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, messageProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(messageFile), StandardCharsets.UTF_8))
+                .contains("order.list.title=注文一覧")
+                .doesNotContain("\\u6ce8");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(messageRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(messageFile)).isEqualTo(originalMessageBytes);
+
+        String jspItemId = jspView.get("id").asText();
+        String jspProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, jspItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("JSP-BEAN-MESSAGE-JSTL"))
+                .andExpect(jsonPath("$.artifactType").value("EDIT_FILE"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("fmt:message")))
+                .andReturn().getResponse().getContentAsString();
+        String jspProposalId = objectMapper.readTree(jspProposalResponse).get("id").asText();
+        String jspRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, jspProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(jspFile), StandardCharsets.UTF_8))
+                .contains("<fmt:message key=\"order.list.title\"/>")
+                .contains("jakarta.tags.fmt")
+                .doesNotContain("<bean:message")
+                .doesNotContain("prefix=\"bean\"");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(jspRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(jspFile)).isEqualTo(originalJspBytes);
+
+        String actionItemId = action.get("id").asText();
+        Path controllerFile = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/action/OrderActionController.java");
+        String controllerProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, actionItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("STRUTS-CONTROLLER-SKELETON"))
+                .andExpect(jsonPath("$.artifactType").value("CREATE_FILE"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/java/com/example/legacy/action/OrderActionController.java"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("--- /dev/null")))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("@Controller")))
+                .andReturn().getResponse().getContentAsString();
+        String controllerProposalId = objectMapper.readTree(controllerProposalResponse)
+                .get("id").asText();
+        String controllerRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, controllerProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andExpect(jsonPath("$.artifactType").value("CREATE_FILE"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(Files.exists(controllerFile)).isTrue();
+        assertThat(new String(Files.readAllBytes(controllerFile), StandardCharsets.UTF_8))
+                .contains("@Controller")
+                .contains("@RequestMapping(\"/orders\")");
+        assertThat(Files.readAllBytes(validationFile)).isEqualTo(originalValidationBytes);
+        mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, actionItemId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_TARGET_EXISTS"));
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(controllerRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.exists(controllerFile)).isFalse();
 
         String secondProposal = mockMvc.perform(post(
                         "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
@@ -695,6 +996,24 @@ class StraviqueIntegrationTest {
                 Files.deleteIfExists(path);
             }
         }
+    }
+
+    @Test
+    void publishesTheVettedTransformationRuleCatalog() throws Exception {
+        mockMvc.perform(get("/api/v1/transformation-rules"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.ruleId == 'SEASAR-DI-SPRING-DI')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'SASTRUTS-VALIDATION-BEAN')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-ACTIONFORM-MODEL')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'JAVAX-TO-JAKARTA')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'S2JDBC-QUERY-SPRING-JDBC')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONTROLLER-SKELETON')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'MESSAGE-RESOURCE-SPRING-UTF8')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'MESSAGE-RESOURCE-SPRING-UTF8'"
+                        + " && @.language == 'PROPERTIES')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'JSP-BEAN-MESSAGE-JSTL')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'JSP-BEAN-MESSAGE-JSTL'"
+                        + " && @.language == 'JSP')]").isNotEmpty());
     }
 
     @Test

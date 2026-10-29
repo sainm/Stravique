@@ -64,6 +64,12 @@ public class MigrationPlanner {
     private static final Set<String> MESSAGE_RULES = Set.of(
             "JAVA-STR1-MESSAGE-001"
     );
+    private static final Set<String> VALIDATION_RULES = Set.of(
+            "JAVA-SAST-VALIDATION-001"
+    );
+    private static final Set<String> JAKARTA_RULES = Set.of(
+            "JAVA-JAKARTA-NAMESPACE-001"
+    );
     private static final Set<String> UNRESOLVED_RULES = Set.of(
             "JAVA-DYNAMIC-001", "JAVA-REFLECTION-001"
     );
@@ -76,16 +82,18 @@ public class MigrationPlanner {
     private static final List<String> SOURCE_PROFILE_ORDER = List.of(
             "SASTRUTS", "STRUTS1", "SEASAR2", "S2JDBC", "SERVLET", "JSP", "JSTL", "CUSTOM_TAGS"
     );
-    private static final Map<MigrationItemType, Integer> PREFERENCE = Map.of(
-            MigrationItemType.ACTION_CONTROLLER, 1,
-            MigrationItemType.MESSAGE_FLOW, 2,
-            MigrationItemType.COMPONENT_BEAN, 3,
-            MigrationItemType.DATA_ACCESS, 4,
-            MigrationItemType.FORM_MODEL, 5,
-            MigrationItemType.CONFIGURATION, 6,
-            MigrationItemType.MESSAGE_RESOURCE, 7,
-            MigrationItemType.JSP_VIEW, 8,
-            MigrationItemType.REVIEW, 9
+    private static final Map<MigrationItemType, Integer> PREFERENCE = Map.ofEntries(
+            Map.entry(MigrationItemType.ACTION_CONTROLLER, 1),
+            Map.entry(MigrationItemType.MESSAGE_FLOW, 2),
+            Map.entry(MigrationItemType.COMPONENT_BEAN, 3),
+            Map.entry(MigrationItemType.DATA_ACCESS, 4),
+            Map.entry(MigrationItemType.FORM_MODEL, 5),
+            Map.entry(MigrationItemType.VALIDATION, 6),
+            Map.entry(MigrationItemType.CONFIGURATION, 7),
+            Map.entry(MigrationItemType.MESSAGE_RESOURCE, 8),
+            Map.entry(MigrationItemType.JAKARTA_NAMESPACE, 9),
+            Map.entry(MigrationItemType.JSP_VIEW, 10),
+            Map.entry(MigrationItemType.REVIEW, 11)
     );
 
     private final ObjectMapper objectMapper;
@@ -126,6 +134,8 @@ public class MigrationPlanner {
                     addComponent(file, fileFindings, candidates);
                     addData(file, fileFindings, candidates);
                     addMessageFlow(file, fileFindings, candidates);
+                    addValidation(file, fileFindings, candidates);
+                    addJakarta(file, fileFindings, candidates);
                 }
                 case JSP -> addView(file, fileFindings, candidates);
                 case DICON -> {
@@ -247,6 +257,32 @@ public class MigrationPlanner {
                 MigrationItemType.MESSAGE_FLOW, MigrationTarget.SPRING_MVC,
                 file.getFileName(), file, triggers, MigrationAutomation.ASSISTED,
                 MigrationRisk.HIGH, MigrationItemStatus.REVIEW_REQUIRED, "MESSAGE_LIFECYCLE");
+        candidate.addFindings(triggers);
+    }
+
+    private void addValidation(ProjectFile file, List<AnalysisFinding> findings,
+                               Map<String, Candidate> candidates) {
+        List<AnalysisFinding> triggers = matching(findings, VALIDATION_RULES);
+        if (triggers.isEmpty()) {
+            return;
+        }
+        Candidate candidate = candidate(candidates, "VALIDATION:" + file.getRelativePath(),
+                MigrationItemType.VALIDATION, MigrationTarget.SPRING_VALIDATION,
+                file.getFileName(), file, triggers, MigrationAutomation.ASSISTED,
+                MigrationRisk.MEDIUM, MigrationItemStatus.READY, "VALIDATION_RULES");
+        candidate.addFindings(triggers);
+    }
+
+    private void addJakarta(ProjectFile file, List<AnalysisFinding> findings,
+                            Map<String, Candidate> candidates) {
+        List<AnalysisFinding> triggers = matching(findings, JAKARTA_RULES);
+        if (triggers.isEmpty()) {
+            return;
+        }
+        Candidate candidate = candidate(candidates, "JAKARTA:" + file.getRelativePath(),
+                MigrationItemType.JAKARTA_NAMESPACE, MigrationTarget.JAKARTA_EE,
+                file.getFileName(), file, triggers, MigrationAutomation.ASSISTED,
+                MigrationRisk.MEDIUM, MigrationItemStatus.READY, "JAKARTA_NAMESPACE");
         candidate.addFindings(triggers);
     }
 

@@ -7,6 +7,8 @@ public enum MigrationItemType {
     DATA_ACCESS,
     MESSAGE_FLOW,
     MESSAGE_RESOURCE,
+    VALIDATION,
+    JAKARTA_NAMESPACE,
     JSP_VIEW,
     CONFIGURATION,
     REVIEW

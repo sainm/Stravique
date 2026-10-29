@@ -46,9 +46,60 @@ export default function MigrationInspector({
     queryKey: ["migration-item", projectId, planId, itemId],
     queryFn: () => api.migrationItem(projectId, planId, itemId)
   });
-  const supported =
+  const diItem =
     detail.data?.item.itemType === "COMPONENT_BEAN" &&
     detail.data?.item.targetKey === "SPRING_DI";
+  const validationItem =
+    detail.data?.item.itemType === "VALIDATION" &&
+    detail.data?.item.targetKey === "SPRING_VALIDATION";
+  const formItem =
+    detail.data?.item.itemType === "FORM_MODEL" &&
+    detail.data?.item.targetKey === "SPRING_MVC";
+  const jakartaItem =
+    detail.data?.item.itemType === "JAKARTA_NAMESPACE" &&
+    detail.data?.item.targetKey === "JAKARTA_EE";
+  const dataItem =
+    detail.data?.item.itemType === "DATA_ACCESS" &&
+    detail.data?.item.targetKey === "SPRING_JDBC";
+  const controllerItem =
+    detail.data?.item.itemType === "ACTION_CONTROLLER" &&
+    detail.data?.item.targetKey === "SPRING_MVC";
+  const messageItem =
+    detail.data?.item.itemType === "MESSAGE_RESOURCE" &&
+    detail.data?.item.targetKey === "SPRING_MESSAGES";
+  const jspItem =
+    detail.data?.item.itemType === "JSP_VIEW" &&
+    detail.data?.item.targetKey === "KEEP_JSP";
+  const fallbackRuleId = diItem
+    ? "SEASAR-DI-SPRING-DI"
+    : validationItem
+      ? "SASTRUTS-VALIDATION-BEAN"
+      : formItem
+        ? "STRUTS-ACTIONFORM-MODEL"
+        : jakartaItem
+          ? "JAVAX-TO-JAKARTA"
+          : dataItem
+            ? "S2JDBC-QUERY-SPRING-JDBC"
+            : messageItem
+              ? "MESSAGE-RESOURCE-SPRING-UTF8"
+              : jspItem
+                ? "JSP-BEAN-MESSAGE-JSTL"
+                : controllerItem
+                  ? "STRUTS-CONTROLLER-SKELETON"
+                  : undefined;
+  const ruleCatalog = useQuery({
+    queryKey: ["transformation-rules"],
+    queryFn: api.transformationRules,
+    staleTime: 5 * 60 * 1000
+  });
+  const catalogRule = ruleCatalog.data?.find(
+    (rule) =>
+      rule.itemType === detail.data?.item.itemType &&
+      rule.targetKey === detail.data?.item.targetKey
+  );
+  const activeRuleId = catalogRule?.ruleId ?? fallbackRuleId;
+  const supported = ruleCatalog.data ? Boolean(catalogRule) : Boolean(fallbackRuleId);
+  const createsArtifact = activeRuleId === "STRUTS-CONTROLLER-SKELETON";
   const proposals = useQuery({
     queryKey: ["transformation-proposals", projectId, planId, itemId],
     queryFn: () => api.transformationProposals(projectId, planId, itemId),
@@ -217,9 +268,10 @@ export default function MigrationInspector({
           <section className="migration-inspector-section migration-transformation">
             <header>
               <span className="eyebrow">{t("migration.transformation.title")}</span>
-              {supported && latestProposal ? (
+              {supported && activeRuleId ? (
                 <span className="migration-count">
-                  {latestProposal.ruleId} · v{latestProposal.ruleVersion}
+                  {activeRuleId} · v
+                  {catalogRule?.ruleVersion ?? latestProposal?.ruleVersion ?? ""}
                 </span>
               ) : null}
             </header>
@@ -230,11 +282,29 @@ export default function MigrationInspector({
             ) : (
               <>
                 <p className="migration-note">
-                  {t("migration.transformation.description")}
+                  {activeRuleId === "STRUTS-CONTROLLER-SKELETON"
+                    ? t("migration.transformation.descriptionController")
+                    : activeRuleId === "S2JDBC-QUERY-SPRING-JDBC"
+                      ? t("migration.transformation.descriptionData")
+                      : activeRuleId === "MESSAGE-RESOURCE-SPRING-UTF8"
+                        ? t("migration.transformation.descriptionMessages")
+                        : activeRuleId === "JSP-BEAN-MESSAGE-JSTL"
+                          ? t("migration.transformation.descriptionJspTags")
+                          : activeRuleId === "JAVAX-TO-JAKARTA"
+                            ? t("migration.transformation.descriptionJakarta")
+                            : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
+                              ? t("migration.transformation.descriptionForm")
+                              : activeRuleId === "SASTRUTS-VALIDATION-BEAN"
+                                ? t("migration.transformation.descriptionValidation")
+                                : t("migration.transformation.description")}
                 </p>
                 <p className="migration-transformation-warning">
                   <ShieldAlert size={14} />
-                  <span>{t("migration.transformation.sourceWarning")}</span>
+                  <span>
+                    {createsArtifact
+                      ? t("migration.transformation.createWarning")
+                      : t("migration.transformation.sourceWarning")}
+                  </span>
                 </p>
                 <div className="migration-transformation-actions">
                   <button
@@ -251,7 +321,21 @@ export default function MigrationInspector({
                   </button>
                   <span className="migration-chip">
                     <FileCode2 size={12} />
-                    {t("migration.transformation.scope")}
+                    {activeRuleId === "STRUTS-CONTROLLER-SKELETON"
+                      ? t("migration.transformation.scopeController")
+                      : activeRuleId === "S2JDBC-QUERY-SPRING-JDBC"
+                        ? t("migration.transformation.scopeData")
+                        : activeRuleId === "MESSAGE-RESOURCE-SPRING-UTF8"
+                          ? t("migration.transformation.scopeMessages")
+                          : activeRuleId === "JSP-BEAN-MESSAGE-JSTL"
+                            ? t("migration.transformation.scopeJspTags")
+                            : activeRuleId === "JAVAX-TO-JAKARTA"
+                              ? t("migration.transformation.scopeJakarta")
+                              : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
+                                ? t("migration.transformation.scopeForm")
+                                : activeRuleId === "SASTRUTS-VALIDATION-BEAN"
+                                  ? t("migration.transformation.scopeValidation")
+                                  : t("migration.transformation.scope")}
                   </span>
                 </div>
                 {proposals.isLoading ? <LoadingBlock /> : null}
@@ -277,6 +361,14 @@ export default function MigrationInspector({
                           { defaultValue: latestProposal.validationStatus }
                         )}
                       </span>
+                      {latestProposal.artifactType === "CREATE_FILE" ? (
+                        <span
+                          className="migration-chip"
+                          title={latestProposal.relativePath}
+                        >
+                          {t("migration.transformation.newFile")}
+                        </span>
+                      ) : null}
                     </div>
                     <pre className="migration-diff">{latestProposal.diff}</pre>
                     {latestProposal.status === "PROPOSED" ||
@@ -287,7 +379,11 @@ export default function MigrationInspector({
                           checked={confirmed}
                           onChange={(event) => setConfirmed(event.target.checked)}
                         />
-                        <span>{t("migration.transformation.confirm")}</span>
+                        <span>
+                          {createsArtifact
+                            ? t("migration.transformation.confirmCreate")
+                            : t("migration.transformation.confirm")}
+                        </span>
                       </label>
                     ) : null}
                     {latestProposal.status === "PROPOSED" ? (
@@ -300,18 +396,24 @@ export default function MigrationInspector({
                           <Wand2 size={14} />
                           {applyMutation.isPending
                             ? t("migration.transformation.applying")
-                            : t("migration.transformation.apply")}
+                            : createsArtifact
+                              ? t("migration.transformation.create")
+                              : t("migration.transformation.apply")}
                         </button>
                       </div>
                     ) : null}
                     {latestProposal.status === "APPLIED" ? (
                       <p className="migration-note">
-                        {t("migration.transformation.appliedNote")}
+                        {createsArtifact
+                          ? t("migration.transformation.createdNote")
+                          : t("migration.transformation.appliedNote")}
                       </p>
                     ) : null}
                     {latestProposal.status === "RESTORED" ? (
                       <p className="migration-note">
-                        {t("migration.transformation.restoredNote")}
+                        {createsArtifact
+                          ? t("migration.transformation.removedNote")
+                          : t("migration.transformation.restoredNote")}
                       </p>
                     ) : null}
                     {latestProposal.status === "SUPERSEDED" ? (
@@ -330,8 +432,10 @@ export default function MigrationInspector({
                     <div>
                       <strong>{t("migration.transformation.runTitle")}</strong>
                       <small>
-                        {formatDate(appliedRun.createdAt, i18n.language)} ·{" "}
-                        {t("migration.transformation.backupNote")}
+                        {formatDate(appliedRun.createdAt, i18n.language)}
+                        {createsArtifact
+                          ? ""
+                          : ` · ${t("migration.transformation.backupNote")}`}
                       </small>
                     </div>
                     <button
@@ -342,7 +446,9 @@ export default function MigrationInspector({
                       <RotateCcw size={14} />
                       {restoreMutation.isPending
                         ? t("migration.transformation.restoring")
-                        : t("migration.transformation.restore")}
+                        : createsArtifact
+                          ? t("migration.transformation.removeGenerated")
+                          : t("migration.transformation.restore")}
                     </button>
                   </div>
                 ) : null}

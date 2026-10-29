@@ -390,9 +390,10 @@ export interface TransformationProposal {
   itemId: string;
   sourceFileId: string;
   relativePath: string;
+  artifactType: string;
   ruleId: string;
   ruleVersion: string;
-  originalSha256: string;
+  originalSha256?: string;
   proposedSha256: string;
   diff: string;
   validationStatus: string;
@@ -403,6 +404,14 @@ export interface TransformationProposal {
   restoredAt?: string;
 }
 
+export interface TransformationRule {
+  ruleId: string;
+  ruleVersion: string;
+  itemType: string;
+  targetKey: string;
+  language: string;
+}
+
 export interface TransformationRun {
   id: string;
   projectId: string;
@@ -411,7 +420,8 @@ export interface TransformationRun {
   itemId: string;
   status: string;
   relativePath: string;
-  originalSha256: string;
+  artifactType: string;
+  originalSha256?: string;
   appliedSha256: string;
   ruleId: string;
   ruleVersion: string;

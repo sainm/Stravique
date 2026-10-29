@@ -4,11 +4,11 @@
 
 Stravique is a local-first workbench for turning an existing Java web system into a traceable inventory. Phase 1 scans source without modifying it, records evidence down to file and line, separates declarations from analyzed use, and exports reports from persisted scan data.
 
-The product deliberately starts with evidence and planning before broad automated migration. Its first responsibility is to help engineering teams understand what is actually present. Phase 4A adds one narrow, vetted transformation path with preview, confirmation, backup, and restore.
+The product deliberately starts with evidence and planning before broad automated migration. Its first responsibility is to help engineering teams understand what is actually present. Phase 4 adds narrow, vetted transformation paths for Seasar2 DI, SAStruts validation, ActionForm models, supported `javax.*` imports, read-only S2JDBC queries, a create-only Spring controller skeleton, UTF-8 message bundles, and JSTL message tags, with preview, confirmation, backup or new-file guards, and restore.
 
 ## Current status
 
-Phase 1 acceptance plus the Phase 2 relations, Phase 3 migration-planning, and Phase 4A transformation-preview workspaces are implemented as a runnable local application:
+Phase 1 acceptance plus the Phase 2 relations, Phase 3 migration-planning, and Phase 4 transformation-preview workspaces are implemented as a runnable local application:
 
 - Multi-project registration with backend-enforced path policy.
 - Read-only Maven/Gradle and Java web inventory.
@@ -24,7 +24,7 @@ Phase 1 acceptance plus the Phase 2 relations, Phase 3 migration-planning, and P
 - CSV, JSON, and Markdown reports generated from persisted rows.
 - Project metadata and directory-role corrections.
 - Evidence-linked migration planning with immutable versions, dependency phases, scope protection, and a review queue.
-- A vetted Seasar2 DI → Spring DI proposal rule with persisted diff, syntax validation, explicit-confirmation apply, external backups, hash guards, and safe restore.
+- Vetted Seasar2 DI, SAStruts validation, ActionForm model, supported `javax.*` → Jakarta, read-only S2JDBC → Spring JDBC, create-only Struts controller skeleton, message-bundle UTF-8, and Struts `bean:message` → JSTL rules with persisted diffs, syntax validation, explicit-confirmation apply, external backups or no-overwrite file creation, hash guards, and safe restore.
 - Automated source-immutability, REST, parser, transformation-safety, localization, responsive, and browser visual checks.
 
 ## Architecture
@@ -259,17 +259,19 @@ Implemented:
 - A table/map switch where graph nodes and edges are aggregated only from persisted relationships.
 - Evidence-derived Phase 3 migration planning with immutable versions, risk, automation, priority, evidence links, scope protection, and dependency phases.
 - A Migration workspace with item lists, phase lanes, a persisted dependency map, review queue, and plan history.
-- Phase 4A Seasar2 DI → Spring DI preview with persisted diffs, syntax validation, guarded single-file apply, external backups, execution records, and restore.
+- Phase 4 Seasar2 DI, plain SAStruts validation, ActionForm model, supported `javax.*` → Jakarta, read-only S2JDBC → Spring JDBC, create-only Spring controller skeleton, UTF-8 message-bundle, and JSTL message-tag previews with persisted diffs, syntax validation, guarded single-file apply, external backups or no-overwrite creation, execution records, and restore.
 - Review visibility.
 - Reports.
 
 Not implemented:
 
-- Struts/SAStruts → Spring MVC transformation.
-- S2JDBC, message, validation, XML, dicon, JSP, or TLD transformation.
+- Struts controller method bodies, request binding, and JSP form conversion; the controller skeleton is create-only and does not migrate behavior.
+- Message APIs, message lifecycle, and JSP error/message-block tags; `bean:message` → JSTL `fmt:message` is supported.
+- JSP form, error, and custom tag conversion; the JSP rule covers simple message tags only.
+- S2JDBC updates/deletes/transactions, advanced validation annotations, XML, dicon, or TLD transformation.
 - Compile or runtime validation.
 - Batch execution across a plan.
 - Graph database projections.
 - AI conclusions treated as evidence.
 
-Phase 3 planning status is limited to `READY`, `REVIEW_REQUIRED`, and `BLOCKED`. A planned item is never presented as transformed or validated. Phase 4A persists transformation proposals and runs separately and requires explicit confirmation before writing a file.
+Phase 3 planning status is limited to `READY`, `REVIEW_REQUIRED`, and `BLOCKED`. A planned item is never presented as transformed or validated. Phase 4 persists transformation proposals and runs separately and requires explicit confirmation before writing or creating a file.

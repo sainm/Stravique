@@ -107,6 +107,13 @@ public class JavaInventoryAnalyzer {
                 api(context, result, "DB_ACCESS", "JDBC / database access", line,
                         "JDBC API import detected.", "JAVA-IMPORT-JDBC-001");
             }
+            if (isJakartaCandidate(imported)) {
+                result.add(findings.create(context, AnalysisKind.FRAMEWORK_API, "JAKARTA",
+                        "Legacy javax namespace import " + imported
+                                + " requires Jakarta migration for Spring Boot 3.",
+                        "JAVA-JAKARTA-NAMESPACE-001", line, Certainty.ANALYZED,
+                        ParseStatus.PARSED, "{\"import\":\"" + imported + "\"}"));
+            }
             if (isCustomFrameworkImport(imported)) {
                 inferredApi(context, result, "CUSTOM_FRAMEWORK", "Custom business framework", line,
                         "Project-owned framework package import requires review.",
@@ -295,6 +302,14 @@ public class JavaInventoryAnalyzer {
         result.add(findings.create(context, AnalysisKind.FRAMEWORK_API, key, summary, ruleId, line,
                 Certainty.REVIEW_REQUIRED, ParseStatus.PARSED,
                 "{\"reason\":\"project-owned-framework-package\"}"));
+    }
+
+    private boolean isJakartaCandidate(String imported) {
+        return List.of("javax.servlet", "javax.annotation", "javax.persistence",
+                        "javax.validation", "javax.inject", "javax.transaction",
+                        "javax.xml.bind", "javax.ws.rs", "javax.mail", "javax.activation")
+                .stream()
+                .anyMatch(javax -> imported.equals(javax) || imported.startsWith(javax + "."));
     }
 
     private boolean isCustomFrameworkImport(String imported) {

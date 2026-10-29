@@ -51,6 +51,16 @@ public class SeasarDiSpringRule implements TransformationRule {
     }
 
     @Override
+    public MigrationItemType itemType() {
+        return MigrationItemType.COMPONENT_BEAN;
+    }
+
+    @Override
+    public MigrationTarget target() {
+        return MigrationTarget.SPRING_DI;
+    }
+
+    @Override
     public boolean supports(MigrationItem item, ProjectFile file) {
         return item.getItemType() == MigrationItemType.COMPONENT_BEAN
                 && item.getTargetKey() == MigrationTarget.SPRING_DI

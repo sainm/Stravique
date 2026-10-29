@@ -39,8 +39,12 @@ public class TransformationRun {
     @Column(name = "backup_path", length = 4096)
     private String backupPath;
 
-    @Column(name = "original_sha256", nullable = false, length = 64)
+    @Column(name = "original_sha256", length = 64)
     private String originalSha256;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "artifact_type", nullable = false, length = 20)
+    private TransformationArtifactType artifactType = TransformationArtifactType.EDIT_FILE;
 
     @Column(name = "applied_sha256", nullable = false, length = 64)
     private String appliedSha256;
@@ -63,7 +67,8 @@ public class TransformationRun {
     public static TransformationRun applied(UUID projectId, UUID planId, UUID proposalId,
                                             UUID itemId, String relativePath, String backupPath,
                                             String originalSha256, String appliedSha256,
-                                            String ruleId, String ruleVersion) {
+                                            String ruleId, String ruleVersion,
+                                            TransformationArtifactType artifactType) {
         TransformationRun run = new TransformationRun();
         run.id = UUID.randomUUID();
         run.projectId = projectId;
@@ -77,6 +82,7 @@ public class TransformationRun {
         run.appliedSha256 = appliedSha256;
         run.ruleId = ruleId;
         run.ruleVersion = ruleVersion;
+        run.artifactType = artifactType;
         run.createdAt = Instant.now();
         run.finishedAt = run.createdAt;
         return run;
@@ -121,6 +127,10 @@ public class TransformationRun {
 
     public String getOriginalSha256() {
         return originalSha256;
+    }
+
+    public TransformationArtifactType getArtifactType() {
+        return artifactType;
     }
 
     public String getAppliedSha256() {

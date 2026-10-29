@@ -72,22 +72,23 @@ No migration engine work begins until those relationships retain explicit proven
 
 Gate: a completed fixture scan yields an ordered plan whose item counts, evidence links, and dependency edges match persisted rows; excluding a prerequisite is rejected; no source file changes.
 
-## Phase 4A Transformation preview
+## Phase 4 Transformation previews
 
-- One vetted Java rule: Seasar2 component/binding annotations to Spring DI.
-- AST-range edits that preserve unrelated source formatting.
+- Eight vetted rules: six Java rules—Seasar2 component/binding annotations to Spring DI, plain SAStruts `@Required` to Bean Validation `@NotNull`, simple Struts ActionForm inheritance removal, supported `javax.*` to Jakarta imports, a read-only S2JDBC query chain to Spring JdbcTemplate, and a create-only Spring controller skeleton from explicit Struts mappings—plus a message-bundle rule that rewrites non-ASCII escapes as UTF-8 and a JSP rule that rewrites self-closing `bean:message` tags as JSTL `fmt:message`.
+- AST-range edits that preserve unrelated source formatting, a create-only artifact that never overwrites an existing file, properties edits that preserve keys, placeholders, comments, and continuations, and JSP tag edits that preserve tag structure.
 - Persisted unified diff, rule version, hashes, and syntax validation.
-- Guarded single-file apply with explicit confirmation, external backup, hash rechecks, and best-effort transaction rollback.
-- Guarded restore from a verified backup.
+- Guarded single-file apply with explicit confirmation, external backup for edits, no-overwrite creation, hash rechecks, and best-effort transaction rollback.
+- Guarded restore from a verified backup for edits, or deletion of the unchanged generated file for creates.
 - Proposal and execution history in the migration item inspector.
 - Three-language interface and explicit unsupported-rule states.
 
-Gate: previews are read-only; apply and restore are tested only on a copied fixture; the shipped fixture is never modified; a changed source or stale plan is rejected; no other transformation domain is presented as supported.
+Gate: previews are read-only; apply and restore are tested only on a copied fixture; the shipped fixture is never modified; a changed source, stale plan, or existing create target is rejected; no other transformation domain is presented as supported.
 
-Remaining beyond Phase 4A:
+Remaining beyond Phase 4:
 
-- Struts/SAStruts to Spring MVC transformation.
-- S2JDBC, messages, validation, XML, dicon, JSP, and TLD transformations.
+- Struts controller method bodies, request binding, and JSP form conversion.
+- Message APIs, message lifecycle, and JSP error/message-block tags.
+- S2JDBC updates/deletes/transactions, advanced validation, XML, dicon, JSP custom tags, and TLD transformations.
 - Compile or runtime validation.
 - Batch execution across a plan.
 - Graph database projections.
