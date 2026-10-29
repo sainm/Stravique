@@ -15,6 +15,9 @@ public interface AnalysisFindingRepository extends JpaRepository<AnalysisFinding
 
     List<AnalysisFinding> findByScanIdOrderByFilePathAscLineStartAsc(UUID scanId);
 
+    List<AnalysisFinding> findByScanIdAndRuleIdInOrderByFilePathAscLineStartAsc(
+            UUID scanId, Collection<String> ruleIds);
+
     List<AnalysisFinding> findByScanIdAndFileIdOrderByLineStartAsc(UUID scanId, UUID fileId);
 
     List<AnalysisFinding> findByScanIdAndObjectKeyOrderByFilePathAscLineStartAsc(UUID scanId, String objectKey);

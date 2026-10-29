@@ -56,6 +56,10 @@ import java.util.concurrent.locks.ReentrantLock;
 @Service
 public class TransformationService {
 
+    private static final String STRUTS_ACTION_RULE = "STRUTS-CONFIG-ACTION-001";
+    private static final String STRUTS_FORWARD_RULE = "STRUTS-CONFIG-FORWARD-001";
+    private static final List<String> ROUTE_RULES = List.of(STRUTS_ACTION_RULE, STRUTS_FORWARD_RULE);
+
     private final AnalysisProjectRepository projectRepository;
     private final MigrationPlanRepository planRepository;
     private final MigrationItemRepository itemRepository;
@@ -481,19 +485,19 @@ public class TransformationService {
     }
 
     private List<ControllerRoute> routes(UUID scanId) {
-        List<AnalysisFinding> findings =
-                findingRepository.findByScanIdOrderByFilePathAscLineStartAsc(scanId);
+        List<AnalysisFinding> findings = findingRepository
+                .findByScanIdAndRuleIdInOrderByFilePathAscLineStartAsc(scanId, ROUTE_RULES);
         java.util.Map<String, String> actionTypes = new java.util.LinkedHashMap<>();
         java.util.Map<String, String> forwardPaths = new java.util.LinkedHashMap<>();
         for (AnalysisFinding finding : findings) {
             JsonNode metadata = metadata(finding);
-            if (finding.getRuleId().equals("STRUTS-CONFIG-ACTION-001")) {
+            if (finding.getRuleId().equals(STRUTS_ACTION_RULE)) {
                 String path = metadata.path("path").asText("");
                 String type = metadata.path("type").asText("");
                 if (!path.isBlank() && !type.isBlank()) {
                     actionTypes.putIfAbsent(path, type);
                 }
-            } else if (finding.getRuleId().equals("STRUTS-CONFIG-FORWARD-001")) {
+            } else if (finding.getRuleId().equals(STRUTS_FORWARD_RULE)) {
                 String actionPath = metadata.path("actionPath").asText("");
                 String path = metadata.path("path").asText("");
                 String redirect = metadata.path("redirect").asText("");
