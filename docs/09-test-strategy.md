@@ -41,7 +41,7 @@
 - i18n error response keys in all three locales.
 - Migration plan generation from a completed scan, item type coverage, evidence links, phases, dependency counts, graph limits, and staleness.
 - Scope guards: excluding a required prerequisite and re-including an item with an excluded prerequisite are both rejected.
-- Transformation preview, apply, and restore on an isolated fixture copy for DI, validation, form-model, Jakarta-namespace, and read-only S2JDBC rules, including confirmation, backup, hash, and changed-source guards, and the applied and restored file keeping its original permissions.
+- Transformation preview, apply, and restore on an isolated fixture copy for DI, validation, form-model, Jakarta-namespace, S2JDBC, and transaction rules, including confirmation, backup, hash, and changed-source guards, and the applied and restored file keeping its original permissions.
 - Create-only controller skeleton proposal, apply, run record, and restore on the isolated fixture copy: the target must not exist, the action source stays byte-identical, and restore removes the generated file.
 - Message bundle proposal, UTF-8 apply, and byte-exact restore on the isolated fixture copy, with unchanged keys and placeholders.
 - JSP message-tag proposal, apply, taglib insertion, unused directive removal, and byte-exact restore on the isolated fixture copy.

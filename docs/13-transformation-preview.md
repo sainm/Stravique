@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, a read-only S2JDBC query chain to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, and JSTL message tags for self-closing `bean:message` usage. It is deliberately narrow and safety-first.
+Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, and JSTL message tags for self-closing `bean:message` usage. It is deliberately narrow and safety-first.
 
 The engine can:
 
@@ -13,7 +13,7 @@ The engine can:
 5. Create a new file without overwriting an existing one, and remove that generated file on restore when it is unchanged.
 6. Retain proposal and run records for audit.
 
-It cannot yet migrate Struts controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC updates/deletes/transactions, XML, dicon, or JSP forms. Validation support is limited to plain `@Required`; other validation annotations remain manual. Unsupported items remain planning/review tasks; the interface says so instead of fabricating a transformation.
+It cannot yet migrate Struts controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, XML, dicon, or JSP forms. Validation support is limited to plain `@Required`; other validation annotations remain manual. Unsupported items remain planning/review tasks; the interface says so instead of fabricating a transformation.
 
 ## Vetted rules
 
@@ -29,7 +29,7 @@ It cannot yet migrate Struts controller method bodies, request binding, message 
 | `MESSAGE-RESOURCE-SPRING-UTF8` | `MESSAGE_RESOURCE` | `SPRING_MESSAGES` | Properties |
 | `JSP-BEAN-MESSAGE-JSTL` | `JSP_VIEW` | `KEEP_JSP` | JSP |
 
-The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The transaction rule accepts only a bare Seasar2 `@TransactionAttribute`, because both it and Spring's `@Transactional` require a transaction when no attributes are present; a parameterized annotation is refused rather than mapped onto a propagation name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives and rewrites only supported message tags. No rule pretty-prints or rewrites unrelated code.
+The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts only a bare Seasar2 `@TransactionAttribute`, because both it and Spring's `@Transactional` require a transaction when no attributes are present; a parameterized annotation is refused rather than mapped onto a propagation name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives and rewrites only supported message tags. No rule pretty-prints or rewrites unrelated code.
 
 ### Seasar2 DI → Spring DI
 
@@ -255,7 +255,7 @@ Not implemented:
 
 - Struts controller method bodies, request binding, form handling, and JSP form conversion.
 - Message APIs, message lifecycle, `BindingResult` flow, and JSP error/message-block tags.
-- S2JDBC updates, deletes, transactions, and non-literal queries.
+- S2JDBC writes whose parameter types have no vetted SQL mapping, transactions, and non-literal queries.
 - Validation annotations other than plain `@Required`.
 - Namespace changes outside the supported `javax.*` package list.
 - XML, dicon, JSP custom tags, or TLD transformation.

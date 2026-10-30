@@ -607,6 +607,7 @@ class StraviqueIntegrationTest {
         JsonNode form = null;
         JsonNode jakarta = null;
         JsonNode queryDao = null;
+        JsonNode daoData = null;
         JsonNode transaction = null;
         JsonNode messageFlow = null;
         JsonNode messageResource = null;
@@ -635,6 +636,10 @@ class StraviqueIntegrationTest {
                     && item.get("title").asText().equals("OrderQueryDao.java")) {
                 queryDao = item;
             }
+            if (item.get("itemType").asText().equals("DATA_ACCESS")
+                    && item.get("title").asText().equals("OrderDao.java")) {
+                daoData = item;
+            }
             if (item.get("itemType").asText().equals("TRANSACTION")) {
                 transaction = item;
             }
@@ -656,6 +661,7 @@ class StraviqueIntegrationTest {
         assertThat(form).isNotNull();
         assertThat(jakarta).isNotNull();
         assertThat(queryDao).isNotNull();
+        assertThat(daoData).isNotNull();
         assertThat(transaction).isNotNull();
         assertThat(messageFlow).isNotNull();
         assertThat(messageResource).isNotNull();
@@ -964,6 +970,39 @@ class StraviqueIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESTORED"));
         assertThat(Files.exists(controllerFile)).isFalse();
+
+        String daoDataItemId = daoData.get("id").asText();
+        String daoDataProposal = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, daoDataItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("S2JDBC-QUERY-SPRING-JDBC"))
+                .andExpect(jsonPath("$.validationStatus").value("PARSED"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("Types.BIGINT")))
+                .andReturn().getResponse().getContentAsString();
+        String daoDataRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, objectMapper.readTree(daoDataProposal).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(new String(Files.readAllBytes(daoFile), StandardCharsets.UTF_8))
+                .contains("public JdbcTemplate jdbcManager;")
+                .contains("jdbcManager.query(\"SELECT * FROM orders WHERE status = ?\"")
+                .contains("jdbcManager.update(\"UPDATE orders SET status = ? WHERE id = ?\"")
+                .contains("new int[]{Types.VARCHAR, Types.BIGINT}")
+                .doesNotContain("selectBySql")
+                .doesNotContain("updateBySql");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, objectMapper.readTree(daoDataRunResponse).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(daoFile)).isEqualTo(originalDaoBytes);
 
         String transactionItemId = transaction.get("id").asText();
         String transactionProposal = mockMvc.perform(post(

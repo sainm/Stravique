@@ -23,17 +23,39 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
 
     private static final String RULE_ID = "S2JDBC-QUERY-SPRING-JDBC";
-    private static final String RULE_VERSION = "1.0.0";
+    private static final String RULE_VERSION = "1.1.0";
     private static final String S2_JDBC_MANAGER = "org.seasar.extension.jdbc.JdbcManager";
     private static final String SPRING_JDBC_TEMPLATE = "org.springframework.jdbc.core.JdbcTemplate";
     private static final String SPRING_ROW_MAPPER =
             "org.springframework.jdbc.core.BeanPropertyRowMapper";
+    private static final Set<String> WRITE_CALLS =
+            Set.of("insertBySql", "updateBySql", "deleteBySql");
+    private static final Map<String, String> SQL_TYPES = Map.ofEntries(
+            Map.entry("String", "VARCHAR"),
+            Map.entry("Integer", "INTEGER"),
+            Map.entry("int", "INTEGER"),
+            Map.entry("Long", "BIGINT"),
+            Map.entry("long", "BIGINT"),
+            Map.entry("Short", "SMALLINT"),
+            Map.entry("short", "SMALLINT"),
+            Map.entry("Boolean", "BOOLEAN"),
+            Map.entry("boolean", "BOOLEAN"),
+            Map.entry("Double", "DOUBLE"),
+            Map.entry("double", "DOUBLE"),
+            Map.entry("Float", "REAL"),
+            Map.entry("float", "REAL"),
+            Map.entry("BigDecimal", "DECIMAL"),
+            Map.entry("Timestamp", "TIMESTAMP"),
+            Map.entry("byte[]", "VARBINARY")
+    );
 
     @Override
     public String ruleId() {
@@ -97,11 +119,18 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
                     "The source does not use the JdbcManager field.");
         }
         List<Edit> edits = new ArrayList<>();
+        boolean writes = false;
         for (MethodCallExpr call : calls) {
+            if (WRITE_CALLS.contains(call.getNameAsString())) {
+                writes = true;
+                edits.add(new Edit(offsets(source, writeChain(call)),
+                        writeReplacement(fieldName, call)));
+                continue;
+            }
             if (!call.getNameAsString().equals("selectBySql")) {
                 throw new TransformationUnsupportedException(
-                        "Only selectBySql calls are supported; " + call.getNameAsString()
-                                + " requires manual review.");
+                        "Only selectBySql, insertBySql, updateBySql, and deleteBySql calls are"
+                                + " supported; " + call.getNameAsString() + " requires manual review.");
             }
             MethodCallExpr resultCall = call.getParentNode()
                     .filter(MethodCallExpr.class::isInstance)
@@ -140,9 +169,72 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
                     "Additional JdbcManager type usage requires manual review.");
         }
         edits.add(new Edit(offsets(source, variable.getType()), "JdbcTemplate"));
-        String importBlock = importBlock(unit);
-        edits.add(new Edit(offsets(source, managerImport), importBlock));
+        String importBlock = importBlock(unit, writes);
+        edits.add(importBlock.isEmpty()
+                ? new Edit(removalRange(source, managerImport), "")
+                : new Edit(offsets(source, managerImport), importBlock));
         return apply(source, edits);
+    }
+
+    private MethodCallExpr writeChain(MethodCallExpr call) {
+        MethodCallExpr execute = call.getParentNode()
+                .filter(MethodCallExpr.class::isInstance)
+                .map(MethodCallExpr.class::cast)
+                .filter(parent -> parent.getScope().orElse(null) == call)
+                .filter(parent -> parent.getNameAsString().equals("execute"))
+                .orElseThrow(() -> new TransformationUnsupportedException(
+                        call.getNameAsString() + " must end with execute()."));
+        if (execute.getParentNode().filter(MethodCallExpr.class::isInstance).isPresent()) {
+            throw new TransformationUnsupportedException(
+                    "A chained call after execute() requires manual review.");
+        }
+        return execute;
+    }
+
+    private String writeReplacement(String fieldName, MethodCallExpr call) {
+        List<Expression> arguments = call.getArguments();
+        if (arguments.isEmpty() || !(arguments.getFirst() instanceof StringLiteralExpr sql)) {
+            throw new TransformationUnsupportedException(
+                    "The " + call.getNameAsString() + " call shape requires a SQL string literal.");
+        }
+        List<String> sqlTypes = new ArrayList<>();
+        for (int index = 1; index < arguments.size(); index++) {
+            if (!(arguments.get(index) instanceof ClassExpr classExpr)) {
+                throw new TransformationUnsupportedException(
+                        "The declared parameter types must be class literals.");
+            }
+            String simple = simpleName(classExpr.getType().asString());
+            String sqlType = SQL_TYPES.get(simple);
+            if (sqlType == null) {
+                throw new TransformationUnsupportedException(
+                        "The parameter type " + simple + " has no vetted SQL type mapping.");
+            }
+            sqlTypes.add(sqlType);
+        }
+        List<Expression> parameters = writeChain(call).getArguments();
+        if (parameters.size() != sqlTypes.size()) {
+            throw new TransformationUnsupportedException(
+                    "The number of bound parameters does not match the declared parameter types.");
+        }
+        StringBuilder replacement = new StringBuilder(fieldName).append(".update(").append(sql);
+        if (!parameters.isEmpty()) {
+            replacement.append(", new Object[]{");
+            for (int index = 0; index < parameters.size(); index++) {
+                if (index > 0) {
+                    replacement.append(", ");
+                }
+                replacement.append(parameters.get(index));
+            }
+            replacement.append("}, new int[]{");
+            for (int index = 0; index < sqlTypes.size(); index++) {
+                if (index > 0) {
+                    replacement.append(", ");
+                }
+                replacement.append("Types.").append(sqlTypes.get(index));
+            }
+            replacement.append("}");
+        }
+        return replacement.append(")").toString();
     }
 
     private boolean scopeUsesField(MethodCallExpr call, String fieldName) {
@@ -150,16 +242,23 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
         return scope.equals(fieldName) || scope.equals("this." + fieldName);
     }
 
-    private String importBlock(CompilationUnit unit) {
-        StringBuilder block = new StringBuilder();
+    private String importBlock(CompilationUnit unit, boolean needsSqlTypes) {
+        List<String> imports = new ArrayList<>();
         if (!hasImport(unit, SPRING_JDBC_TEMPLATE)) {
-            block.append("import ").append(SPRING_JDBC_TEMPLATE).append(";");
+            imports.add(SPRING_JDBC_TEMPLATE);
         }
         if (!hasImport(unit, SPRING_ROW_MAPPER)) {
+            imports.add(SPRING_ROW_MAPPER);
+        }
+        if (needsSqlTypes && !hasImport(unit, "java.sql.Types")) {
+            imports.add("java.sql.Types");
+        }
+        StringBuilder block = new StringBuilder();
+        for (String imported : imports) {
             if (block.length() > 0) {
                 block.append("\n");
             }
-            block.append("import ").append(SPRING_ROW_MAPPER).append(";");
+            block.append("import ").append(imported).append(";");
         }
         return block.toString();
     }
@@ -200,6 +299,19 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
                     "The parser source range is outside the file.");
         }
         return new int[]{start, end};
+    }
+
+    private int[] removalRange(String source, ImportDeclaration importDeclaration) {
+        int[] offsets = offsets(source, importDeclaration);
+        int lineStart = source.lastIndexOf('\n', offsets[0] - 1) + 1;
+        int lineEnd = source.indexOf('\n', offsets[1]);
+        int boundedEnd = lineEnd < 0 ? source.length() : lineEnd;
+        boolean aloneOnItsLine = source.substring(lineStart, offsets[0]).isBlank()
+                && source.substring(offsets[1], boundedEnd).isBlank();
+        if (!aloneOnItsLine) {
+            return offsets;
+        }
+        return new int[]{lineStart, lineEnd < 0 ? boundedEnd : lineEnd + 1};
     }
 
     private int[] lineStarts(String source) {

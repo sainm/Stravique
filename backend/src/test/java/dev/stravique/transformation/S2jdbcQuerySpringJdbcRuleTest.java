@@ -50,7 +50,8 @@ class S2jdbcQuerySpringJdbcRuleTest {
                 .contains("jdbcManager.query(\"SELECT * FROM orders WHERE status = ?\", "
                         + "new BeanPropertyRowMapper<>(Order.class), status)")
                 .doesNotContain("selectBySql")
-                .doesNotContain("getResultList");
+                .doesNotContain("getResultList")
+                .doesNotContain("java.sql.Types");
         assertThat(StaticJavaParser.parse(proposed)).isNotNull();
     }
 
@@ -94,14 +95,124 @@ class S2jdbcQuerySpringJdbcRuleTest {
                 public class OrderDao {
                     public JdbcManager jdbcManager;
 
-                    public void save() {
-                        jdbcManager.updateBySql("UPDATE orders SET status = ?").execute();
+                    public void call() {
+                        jdbcManager.callBySql("EXEC refresh_orders");
                     }
                 }
                 """;
 
         assertThatThrownBy(() -> rule.propose(source, "OrderDao.java"))
-                .isInstanceOf(TransformationUnsupportedException.class);
+                .isInstanceOf(TransformationUnsupportedException.class)
+                .hasMessageContaining("requires manual review");
+    }
+
+    @Test
+    void rewritesAWriteStatementWithItsDeclaredParameterTypes() {
+        String source = """
+                package example;
+
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                public class OrderDao {
+                    public JdbcManager jdbcManager;
+
+                    public void flush() {
+                        jdbcManager.updateBySql("UPDATE orders SET status = ? WHERE id = ?",
+                                String.class, Long.class).execute("ACTIVE", 1L);
+                    }
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderDao.java");
+
+        assertThat(proposed)
+                .contains("import java.sql.Types;")
+                .contains("jdbcManager.update(\"UPDATE orders SET status = ? WHERE id = ?\", "
+                        + "new Object[]{\"ACTIVE\", 1L}, new int[]{Types.VARCHAR, Types.BIGINT})")
+                .doesNotContain("updateBySql")
+                .doesNotContain("execute(");
+        assertThat(StaticJavaParser.parse(proposed)).isNotNull();
+    }
+
+    @Test
+    void rewritesMixedReadAndWriteChainsInOneFile() {
+        String source = """
+                package example;
+
+                import com.example.Order;
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                import java.util.List;
+
+                public class OrderDao {
+                    public JdbcManager jdbcManager;
+
+                    public List<Order> findAll() {
+                        return jdbcManager.selectBySql(Order.class, "SELECT * FROM orders")
+                                .getResultList();
+                    }
+
+                    public void remove(long id) {
+                        jdbcManager.deleteBySql("DELETE FROM orders WHERE id = ?", Long.class)
+                                .execute(id);
+                    }
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderDao.java");
+
+        assertThat(proposed)
+                .contains("jdbcManager.query(\"SELECT * FROM orders\", "
+                        + "new BeanPropertyRowMapper<>(Order.class))")
+                .contains("jdbcManager.update(\"DELETE FROM orders WHERE id = ?\", "
+                        + "new Object[]{id}, new int[]{Types.BIGINT})")
+                .doesNotContain("selectBySql")
+                .doesNotContain("deleteBySql");
+        assertThat(StaticJavaParser.parse(proposed)).isNotNull();
+    }
+
+    @Test
+    void rejectsAWriteWhoseBoundParametersDoNotMatchTheDeclaredTypes() {
+        String source = """
+                package example;
+
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                public class OrderDao {
+                    public JdbcManager jdbcManager;
+
+                    public void flush() {
+                        jdbcManager.updateBySql("UPDATE orders SET status = ?", String.class)
+                                .execute();
+                    }
+                }
+                """;
+
+        assertThatThrownBy(() -> rule.propose(source, "OrderDao.java"))
+                .isInstanceOf(TransformationUnsupportedException.class)
+                .hasMessageContaining("does not match the declared parameter types");
+    }
+
+    @Test
+    void rejectsAParameterTypeWithoutAVettedSqlType() {
+        String source = """
+                package example;
+
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                public class OrderDao {
+                    public JdbcManager jdbcManager;
+
+                    public void archive(java.util.Date cutoff) {
+                        jdbcManager.updateBySql("DELETE FROM orders WHERE created < ?",
+                                java.util.Date.class).execute(cutoff);
+                    }
+                }
+                """;
+
+        assertThatThrownBy(() -> rule.propose(source, "OrderDao.java"))
+                .isInstanceOf(TransformationUnsupportedException.class)
+                .hasMessageContaining("no vetted SQL type mapping");
     }
 
     @Test

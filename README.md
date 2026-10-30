@@ -4,7 +4,7 @@
 
 Stravique is a local-first workbench for turning an existing Java web system into a traceable inventory. Phase 1 scans source without modifying it, records evidence down to file and line, separates declarations from analyzed use, and exports reports from persisted scan data.
 
-The product deliberately starts with evidence and planning before broad automated migration. Its first responsibility is to help engineering teams understand what is actually present. Phase 4 adds narrow, vetted transformation paths for Seasar2 DI, SAStruts validation, ActionForm models, supported `javax.*` imports, read-only S2JDBC queries, bare S2 transaction annotations, a create-only Spring controller skeleton, UTF-8 message bundles, and JSTL message tags, with preview, confirmation, backup or new-file guards, and restore.
+The product deliberately starts with evidence and planning before broad automated migration. Its first responsibility is to help engineering teams understand what is actually present. Phase 4 adds narrow, vetted transformation paths for Seasar2 DI, SAStruts validation, ActionForm models, supported `javax.*` imports, S2JDBC queries and parameterised writes, bare S2 transaction annotations, a create-only Spring controller skeleton, UTF-8 message bundles, and JSTL message tags, with preview, confirmation, backup or new-file guards, and restore.
 
 ## Current status
 
@@ -24,7 +24,7 @@ Phase 1 acceptance plus the Phase 2 relations, Phase 3 migration-planning, and P
 - CSV, JSON, and Markdown reports generated from persisted rows.
 - Project metadata and directory-role corrections.
 - Evidence-linked migration planning with immutable versions, dependency phases, scope protection, and a review queue.
-- Vetted Seasar2 DI, SAStruts validation, ActionForm model, supported `javax.*` → Jakarta, read-only S2JDBC → Spring JDBC, S2 `@TransactionAttribute` → `@Transactional`, create-only Struts controller skeleton, message-bundle UTF-8, and Struts `bean:message` → JSTL rules with persisted diffs, syntax validation, explicit-confirmation apply, external backups or no-overwrite file creation, hash guards, and safe restore.
+- Vetted Seasar2 DI, SAStruts validation, ActionForm model, supported `javax.*` → Jakarta, S2JDBC queries and parameterised writes → Spring JDBC, S2 `@TransactionAttribute` → `@Transactional`, create-only Struts controller skeleton, message-bundle UTF-8, and Struts `bean:message` → JSTL rules with persisted diffs, syntax validation, explicit-confirmation apply, external backups or no-overwrite file creation, hash guards, and safe restore.
 - Automated source-immutability, REST, parser, transformation-safety, localization, responsive, and browser visual checks.
 
 ## Architecture
@@ -259,7 +259,7 @@ Implemented:
 - A table/map switch where graph nodes and edges are aggregated only from persisted relationships.
 - Evidence-derived Phase 3 migration planning with immutable versions, risk, automation, priority, evidence links, scope protection, and dependency phases.
 - A Migration workspace with item lists, phase lanes, a persisted dependency map, review queue, and plan history.
-- Phase 4 Seasar2 DI, plain SAStruts validation, ActionForm model, supported `javax.*` → Jakarta, read-only S2JDBC → Spring JDBC, S2 `@TransactionAttribute` → `@Transactional`, create-only Spring controller skeleton, UTF-8 message-bundle, and JSTL message-tag previews with persisted diffs, syntax validation, guarded single-file apply, external backups or no-overwrite creation, execution records, and restore.
+- Phase 4 Seasar2 DI, plain SAStruts validation, ActionForm model, supported `javax.*` → Jakarta, S2JDBC queries and parameterised writes → Spring JDBC, S2 `@TransactionAttribute` → `@Transactional`, create-only Spring controller skeleton, UTF-8 message-bundle, and JSTL message-tag previews with persisted diffs, syntax validation, guarded single-file apply, external backups or no-overwrite creation, execution records, and restore.
 - Review visibility.
 - Reports.
 
@@ -268,7 +268,7 @@ Not implemented:
 - Struts controller method bodies, request binding, and JSP form conversion; the controller skeleton is create-only and does not migrate behavior.
 - Message APIs, message lifecycle, and JSP error/message-block tags; `bean:message` → JSTL `fmt:message` is supported.
 - JSP form, error, and custom tag conversion; the JSP rule covers simple message tags only.
-- S2JDBC updates/deletes/transactions, advanced validation annotations, XML, dicon, or TLD transformation.
+- S2JDBC writes whose parameter types have no vetted SQL mapping, transactions, advanced validation annotations, XML, dicon, or TLD transformation.
 - Compile or runtime validation.
 - Batch execution across a plan.
 - Graph database projections.

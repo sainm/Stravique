@@ -23,6 +23,6 @@ public class OrderDao {
     @TransactionAttribute
     public void flush() {
         jdbcManager.updateBySql("UPDATE orders SET status = ? WHERE id = ?", String.class, Long.class)
-                .execute();
+                .execute("ACTIVE", 1L);
     }
 }

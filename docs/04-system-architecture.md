@@ -118,7 +118,7 @@ The first vetted target profile is `SPRING_BOOT_MVC`: Spring MVC controllers, Sp
 
 ## Transformation preview and guarded apply
 
-Phase 4 adds nine vetted rules: seven Java rules, one properties rule, and one JSP rule. The Java rules are `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI, `SASTRUTS-VALIDATION-BEAN` for plain SAStruts `@Required` to Jakarta `@NotNull`, `STRUTS-ACTIONFORM-MODEL` for simple ActionForm inheritance removal, `JAVAX-TO-JAKARTA` for supported namespace imports, `S2JDBC-QUERY-SPRING-JDBC` for a read-only select query chain, `S2TX-SPRING-TRANSACTIONAL` for a bare Seasar2 `@TransactionAttribute`, and `STRUTS-CONTROLLER-SKELETON` for an explicit Struts mapping and forward. The first six use JavaParser source ranges; the controller skeleton rule creates a separate `CREATE_FILE` artifact. `MESSAGE-RESOURCE-SPRING-UTF8` parses a Java properties bundle and rewrites non-ASCII Unicode escapes in message values as UTF-8 text. `JSP-BEAN-MESSAGE-JSTL` parses JSP tags and rewrites self-closing `bean:message` tags as JSTL `fmt:message`. No rule pretty-prints or rewrites unrelated code.
+Phase 4 adds nine vetted rules: seven Java rules, one properties rule, and one JSP rule. The Java rules are `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI, `SASTRUTS-VALIDATION-BEAN` for plain SAStruts `@Required` to Jakarta `@NotNull`, `STRUTS-ACTIONFORM-MODEL` for simple ActionForm inheritance removal, `JAVAX-TO-JAKARTA` for supported namespace imports, `S2JDBC-QUERY-SPRING-JDBC` for a select query chain and parameterised write statements, `S2TX-SPRING-TRANSACTIONAL` for a bare Seasar2 `@TransactionAttribute`, and `STRUTS-CONTROLLER-SKELETON` for an explicit Struts mapping and forward. The first six use JavaParser source ranges; the controller skeleton rule creates a separate `CREATE_FILE` artifact. `MESSAGE-RESOURCE-SPRING-UTF8` parses a Java properties bundle and rewrites non-ASCII Unicode escapes in message values as UTF-8 text. `JSP-BEAN-MESSAGE-JSTL` parses JSP tags and rewrites self-closing `bean:message` tags as JSTL `fmt:message`. No rule pretty-prints or rewrites unrelated code.
 
 Proposal generation is read-only:
 
@@ -142,7 +142,7 @@ Apply and restore are separate guarded operations:
 
 Automated validation is syntactic only. A proposal is never presented as semantically equivalent, compiled, or runtime-validated. The migration item's planning status is not upgraded by a transformation run.
 
-Component, validation, form-model, Jakarta-namespace, read-only data-access, transaction, action-controller, message-resource, and JSP-view items are eligible for their respective rules. Controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC write statements, transaction-manager configuration, configuration conversion, and reports explicitly remain manual.
+Component, validation, form-model, Jakarta-namespace, read-only data-access, transaction, action-controller, message-resource, and JSP-view items are eligible for their respective rules. Controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, transaction-manager configuration, configuration conversion, and reports explicitly remain manual.
 
 ## Internationalization
 
