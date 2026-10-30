@@ -79,7 +79,7 @@ Exact counts can change when the fixture changes, but must remain derived from t
 - Framework Usage.
 - Relations table and map.
 - Migration plan, review, and dependency map.
-- Migration item inspector with transformation preview for edit rules, the create-only controller skeleton, message bundles, and JSP message tags.
+- Migration item inspector with transformation preview for edit rules, the transaction annotation, the create-only controller skeleton, message bundles, and JSP message tags.
 - Reports.
 - Settings.
 - Desktop and mobile layouts.

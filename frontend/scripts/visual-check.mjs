@@ -68,6 +68,7 @@ let validationItemId = "";
 let formItemId = "";
 let jakartaItemId = "";
 let dataItemId = "";
+let transactionItemId = "";
 let controllerItemId = "";
 let messageItemId = "";
 let jspItemId = "";
@@ -141,6 +142,21 @@ if (migrationPlanId) {
     if (proposals.length === 0) {
       await fetch(
         `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${data.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const transaction = migrationItems.content?.find(
+    (item) => item.itemType === "TRANSACTION" && item.targetKey === "SPRING_JDBC"
+  );
+  if (transaction) {
+    transactionItemId = transaction.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${transaction.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${transaction.id}/transformation-proposals`,
         { method: "POST" }
       );
     }
@@ -561,6 +577,39 @@ for (const language of languages) {
             path: path.join(
               outputDirectory,
               `${language}-${viewport.name}-migration-data-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+      }
+      if (name === "migration" && transactionItemId) {
+        const transactionRow = page
+          .locator(`[data-item-id="${transactionItemId}"] .migration-row-open`)
+          .first();
+        if ((await transactionRow.count()) > 0) {
+          await transactionRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-transaction-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-transaction-inspector.png`
             ),
             fullPage: false
           });

@@ -578,7 +578,7 @@
       "descriptionValidation": "The vetted validation rule rewrites plain SAStruts @Required fields to Jakarta Bean Validation @NotNull. It validates Java syntax only; controller and message migration remain separate items.",
       "descriptionForm": "The vetted model rule removes ActionForm inheritance from a plain form model. It validates Java syntax only; controller and validation work remain separate items.",
       "descriptionJakarta": "The vetted namespace rule rewrites supported javax imports to Jakarta for Spring Boot 3. It changes imports only and validates syntax; dependency and runtime verification remain manual.",
-      "descriptionData": "The vetted data-access rule rewrites a supported read-only JdbcManager selectBySql/getResultList chain to Spring JdbcTemplate with BeanPropertyRowMapper. It validates syntax only; update APIs, transactions, and SQL semantics remain manual.",
+      "descriptionData": "The vetted data-access rule rewrites a supported JdbcManager selectBySql/getResultList chain to Spring JdbcTemplate with BeanPropertyRowMapper, and an insertBySql/updateBySql/deleteBySql chain to JdbcTemplate update with the declared parameter types carried across as java.sql.Types. It validates syntax only; transactions and SQL semantics remain manual.",
       "descriptionMessages": "The vetted message rule rewrites non-ASCII Unicode escapes in message values as UTF-8 text for Spring's default MessageSource encoding. It preserves keys, placeholders, and comments; message APIs and JSP tags remain separate items.",
       "descriptionJspTags": "The vetted JSP rule rewrites self-closing Struts bean:message tags as JSTL fmt:message when only key and bundle are present, adds the JSTL fmt taglib when needed, and removes an unused bean taglib. It validates tag structure, not full JSP compilation; form, error, and custom tags remain manual.",
       "descriptionController": "The vetted skeleton rule creates a new Spring @Controller from explicit Struts action mappings and forwards. It does not modify the legacy action and does not migrate method bodies.",
@@ -592,7 +592,7 @@
       "scopeValidation": "SAStruts @Required → Bean Validation @NotNull",
       "scopeForm": "Struts ActionForm → Spring model",
       "scopeJakarta": "Supported javax.* → jakarta.*",
-      "scopeData": "S2JDBC selectBySql → Spring JdbcTemplate",
+      "scopeData": "S2JDBC select and write chains → Spring JdbcTemplate",
       "scopeMessages": "Struts message bundle → UTF-8 Spring messages",
       "scopeJspTags": "Struts bean:message → JSTL fmt:message",
       "scopeController": "Struts action mappings → Spring controller skeleton",
@@ -617,7 +617,9 @@
       "validation": {
         "PARSED": "Syntax validated",
         "FAILED": "Validation failed"
-      }
+      },
+      "descriptionTransaction": "The vetted transaction rule rewrites a bare Seasar2 @TransactionAttribute as Spring @Transactional. An annotation with attributes is refused, because the two enums do not name their values the same way. Transaction-manager configuration remains manual.",
+      "scopeTransaction": "Seasar2 @TransactionAttribute → Spring @Transactional"
     },
     "reasons": {
       "ACTION_EVIDENCE": "Action evidence",

@@ -578,7 +578,7 @@
       "descriptionValidation": "検証済みのバリデーションルールが SAStruts の @Required フィールドを Jakarta Bean Validation の @NotNull へ書き換えます。Java 構文検証のみで、コントローラとメッセージの移行は別項目として残ります。",
       "descriptionForm": "検証済みのモデルルールが単純なフォームモデルから ActionForm 継承を除去します。Java 構文検証のみで、コントローラとバリデーションの移行は別項目として残ります。",
       "descriptionJakarta": "検証済みの名前空間ルールがサポート対象の javax import を Spring Boot 3 向けの Jakarta へ書き換えます。import のみ変更し構文検証を行います。依存関係と実行時検証は手動で確認してください。",
-      "descriptionData": "検証済みのデータアクセスルールがサポート対象の読み取り専用 JdbcManager selectBySql/getResultList チェーンを Spring JdbcTemplate と BeanPropertyRowMapper へ書き換えます。構文検証のみで、更新 API・トランザクション・SQL の意味は手動確認が必要です。",
+      "descriptionData": "検証済みのデータアクセスルールは、サポート対象の JdbcManager selectBySql/getResultList チェーンを Spring JdbcTemplate と BeanPropertyRowMapper へ、insertBySql/updateBySql/deleteBySql チェーンを JdbcTemplate update へ書き換え、宣言されたパラメータ型を java.sql.Types として引き継ぎます。構文検証のみで、トランザクションと SQL の意味は手動確認が必要です。",
       "descriptionMessages": "検証済みのメッセージルールがメッセージ値の非 ASCII Unicode エスケープを Spring MessageSource の既定エンコーディングである UTF-8 テキストへ書き換えます。キー・プレースホルダー・コメントは保持し、メッセージ API と JSP タグは別項目として残ります。",
       "descriptionJspTags": "検証済みの JSP ルールは key と bundle のみを持つ自己終了の Struts bean:message を JSTL fmt:message へ書き換え、必要に応じて JSTL fmt taglib を追加し、未使用の bean taglib を削除します。タグ構造のみ検証し、JSP 全体のコンパイルは保証しません。フォーム・エラー・カスタムタグは手動対応です。",
       "descriptionController": "検証済みのスケルトンルールが明示的な Struts アクションマッピングと forward から新しい Spring @Controller を生成します。旧 Action は変更せず、メソッド本体の移行も行いません。",
@@ -592,7 +592,7 @@
       "scopeValidation": "SAStruts @Required → Bean Validation @NotNull",
       "scopeForm": "Struts ActionForm → Spring モデル",
       "scopeJakarta": "対応する javax.* → jakarta.*",
-      "scopeData": "S2JDBC selectBySql → Spring JdbcTemplate",
+      "scopeData": "S2JDBC クエリと更新文 → Spring JdbcTemplate",
       "scopeMessages": "Struts メッセージリソース → UTF-8 Spring メッセージ",
       "scopeJspTags": "Struts bean:message → JSTL fmt:message",
       "scopeController": "Struts アクションマッピング → Spring コントローラスケルトン",
@@ -617,7 +617,9 @@
       "validation": {
         "PARSED": "構文検証済み",
         "FAILED": "検証失敗"
-      }
+      },
+      "descriptionTransaction": "検証済みのトランザクションルールは、引数なしの Seasar2 @TransactionAttribute を Spring @Transactional へ書き換えます。属性付きの形式は、両者の列挙値が一対一で対応しないため拒否します。トランザクションマネージャの設定は手動確認が必要です。",
+      "scopeTransaction": "Seasar2 @TransactionAttribute → Spring @Transactional"
     },
     "reasons": {
       "ACTION_EVIDENCE": "アクション証拠",

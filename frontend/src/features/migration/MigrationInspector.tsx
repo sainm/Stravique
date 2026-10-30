@@ -296,7 +296,9 @@ export default function MigrationInspector({
                               ? t("migration.transformation.descriptionForm")
                               : activeRuleId === "SASTRUTS-VALIDATION-BEAN"
                                 ? t("migration.transformation.descriptionValidation")
-                                : t("migration.transformation.description")}
+                                : activeRuleId === "S2TX-SPRING-TRANSACTIONAL"
+                                  ? t("migration.transformation.descriptionTransaction")
+                                  : t("migration.transformation.description")}
                 </p>
                 <p className="migration-transformation-warning">
                   <ShieldAlert size={14} />
@@ -333,9 +335,11 @@ export default function MigrationInspector({
                               ? t("migration.transformation.scopeJakarta")
                               : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
                                 ? t("migration.transformation.scopeForm")
-                                : activeRuleId === "SASTRUTS-VALIDATION-BEAN"
-                                  ? t("migration.transformation.scopeValidation")
-                                  : t("migration.transformation.scope")}
+                                  : activeRuleId === "SASTRUTS-VALIDATION-BEAN"
+                                    ? t("migration.transformation.scopeValidation")
+                                    : activeRuleId === "S2TX-SPRING-TRANSACTIONAL"
+                                      ? t("migration.transformation.scopeTransaction")
+                                      : t("migration.transformation.scope")}
                   </span>
                 </div>
                 {proposals.isLoading ? <LoadingBlock /> : null}

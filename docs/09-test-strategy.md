@@ -98,7 +98,7 @@ When a browser runtime is available:
 - Check evidence panes and status labels for overflow.
 - Check relation filters and source/target rows for overflow.
 - Check migration item rows, plan metrics, and the migration dependency canvas for content and overflow.
-- Open every vetted-rule inspector, including the create-only controller skeleton with its new-file warning and diff.
+- Open every vetted-rule inspector, including the create-only controller skeleton with its new-file warning, and the transaction rule's annotation swap.
 - Verify no locale produces clipped primary actions.
 
 Persisted screenshots are verification artifacts, not product data.
