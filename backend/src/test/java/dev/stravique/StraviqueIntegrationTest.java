@@ -832,7 +832,7 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.ruleId").value("S2JDBC-QUERY-SPRING-JDBC"))
                 .andExpect(jsonPath("$.validationStatus").value("PARSED"))
                 .andExpect(jsonPath("$.diff").value(
-                        org.hamcrest.Matchers.containsString("jdbcTemplate.query")))
+                        org.hamcrest.Matchers.containsString("jdbcManager.query")))
                 .andReturn().getResponse().getContentAsString();
         String queryProposalId = objectMapper.readTree(queryProposalResponse).get("id").asText();
         String queryRunResponse = mockMvc.perform(post(
@@ -845,7 +845,7 @@ class StraviqueIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         assertThat(new String(Files.readAllBytes(queryDaoFile), StandardCharsets.UTF_8))
                 .contains("JdbcTemplate")
-                .contains("jdbcTemplate.query")
+                .contains("jdbcManager.query")
                 .doesNotContain("selectBySql");
         mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
                         projectId, objectMapper.readTree(queryRunResponse).get("id").asText())

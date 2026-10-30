@@ -117,7 +117,7 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
                 throw new TransformationUnsupportedException(
                         "The selectBySql call shape requires a class literal and SQL string.");
             }
-            StringBuilder replacement = new StringBuilder("jdbcTemplate.query(")
+            StringBuilder replacement = new StringBuilder(fieldName).append(".query(")
                     .append(sql)
                     .append(", new BeanPropertyRowMapper<>(")
                     .append(entity)

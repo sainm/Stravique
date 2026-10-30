@@ -47,10 +47,40 @@ class S2jdbcQuerySpringJdbcRuleTest {
                 .contains("import org.springframework.jdbc.core.JdbcTemplate;")
                 .contains("import org.springframework.jdbc.core.BeanPropertyRowMapper;")
                 .contains("public JdbcTemplate jdbcManager;")
-                .contains("jdbcTemplate.query(\"SELECT * FROM orders WHERE status = ?\", "
+                .contains("jdbcManager.query(\"SELECT * FROM orders WHERE status = ?\", "
                         + "new BeanPropertyRowMapper<>(Order.class), status)")
                 .doesNotContain("selectBySql")
                 .doesNotContain("getResultList");
+        assertThat(StaticJavaParser.parse(proposed)).isNotNull();
+    }
+
+    @Test
+    void callsTheRenamedFieldByTheNameItAlreadyHas() {
+        String source = """
+                package example;
+
+                import com.example.Order;
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                import java.util.List;
+
+                public class OrderLookup {
+                    public JdbcManager manager;
+
+                    public List<Order> findAll() {
+                        return manager.selectBySql(Order.class, "SELECT * FROM orders")
+                                .getResultList();
+                    }
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderLookup.java");
+
+        assertThat(proposed)
+                .contains("public JdbcTemplate manager;")
+                .contains("manager.query(\"SELECT * FROM orders\", "
+                        + "new BeanPropertyRowMapper<>(Order.class))")
+                .doesNotContain("jdbcTemplate");
         assertThat(StaticJavaParser.parse(proposed)).isNotNull();
     }
 
