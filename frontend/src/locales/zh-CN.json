@@ -545,8 +545,10 @@
         "RESTORED": "已恢复",
         "ROLLBACK_FAILED": "回滚失败",
         "PROPOSED": "已生成预览",
-        "ROLLED_BACK": "已回滚"
-      }
+        "ROLLED_BACK": "已回滚",
+        "NOT_ATTEMPTED": "未处理"
+      },
+      "notAttempted": "未处理"
     },
     "phasesEyebrow": "执行顺序",
     "phasesTitle": "依赖阶段",

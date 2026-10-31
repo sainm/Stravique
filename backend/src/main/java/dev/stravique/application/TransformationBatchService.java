@@ -84,7 +84,8 @@ public class TransformationBatchService {
             int failed = 0;
             int restoredOnFailure = 0;
             String status = "APPLIED";
-            for (UUID itemId : ids) {
+            for (int position = 0; position < ids.size(); position++) {
+                UUID itemId = ids.get(position);
                 try {
                     TransformationProposalDto proposal = transformationService.propose(
                             projectId, planId, itemId);
@@ -109,6 +110,10 @@ public class TransformationBatchService {
                             markRolledBack(items, applied.id(), applied,
                                     message(rollbackException, locale));
                         }
+                    }
+                    for (int rest = position + 1; rest < ids.size(); rest++) {
+                        items.add(TransformationBatchItemDto.notAttempted(ids.get(rest),
+                                title(ids.get(rest))));
                     }
                     break;
                 }

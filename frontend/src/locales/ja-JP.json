@@ -545,8 +545,10 @@
         "RESTORED": "復元済み",
         "ROLLBACK_FAILED": "ロールバック失敗",
         "PROPOSED": "プレビュー済み",
-        "ROLLED_BACK": "ロールバック済み"
-      }
+        "ROLLED_BACK": "ロールバック済み",
+        "NOT_ATTEMPTED": "未処理"
+      },
+      "notAttempted": "未処理"
     },
     "phasesEyebrow": "実行順序",
     "phasesTitle": "依存フェーズ",

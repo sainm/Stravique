@@ -1291,14 +1291,18 @@ class StraviqueIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "itemIds", java.util.List.of(validationItemId,
-                                        messageFlow.get("id").asText()),
+                                        messageFlow.get("id").asText(), actionItemId),
                                 "confirmed", true))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.applied").value(1))
                 .andExpect(jsonPath("$.restoredOnFailure").value(1))
-                .andExpect(jsonPath("$.failed").value(1));
+                .andExpect(jsonPath("$.failed").value(1))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[1].status").value("FAILED"))
+                .andExpect(jsonPath("$.items[2].status").value("NOT_ATTEMPTED"));
         assertThat(Files.readAllBytes(validationFile)).isEqualTo(originalValidationBytes);
+        assertThat(Files.exists(controllerFile)).isFalse();
 
         String secondProposal = mockMvc.perform(post(
                         "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"

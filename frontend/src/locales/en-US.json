@@ -545,8 +545,10 @@
         "RESTORED": "Restored",
         "ROLLBACK_FAILED": "Rollback failed",
         "PROPOSED": "Proposed",
-        "ROLLED_BACK": "Rolled back"
-      }
+        "ROLLED_BACK": "Rolled back",
+        "NOT_ATTEMPTED": "Not attempted"
+      },
+      "notAttempted": "Not attempted"
     },
     "phasesEyebrow": "Execution order",
     "phasesTitle": "Dependency phases",

@@ -30,4 +30,9 @@ public record TransformationBatchItemDto(
         return new TransformationBatchItemDto(null, null, runId, "FAILED",
                 null, null, errorCode, errorMessage);
     }
+
+    public static TransformationBatchItemDto notAttempted(UUID itemId, String title) {
+        return new TransformationBatchItemDto(itemId, title, null, "NOT_ATTEMPTED",
+                null, null, null, null);
+    }
 }

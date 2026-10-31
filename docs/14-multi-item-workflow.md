@@ -32,7 +32,7 @@ All batch operations are project-scoped and require a current plan for preview/a
 | `POST` | `/projects/{id}/migration-plans/{planId}/transformation-batches/apply` | Re-propose and apply up to 50 items with `{ "confirmed": true }` |
 | `POST` | `/projects/{id}/migration-plans/{planId}/transformation-batches/restore` | Restore up to 50 transformation runs from the plan with `{ "confirmed": true }` |
 
-Preview is read-only. It returns per-item proposals or localized per-item errors. Same-file previews all use the current source; apply is authoritative because it re-proposes each item in order.
+Preview never writes a source file. It persists one proposal per item, superseding any earlier proposal for that item, and returns per-item proposals or localized per-item errors. Same-file previews all use the current source; apply is authoritative because it re-proposes each item in order.
 
 Apply:
 
@@ -40,7 +40,7 @@ Apply:
 - Processes items in request order, so same-file items see earlier edits through the same-file rule.
 - Applies each item with its normal confirmation, backup, hash, and atomic-write guards.
 - On a per-item failure, stops and restores the items already applied in that batch in reverse order.
-- Returns `APPLIED`, `FAILED`, or `ROLLBACK_FAILED`, with per-item `APPLIED`, `FAILED`, `ROLLED_BACK`, or `ROLLBACK_FAILED` states.
+- Returns `APPLIED`, `FAILED`, or `ROLLBACK_FAILED`, with one entry per requested item: `APPLIED`, `FAILED`, `ROLLED_BACK`, `ROLLBACK_FAILED`, or `NOT_ATTEMPTED` for the items the fail-fast stop never reached.
 - A failed batch is a best-effort compensating operation, not a distributed transaction across files. A rollback failure is reported explicitly and a run remains applied.
 
 Restore:

@@ -1114,6 +1114,12 @@ export default function MigrationPage() {
                   {t("migration.batch.failed")}: {batchResult.failed}
                 </span>
               ) : null}
+              {batchResult.items.filter((item) => item.status === "NOT_ATTEMPTED").length > 0 ? (
+                <span>
+                  {t("migration.batch.notAttempted")}:{" "}
+                  {batchResult.items.filter((item) => item.status === "NOT_ATTEMPTED").length}
+                </span>
+              ) : null}
             </div>
             <p className="migration-note">{t("migration.batch.previewNote")}</p>
             <div className="migration-batch-items">
