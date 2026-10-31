@@ -34,6 +34,10 @@ public interface TransformationRule {
         StaticJavaParser.parse(proposed);
     }
 
+    default void validate(String proposed, String targetRelativePath) {
+        validate(proposed);
+    }
+
     default TransformationDraft propose(TransformationRequest request) {
         return new TransformationDraft(dev.stravique.domain.TransformationArtifactType.EDIT_FILE,
                 request.relativePath(), propose(request.source(), request.relativePath()));

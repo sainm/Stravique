@@ -48,7 +48,7 @@ public class TransformationEngine {
                     "The rule found no eligible construct to transform.");
         }
         try {
-            rule.validate(proposed);
+            rule.validate(proposed, draft.targetRelativePath());
         } catch (TransformationInvalidException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -57,7 +57,7 @@ public class TransformationEngine {
         }
         String original = draft.artifactType()
                 == dev.stravique.domain.TransformationArtifactType.CREATE_FILE
-                ? "" : request.source();
+                ? "" : draft.originalText() == null ? request.source() : draft.originalText();
         String diff = diff(original, proposed, draft.targetRelativePath(),
                 draft.artifactType() == dev.stravique.domain.TransformationArtifactType.CREATE_FILE);
         return new TransformationOutcome(rule.ruleId(), draft.artifactType(),

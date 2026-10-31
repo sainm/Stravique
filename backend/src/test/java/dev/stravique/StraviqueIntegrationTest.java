@@ -566,6 +566,10 @@ class StraviqueIntegrationTest {
                 "web-app/src/main/webapp/WEB-INF/jsp/order/list.jsp");
         Path webXmlFile = tempProject.resolve(
                 "web-app/src/main/webapp/WEB-INF/web.xml");
+        Path strutsConfigFile = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/struts-config.xml");
+        Path applicationYmlFile = tempProject.resolve(
+                "web-app/src/main/resources/application.yml");
         byte[] originalBytes = Files.readAllBytes(transformedFile);
         Set<PosixFilePermission> originalPermissions =
                 Files.getPosixFilePermissions(transformedFile);
@@ -578,6 +582,8 @@ class StraviqueIntegrationTest {
         byte[] originalJspBytes = Files.readAllBytes(jspFile);
         byte[] originalListJspBytes = Files.readAllBytes(listJspFile);
         byte[] originalWebXmlBytes = Files.readAllBytes(webXmlFile);
+        byte[] originalStrutsConfigBytes = Files.readAllBytes(strutsConfigFile);
+        byte[] originalApplicationYmlBytes = Files.readAllBytes(applicationYmlFile);
         byte[] fixtureBytes = Files.readAllBytes(SAMPLE.resolve(
                 "web-app/src/main/java/com/example/legacy/service/OrderService.java"));
 
@@ -620,6 +626,7 @@ class StraviqueIntegrationTest {
         JsonNode jspView = null;
         JsonNode listJspView = null;
         JsonNode webXml = null;
+        JsonNode strutsConfig = null;
         for (JsonNode item : items) {
             if (item.get("itemType").asText().equals("COMPONENT_BEAN")
                     && item.get("title").asText().equals("OrderService.java")) {
@@ -670,6 +677,10 @@ class StraviqueIntegrationTest {
                     && item.get("title").asText().equals("web.xml")) {
                 webXml = item;
             }
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("struts-config.xml")) {
+                strutsConfig = item;
+            }
         }
         assertThat(component).isNotNull();
         assertThat(action).isNotNull();
@@ -684,6 +695,7 @@ class StraviqueIntegrationTest {
         assertThat(jspView).isNotNull();
         assertThat(listJspView).isNotNull();
         assertThat(webXml).isNotNull();
+        assertThat(strutsConfig).isNotNull();
         String componentId = component.get("id").asText();
         mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
                         + "transformation-proposals", projectId, planId,
@@ -1060,6 +1072,62 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.status").value("RESTORED"));
         assertThat(Files.readAllBytes(webXmlFile)).isEqualTo(originalWebXmlBytes);
 
+        String strutsConfigItemId = strutsConfig.get("id").asText();
+        String configProposalResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals", projectId, planId, strutsConfigItemId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("STRUTS-CONFIG-MESSAGE-SPRING"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/resources/application.yml"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("spring.messages.basename")))
+                .andReturn().getResponse().getContentAsString();
+        String configProposalId = objectMapper.readTree(configProposalResponse).get("id").asText();
+        Files.write(applicationYmlFile, (new String(originalApplicationYmlBytes,
+                StandardCharsets.UTF_8) + "\n").getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, configProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SOURCE_CHANGED"));
+        Files.write(applicationYmlFile, originalApplicationYmlBytes);
+        String configRunResponse = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        projectId, configProposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(Files.readAllBytes(strutsConfigFile)).isEqualTo(originalStrutsConfigBytes);
+        assertThat(new String(Files.readAllBytes(applicationYmlFile), StandardCharsets.UTF_8))
+                .contains("spring.messages.basename: \"messages\"");
+        JsonNode configRun = objectMapper.readTree(configRunResponse);
+        assertThat(configRun.get("originalSha256").asText())
+                .isNotEqualTo(configRun.get("targetSha256").asText());
+        Path configBackup = Path.of(configRun.get("backupPath").asText());
+        assertThat(configBackup.startsWith(tempProject)).isFalse();
+        assertThat(Files.readAllBytes(configBackup)).isEqualTo(originalApplicationYmlBytes);
+        Files.write(strutsConfigFile, (new String(originalStrutsConfigBytes,
+                StandardCharsets.UTF_8) + "\n").getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, configRun.get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SOURCE_CHANGED"));
+        Files.write(strutsConfigFile, originalStrutsConfigBytes);
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        projectId, configRun.get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(applicationYmlFile)).isEqualTo(originalApplicationYmlBytes);
+        assertThat(Files.readAllBytes(strutsConfigFile)).isEqualTo(originalStrutsConfigBytes);
+
         String actionItemId = action.get("id").asText();
         Path controllerFile = tempProject.resolve(
                 "web-app/src/main/java/com/example/legacy/action/OrderActionController.java");
@@ -1302,7 +1370,11 @@ class StraviqueIntegrationTest {
                         + " && @.ruleVersion == '1.2.0')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE'"
-                        + " && @.language == 'XML' && @.fileName == 'web.xml')]").isNotEmpty());
+                        + " && @.language == 'XML' && @.fileName == 'web.xml')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONFIG-MESSAGE-SPRING')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONFIG-MESSAGE-SPRING'"
+                        + " && @.language == 'YAML' && @.fileName == 'struts-config.xml')]")
+                        .isNotEmpty());
     }
 
     @Test

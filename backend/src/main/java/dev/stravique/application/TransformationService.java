@@ -8,7 +8,9 @@ import dev.stravique.api.dto.TransformationRunDto;
 import dev.stravique.config.StraviqueProperties;
 import dev.stravique.domain.AnalysisFinding;
 import dev.stravique.domain.AnalysisProject;
+import dev.stravique.domain.FileType;
 import dev.stravique.domain.MigrationItem;
+import dev.stravique.domain.MigrationItemType;
 import dev.stravique.domain.MigrationPlan;
 import dev.stravique.domain.ProjectFile;
 import dev.stravique.domain.ScanRun;
@@ -29,6 +31,7 @@ import dev.stravique.infrastructure.TransformationRunRepository;
 import dev.stravique.inventory.TextDecoder;
 import dev.stravique.transformation.ControllerRoute;
 import dev.stravique.transformation.SafeFileWriter;
+import dev.stravique.transformation.TransformationCompanion;
 import dev.stravique.transformation.TransformationEngine;
 import dev.stravique.transformation.TransformationRequest;
 import dev.stravique.transformation.TransformationInvalidException;
@@ -49,6 +52,7 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -135,10 +139,11 @@ public class TransformationService {
         Path root = projectRoot(project);
         Path target = safeSource(root, file.getRelativePath());
         Source source = readSource(target, file);
+        List<TransformationCompanion> companions = companions(root, plan, item, file);
         TransformationOutcome outcome;
         try {
             outcome = engine.propose(new TransformationRequest(item, file, source.text(),
-                    file.getRelativePath(), routes(plan.getScanId())));
+                    file.getRelativePath(), routes(plan.getScanId()), companions));
         } catch (TransformationUnsupportedException exception) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "TRANSFORMATION_UNSUPPORTED", "error.transformation.unsupported");
@@ -149,7 +154,24 @@ public class TransformationService {
         if (outcome.artifactType() == TransformationArtifactType.CREATE_FILE) {
             safeNewTarget(root, outcome.targetRelativePath());
         }
-        byte[] proposedBytes = proposedBytes(outcome, source.charset());
+        String targetSha = null;
+        Charset targetCharset = source.charset();
+        if (outcome.artifactType() != TransformationArtifactType.CREATE_FILE) {
+            if (outcome.targetRelativePath().equals(file.getRelativePath())) {
+                targetSha = source.sha256();
+            } else {
+                TransformationCompanion companion = companions.stream()
+                        .filter(candidate -> candidate.relativePath()
+                                .equals(outcome.targetRelativePath()))
+                        .findFirst()
+                        .orElseThrow(() -> new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                                "TRANSFORMATION_TARGET_INVALID",
+                                "error.transformation.targetInvalid"));
+                targetSha = companion.sha256();
+                targetCharset = Charset.forName(companion.encoding());
+            }
+        }
+        byte[] proposedBytes = proposedBytes(outcome, targetCharset);
         String proposedSha = sha256(proposedBytes);
         for (TransformationProposal previous : proposalRepository
                 .findByPlanIdAndItemIdAndStatus(planId, itemId,
@@ -158,7 +180,8 @@ public class TransformationService {
             proposalRepository.save(previous);
         }
         TransformationProposal proposal = ProposalFactory.create(projectId, planId, itemId,
-                file.getId(), outcome.targetRelativePath(), outcome, source.sha256(), proposedSha);
+                file.getId(), outcome.targetRelativePath(), outcome, source.sha256(),
+                targetSha, proposedSha);
         proposalRepository.save(proposal);
         auditService.record(projectId, "TRANSFORMATION_PROPOSED", "TRANSFORMATION_PROPOSAL",
                 proposal.getId().toString(), outcome.targetRelativePath());
@@ -229,33 +252,46 @@ public class TransformationService {
             return doApplyCreate(projectId, project, plan, item, proposal, file, attempt);
         }
         Path root = projectRoot(project);
-        Path target = safeSource(root, proposal.getRelativePath());
-        byte[] currentBytes = readBytes(target);
-        if (!sha256(currentBytes).equals(proposal.getOriginalSha256())) {
+        Path sourceTarget = safeSource(root, file.getRelativePath());
+        byte[] sourceBytes = readBytes(sourceTarget);
+        if (!sha256(sourceBytes).equals(proposal.getOriginalSha256())) {
             throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
                     "error.transformation.sourceChanged");
         }
-        TextDecoder.DecodedSource decoded;
+        Path target = safeSource(root, proposal.getRelativePath());
+        byte[] currentBytes = readBytes(target);
+        String expectedTargetSha = proposal.getTargetSha256() == null
+                ? proposal.getOriginalSha256() : proposal.getTargetSha256();
+        if (!sha256(currentBytes).equals(expectedTargetSha)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
+                    "error.transformation.sourceChanged");
+        }
+        TextDecoder.DecodedSource decodedSource;
+        TextDecoder.DecodedSource decodedTarget;
         try {
-            decoded = decoder.decode(target);
+            decodedSource = decoder.decode(sourceTarget);
+            decodedTarget = decoder.decode(target);
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
                     "error.transformation.sourceChanged");
         }
+        List<TransformationCompanion> companions = companions(root, plan, item, file);
         TransformationOutcome outcome;
         try {
-            outcome = engine.propose(new TransformationRequest(item, file, decoded.text(),
-                    file.getRelativePath(), routes(plan.getScanId())));
+            outcome = engine.propose(new TransformationRequest(item, file, decodedSource.text(),
+                    file.getRelativePath(), routes(plan.getScanId()), companions));
         } catch (TransformationUnsupportedException | TransformationInvalidException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");
         }
         if (!outcome.ruleId().equals(proposal.getRuleId())
-                || !outcome.ruleVersion().equals(proposal.getRuleVersion())) {
+                || !outcome.ruleVersion().equals(proposal.getRuleVersion())
+                || outcome.artifactType() != proposal.getArtifactType()
+                || !outcome.targetRelativePath().equals(proposal.getRelativePath())) {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");
         }
-        byte[] proposedBytes = proposedBytes(outcome, decoded.charset());
+        byte[] proposedBytes = proposedBytes(outcome, decodedTarget.charset());
         if (!sha256(proposedBytes).equals(proposal.getProposedSha256())) {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");
@@ -283,7 +319,8 @@ public class TransformationService {
         proposalRepository.save(proposal);
         TransformationRun run = TransformationRun.applied(projectId, plan.getId(),
                 proposal.getId(), item.getId(), proposal.getRelativePath(), backup.toString(),
-                proposal.getOriginalSha256(), proposal.getProposedSha256(),
+                proposal.getOriginalSha256(), proposal.getTargetSha256(),
+                proposal.getProposedSha256(),
                 proposal.getRuleId(), proposal.getRuleVersion(), proposal.getArtifactType());
         run = runRepository.save(run);
         auditService.record(projectId, "TRANSFORMATION_APPLIED", "TRANSFORMATION_RUN",
@@ -343,7 +380,7 @@ public class TransformationService {
         proposalRepository.save(proposal);
         TransformationRun run = TransformationRun.applied(projectId, plan.getId(),
                 proposal.getId(), item.getId(), proposal.getRelativePath(), null,
-                proposal.getOriginalSha256(), proposal.getProposedSha256(),
+                proposal.getOriginalSha256(), null, proposal.getProposedSha256(),
                 proposal.getRuleId(), proposal.getRuleVersion(), TransformationArtifactType.CREATE_FILE);
         run = runRepository.save(run);
         auditService.record(projectId, "TRANSFORMATION_APPLIED", "TRANSFORMATION_RUN",
@@ -389,6 +426,7 @@ public class TransformationService {
             throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
                     "error.transformation.sourceChanged");
         }
+        requireSourceUnchanged(root, run);
         Path backupRoot = backupRoot(root);
         Path backup = Path.of(run.getBackupPath()).toAbsolutePath().normalize();
         if (!backup.startsWith(backupRoot) || !Files.isRegularFile(backup)) {
@@ -396,7 +434,9 @@ public class TransformationService {
                     "TRANSFORMATION_BACKUP_UNSAFE", "error.transformation.backupUnsafe");
         }
         byte[] backupBytes = readBytes(backup);
-        if (!sha256(backupBytes).equals(run.getOriginalSha256())) {
+        String expectedOriginalSha = run.getTargetSha256() == null
+                ? run.getOriginalSha256() : run.getTargetSha256();
+        if (!sha256(backupBytes).equals(expectedOriginalSha)) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "TRANSFORMATION_BACKUP_UNSAFE", "error.transformation.backupUnsafe");
         }
@@ -492,6 +532,31 @@ public class TransformationService {
         return itemRepository.findByIdAndPlanId(itemId, planId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                         "MIGRATION_ITEM_NOT_FOUND", "error.migration.itemNotFound"));
+    }
+
+    private List<TransformationCompanion> companions(Path root, MigrationPlan plan,
+                                                     MigrationItem item, ProjectFile primary) {
+        if (item.getItemType() != MigrationItemType.CONFIGURATION) {
+            return List.of();
+        }
+        return fileRepository.findByScanIdOrderByRelativePathAsc(plan.getScanId()).stream()
+                .filter(file -> Objects.equals(file.getModuleId(), primary.getModuleId()))
+                .filter(file -> file.getFileType() == FileType.YAML
+                        || file.getFileType() == FileType.PROPERTIES)
+                .filter(file -> isApplicationConfig(file.getFileName()))
+                .map(file -> {
+                    Path path = safeSource(root, file.getRelativePath());
+                    Source source = readSource(path, file);
+                    return new TransformationCompanion(file.getRelativePath(), source.text(),
+                            source.sha256(), source.charset().name());
+                })
+                .toList();
+    }
+
+    private boolean isApplicationConfig(String fileName) {
+        return fileName.equalsIgnoreCase("application.yml")
+                || fileName.equalsIgnoreCase("application.yaml")
+                || fileName.equalsIgnoreCase("application.properties");
     }
 
     private List<ControllerRoute> routes(UUID scanId) {
@@ -633,6 +698,22 @@ public class TransformationService {
         }
     }
 
+    private void requireSourceUnchanged(Path root, TransformationRun run) {
+        TransformationProposal proposal = proposalRepository.findById(run.getProposalId()).orElse(null);
+        if (proposal == null || run.getOriginalSha256() == null) {
+            return;
+        }
+        ProjectFile sourceFile = fileRepository.findById(proposal.getSourceFileId()).orElse(null);
+        if (sourceFile == null || sourceFile.getRelativePath().equals(run.getRelativePath())) {
+            return;
+        }
+        Path source = safeSource(root, sourceFile.getRelativePath());
+        if (!sha256(readBytes(source)).equals(run.getOriginalSha256())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
+                    "error.transformation.sourceChanged");
+        }
+    }
+
     private Path backupRoot(Path projectRoot) {
         String configured = properties.getTransformation().getBackupDirectory();
         Path root = configured == null || configured.isBlank()
@@ -683,9 +764,11 @@ public class TransformationService {
         private static TransformationProposal create(UUID projectId, UUID planId, UUID itemId,
                                                       UUID fileId, String relativePath,
                                                       TransformationOutcome outcome,
-                                                      String originalSha, String proposedSha) {
+                                                      String originalSha, String targetSha,
+                                                      String proposedSha) {
             return TransformationProposal.create(projectId, planId, itemId, fileId, relativePath,
-                    outcome.ruleId(), outcome.ruleVersion(), originalSha, proposedSha,
+                    outcome.ruleId(), outcome.ruleVersion(), originalSha, targetSha,
+                    proposedSha,
                     outcome.diff(), outcome.validationStatus(), outcome.validationMessage(),
                     outcome.artifactType());
         }

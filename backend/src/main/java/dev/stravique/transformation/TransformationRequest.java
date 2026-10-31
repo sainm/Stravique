@@ -10,6 +10,11 @@ public record TransformationRequest(
         ProjectFile file,
         String source,
         String relativePath,
-        List<ControllerRoute> routes
+        List<ControllerRoute> routes,
+        List<TransformationCompanion> companions
 ) {
+    public TransformationRequest(MigrationItem item, ProjectFile file, String source,
+                                 String relativePath, List<ControllerRoute> routes) {
+        this(item, file, source, relativePath, routes, List.of());
+    }
 }
