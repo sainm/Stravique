@@ -310,6 +310,42 @@ export interface MigrationPlan {
   phases: MigrationPhase[];
 }
 
+export interface MigrationPlanComparisonField {
+  field: string;
+  before?: string;
+  after?: string;
+}
+
+export interface MigrationPlanComparisonItem {
+  status: string;
+  itemKey: string;
+  itemId?: string;
+  itemType: string;
+  targetKey: string;
+  title: string;
+  primaryFilePath?: string;
+  phase: number;
+  automationLevel: string;
+  riskLevel: string;
+  itemStatus: string;
+  included: boolean;
+  changes: MigrationPlanComparisonField[];
+}
+
+export interface MigrationPlanComparisonSummary {
+  added: number;
+  removed: number;
+  changed: number;
+  unchanged: number;
+}
+
+export interface MigrationPlanComparison {
+  plan: MigrationPlanSummary;
+  basePlan: MigrationPlanSummary;
+  summary: MigrationPlanComparisonSummary;
+  items: MigrationPlanComparisonItem[];
+}
+
 export interface MigrationItem {
   id: string;
   planId: string;
@@ -454,4 +490,107 @@ export interface TransformationBatch {
   failed: number;
   restoredOnFailure: number;
   items: TransformationBatchItem[];
+}
+
+export interface TransformationCoverageItem {
+  itemId: string;
+  title: string;
+  itemType: string;
+  targetKey: string;
+  status: string;
+  included: boolean;
+  supported: boolean;
+  eligible: boolean;
+  ineligibleReason?: string;
+  ruleId?: string;
+  ruleVersion?: string;
+  proposalCount: number;
+  appliedRunCount: number;
+  restoredRunCount: number;
+  latestProposalStatus?: string;
+  latestRunStatus?: string;
+}
+
+export interface TransformationCoverageSummary {
+  items: number;
+  supported: number;
+  unsupported: number;
+  eligible: number;
+  excluded: number;
+  reviewRequired: number;
+  blocked: number;
+  proposals: number;
+  appliedRuns: number;
+  restoredRuns: number;
+}
+
+export interface TransformationCoverage {
+  planId: string;
+  scanId: string;
+  ruleCount: number;
+  summary: TransformationCoverageSummary;
+  items: TransformationCoverageItem[];
+}
+
+export interface TransformationPlanRunItem {
+  itemId: string;
+  title: string;
+  ordinal: number;
+  status: string;
+  runId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface TransformationPlanRunSummary {
+  id: string;
+  planId: string;
+  status: string;
+  eligibleCount: number;
+  appliedCount: number;
+  failedCount: number;
+  rolledBackCount: number;
+  restoredCount: number;
+  cancelRequested: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface TransformationPlanRun extends TransformationPlanRunSummary {
+  items: TransformationPlanRunItem[];
+}
+
+export interface TransformationBackupItem {
+  runId: string;
+  planId: string;
+  itemId: string;
+  title?: string;
+  relativePath: string;
+  status: string;
+  ruleId: string;
+  ruleVersion: string;
+  exists: boolean;
+  sizeBytes: number;
+  restorable: boolean;
+  prunable: boolean;
+  createdAt: string;
+  finishedAt?: string;
+}
+
+export interface TransformationBackupLedger {
+  projectId: string;
+  total: number;
+  existing: number;
+  missing: number;
+  restorable: number;
+  prunable: number;
+  totalBytes: number;
+  items: TransformationBackupItem[];
+}
+
+export interface TransformationBackupPrune {
+  requested: number;
+  deleted: number;
+  failed: number;
+  deletedBytes: number;
 }

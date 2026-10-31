@@ -26,6 +26,7 @@ Implemented:
 - Manual review queue for uncertain or failed analysis.
 - Scope adjustment by excluding items that no included item depends on.
 - Immutable plan versions with per-project sequence.
+- Read-only comparison of two plan versions by stable item key.
 - Plan list, list/phases/dependency graph/review views.
 
 Not implemented:
@@ -67,7 +68,7 @@ Every item carries a deterministic `itemKey` and links to its primary file and p
 | `CONFIGURATION` | web.xml, struts-config, or dicon findings | `SPRING_BOOT_CONFIG` | `ASSISTED` | `MEDIUM` | `READY` |
 | `REVIEW` | Parse failure, dynamic loading, reflection, or project-owned framework evidence without another item | `MANUAL_REVIEW` | `MANUAL` | `HIGH` | `REVIEW_REQUIRED` |
 
-`MESSAGE_RESOURCE` items carry the message bundle only. Its vetted transformation normalizes non-ASCII escapes to UTF-8; message APIs, lifecycle flow, and JSP error/message-block tags remain `MESSAGE_FLOW` or manual review work. `JSP_VIEW` items target `KEEP_JSP`; the vetted JSP rule rewrites self-closing `bean:message` as JSTL `fmt:message`, `bean:write` as `c:out`, and modernizes legacy JSTL taglib URIs to `jakarta.tags.*`, while form, error, and custom tags remain manual. `CONFIGURATION` items cover several descriptor kinds; only `web.xml` has a vetted rule, which updates the Jakarta EE namespace, schema, and version, while dicon, struts-config, and other configuration conversion remain manual. `VALIDATION` items are covered by one rule for plain `@Required` and integer length annotations; other SAStruts validation annotations remain manual.
+`MESSAGE_RESOURCE` items carry the message bundle only. Its vetted transformation normalizes non-ASCII escapes to UTF-8; message APIs, lifecycle flow, and JSP error/message-block tags remain `MESSAGE_FLOW` or manual review work. `JSP_VIEW` items target `KEEP_JSP`; the vetted JSP rule rewrites self-closing `bean:message` as JSTL `fmt:message`, `bean:write` as `c:out`, and modernizes legacy JSTL taglib URIs to `jakarta.tags.*`, while form, error, and custom tags remain manual. `CONFIGURATION` items cover several descriptor kinds. `web.xml` has a vetted rule that updates the Jakarta EE namespace, schema, and version and migrates vetted `javax.*` class names in servlet, filter, listener, and exception-type class elements. `struts-config.xml` has a vetted rule that adds `spring.messages.basename` to the module's Spring application config without changing the descriptor. Dicon explicit components can generate a create-only Spring `@Configuration`, including same-module relative include chains merged from the root dicon, anonymous nested property and constructor-argument components, simple reference properties mapped to public fields/setters, reference constructor arguments validated against the unique public constructor, typed String/boolean/numeric literals, supported scopes, and existing no-arg init methods; mismatched/escaped/out-of-range values, named/scoped nested components, malformed nested arguments, include cycles/missing/cross-module includes, AOP, richer dicon conversion, other Struts configuration elements, and full Spring Boot configuration generation remain manual. `VALIDATION` items are covered by one rule for plain `@Required` and integer length annotations; other SAStruts validation annotations remain manual.
 
 Escalations:
 
@@ -149,6 +150,12 @@ Graph limits:
 - Up to 800 included items.
 - Up to 3000 dependency edges whose endpoints are both returned.
 - `itemCount` and `edgeCount` report true totals; `truncated`, `itemLimit`, and `edgeLimit` make the boundary explicit.
+
+## Plan comparison
+
+`GET /projects/{id}/migration-plans/{planId}/comparison` compares the selected plan with its previous version by default and accepts an explicit `basePlanId`. Items are matched by stable `itemKey`; the response counts added, removed, changed, and unchanged items and lists only rows that changed or appeared/disappeared. A changed row reports before/after values for included scope, status, phase, risk, automation, title, and primary file path. Rows are ordered added, removed, changed, then by title and key.
+
+The comparison is read-only. A missing previous version, the same plan as base, an unknown base, and a base plan from another project are refused instead of inferring a comparison. The Migration dialog defaults to the previous sequence but lets the user choose any other project plan as the base; changed or added rows open the current plan's item inspector, and removed rows are marked as not present in the current plan.
 
 ## Status discipline
 

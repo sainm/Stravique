@@ -34,7 +34,9 @@ function toneFor(value: string): string {
     return "success";
   }
   if (
-    ["FAILED", "PARSE_FAILED", "VALIDATION_FAILED", "BLOCKED"].includes(value)
+    ["FAILED", "PARSE_FAILED", "VALIDATION_FAILED", "BLOCKED", "ROLLBACK_FAILED"].includes(
+      value
+    )
   ) {
     return "danger";
   }

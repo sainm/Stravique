@@ -9,6 +9,10 @@ import dev.stravique.api.dto.MigrationGraphNodeDto;
 import dev.stravique.api.dto.MigrationItemDetailDto;
 import dev.stravique.api.dto.MigrationItemDto;
 import dev.stravique.api.dto.MigrationPhaseDto;
+import dev.stravique.api.dto.MigrationPlanComparisonDto;
+import dev.stravique.api.dto.MigrationPlanComparisonFieldDto;
+import dev.stravique.api.dto.MigrationPlanComparisonItemDto;
+import dev.stravique.api.dto.MigrationPlanComparisonSummaryDto;
 import dev.stravique.api.dto.MigrationPlanDto;
 import dev.stravique.api.dto.MigrationPlanRequest;
 import dev.stravique.api.dto.MigrationPlanSummaryDto;
@@ -127,6 +131,15 @@ public class MigrationPlanService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<MigrationPlanSummaryDto> planOptions(UUID projectId) {
+        requireProject(projectId);
+        UUID latestScanId = latestCompletedScan(projectId).map(ScanRun::getId).orElse(null);
+        return planRepository.findByProjectIdOrderBySequenceDesc(projectId).stream()
+                .map(plan -> MigrationPlanSummaryDto.from(plan, isStale(plan, latestScanId)))
+                .toList();
+    }
+
     public MigrationPlanDto generate(UUID projectId, MigrationPlanRequest request) {
         ReentrantLock lock = locks.computeIfAbsent(projectId, ignored -> new ReentrantLock());
         lock.lock();
@@ -203,6 +216,83 @@ public class MigrationPlanService {
     @Transactional(readOnly = true)
     public MigrationPlanDto plan(UUID projectId, UUID planId) {
         return planDto(requirePlan(projectId, planId));
+    }
+
+    @Transactional(readOnly = true)
+    public MigrationPlanComparisonDto comparison(UUID projectId, UUID planId, UUID basePlanId) {
+        MigrationPlan plan = requirePlan(projectId, planId);
+        MigrationPlan base = resolveComparisonBase(projectId, plan, basePlanId);
+        List<MigrationItem> planItems = itemRepository
+                .findByPlanIdOrderByPhaseAscPriorityAscTitleAscIdAsc(plan.getId());
+        List<MigrationItem> baseItems = itemRepository
+                .findByPlanIdOrderByPhaseAscPriorityAscTitleAscIdAsc(base.getId());
+        MigrationPlanComparison.Result result = MigrationPlanComparison.compare(
+                itemViews(planItems, filePaths(planItems)),
+                itemViews(baseItems, filePaths(baseItems)));
+        Map<String, UUID> currentItemIds = new HashMap<>();
+        for (MigrationItem item : planItems) {
+            currentItemIds.put(item.getItemKey(), item.getId());
+        }
+        UUID latestScanId = latestCompletedScan(projectId).map(ScanRun::getId).orElse(null);
+        List<MigrationPlanComparisonItemDto> items = result.rows().stream()
+                .map(row -> new MigrationPlanComparisonItemDto(
+                        row.status(),
+                        row.item().itemKey(),
+                        currentItemIds.get(row.item().itemKey()),
+                        row.item().itemType(),
+                        row.item().targetKey(),
+                        row.item().title(),
+                        row.item().primaryFilePath(),
+                        row.item().phase(),
+                        row.item().automationLevel(),
+                        row.item().riskLevel(),
+                        row.item().status(),
+                        row.item().included(),
+                        row.changes().stream()
+                                .map(change -> new MigrationPlanComparisonFieldDto(
+                                        change.field(), change.before(), change.after()))
+                                .toList()))
+                .toList();
+        return new MigrationPlanComparisonDto(
+                MigrationPlanSummaryDto.from(plan, isStale(plan, latestScanId)),
+                MigrationPlanSummaryDto.from(base, isStale(base, latestScanId)),
+                new MigrationPlanComparisonSummaryDto(result.added(), result.removed(),
+                        result.changed(), result.unchanged()),
+                items);
+    }
+
+    private MigrationPlan resolveComparisonBase(UUID projectId, MigrationPlan plan,
+                                                UUID basePlanId) {
+        if (basePlanId == null) {
+            return planRepository.findByProjectIdAndSequence(projectId, plan.getSequence() - 1)
+                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                            "MIGRATION_PLAN_COMPARISON_UNAVAILABLE",
+                            "error.migration.comparisonUnavailable"));
+        }
+        if (basePlanId.equals(plan.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "MIGRATION_PLAN_COMPARISON_SELF",
+                    "error.migration.comparisonSelf");
+        }
+        return planRepository.findByIdAndProjectId(basePlanId, projectId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "MIGRATION_PLAN_NOT_FOUND", "error.migration.planNotFound"));
+    }
+
+    private List<MigrationPlanComparison.ItemView> itemViews(List<MigrationItem> items,
+                                                             Map<UUID, String> paths) {
+        return items.stream()
+                .map(item -> new MigrationPlanComparison.ItemView(
+                        item.getItemKey(),
+                        item.getItemType().name(),
+                        item.getTargetKey().name(),
+                        item.getTitle(),
+                        pathFor(item, paths),
+                        item.getPhase(),
+                        item.getAutomationLevel().name(),
+                        item.getRiskLevel().name(),
+                        item.getStatus().name(),
+                        item.isIncluded()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

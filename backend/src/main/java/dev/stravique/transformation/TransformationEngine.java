@@ -18,17 +18,33 @@ public class TransformationEngine {
 
     public List<RuleDescriptor> rules() {
         return rules.stream()
-                .map(rule -> new RuleDescriptor(rule.ruleId(), rule.ruleVersion(),
-                        rule.itemType().name(), rule.target().name(), rule.language(),
-                        rule.fileNameHint()))
+                .map(this::descriptor)
                 .sorted(java.util.Comparator.comparing(RuleDescriptor::ruleId))
                 .toList();
     }
 
+    private java.util.Optional<TransformationRule> rule(
+            dev.stravique.domain.MigrationItem item,
+            dev.stravique.domain.ProjectFile file) {
+        return rules.stream()
+                .filter(candidate -> candidate.supports(item, file))
+                .min(java.util.Comparator.comparing(TransformationRule::ruleId));
+    }
+
+    private RuleDescriptor descriptor(TransformationRule rule) {
+        return new RuleDescriptor(rule.ruleId(), rule.ruleVersion(),
+                rule.itemType().name(), rule.target().name(), rule.language(),
+                rule.fileNameHint());
+    }
+
+    public java.util.Optional<RuleDescriptor> ruleFor(
+            dev.stravique.domain.MigrationItem item,
+            dev.stravique.domain.ProjectFile file) {
+        return rule(item, file).map(this::descriptor);
+    }
+
     public TransformationOutcome propose(TransformationRequest request) {
-        TransformationRule rule = rules.stream()
-                .filter(candidate -> candidate.supports(request.item(), request.file()))
-                .min(java.util.Comparator.comparing(TransformationRule::ruleId))
+        TransformationRule rule = rule(request.item(), request.file())
                 .orElseThrow(() -> new TransformationUnsupportedException(
                         "No vetted transformation rule supports this item."));
         TransformationDraft draft;

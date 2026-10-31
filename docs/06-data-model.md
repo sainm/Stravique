@@ -18,6 +18,8 @@
 | `migration_item_finding` | item_id, finding_id, role | Primary or supporting analysis evidence for an item |
 | `migration_dependency` | plan_id, from/to item, relation_id, type, evidence path/line, certainty | Item dependency derived from a persisted relation |
 | `transformation_proposal` | plan/item/file, rule/version, hashes, diff, validation status | Read-only diff proposal for a vetted rule |
+| `transformation_plan_run` | plan/project, status, cancel flag, eligible/applied/failed/rolled-back/restored counts, timestamps | Persisted plan-wide transformation run |
+| `transformation_plan_run_item` | plan run, item/run identifiers, order, status, error | Per-item plan-run outcome |
 | `transformation_run` | proposal/item/file, status, backup path, hashes, rule/version | Explicit apply or restore audit record |
 | `audit_event` | project_id, action, entity_type, entity_id, detail, occurred_at | Project-scoped operation trace |
 
@@ -111,7 +113,7 @@ A `transformation_proposal` is a read-only diff snapshot:
 
 - Plan, item, and source-file identifiers.
 - Rule ID and rule version.
-- Original and proposed SHA-256 values.
+- Source, target, and proposed SHA-256 values. `originalSha256` always describes the item source; `targetSha256` describes the file apply will write and is null for `CREATE_FILE`. For a same-file edit the two hashes describe the same file; for a cross-file edit they describe the item source and a different target file.
 - Unified diff.
 - Syntax-validation status and message.
 - `PROPOSED`, `APPLIED`, `RESTORED`, or `SUPERSEDED`.
@@ -120,11 +122,13 @@ A `transformation_run` records an explicit write:
 
 - Proposal, item, and source file.
 - Rule ID and version.
-- Original and applied hashes.
+- Original, target, and applied hashes.
 - Backup path outside the project.
 - `APPLIED`, `RESTORED`, or `FAILED`.
 
-Apply requires confirmation, a current plan, matching current-file hash, rule-version match, and re-derivation of the proposed hash. Restore requires confirmation, an `APPLIED` run, a matching applied hash, and a verified backup. Neither operation changes the migration item's planning status.
+Apply requires confirmation, a current plan, matching current source and target hashes, rule-version match, and re-derivation of the proposed hash. For a cross-file edit the target is backed up and written while the item source is never written. Restore requires confirmation, an `APPLIED` run, matching source and applied hashes, and a verified backup. Neither operation changes the migration item's planning status.
+
+A plan run groups the per-item runs produced by one confirmed plan-wide action. Its header records `RUNNING`, `INTERRUPTED`, `CANCELLED`, `APPLIED`, `FAILED`, `ROLLBACK_FAILED`, `RESTORED`, `RECOVERED`, or `PARTIAL`, a cooperative `cancelRequested` flag, and aggregate counts. An `INTERRUPTED` run can be resumed: applied children stay, unattempted children run, and a failure or cancel rolls back every applied child of the run. Each child records the plan order, item and run identifiers, `APPLIED`, `FAILED`, `ROLLED_BACK`, `ROLLBACK_FAILED`, `NOT_ATTEMPTED`, or `RESTORED`, and the localized failure. Coverage is computed live from persisted items, rules, files, proposals, and runs; it is not stored.
 
 ## Identifiers and time
 

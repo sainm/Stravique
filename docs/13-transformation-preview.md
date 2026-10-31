@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage, a Jakarta EE `web.xml` descriptor, and an additive Struts message-resources config bridge. It is deliberately narrow and safety-first.
+Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage, a Jakarta EE `web.xml` descriptor and supported class names, and an additive Struts message-resources config bridge. It is deliberately narrow and safety-first.
 
 The engine can:
 
@@ -13,7 +13,7 @@ The engine can:
 5. Create a new file without overwriting an existing one, and remove that generated file on restore when it is unchanged.
 6. Retain proposal and run records for audit.
 
-It cannot yet migrate Struts controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, Spring Boot configuration conversion, dicon, other XML descriptors, or JSP forms. Validation support is limited to plain `@Required` and the integer length annotations; other validation annotations remain manual. Unsupported items remain planning/review tasks; the interface says so instead of fabricating a transformation.
+It cannot yet migrate Struts controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, full Spring Boot configuration conversion, dicon AOP/aspect components and unsupported dicon elements, other XML descriptors, or JSP forms. Validation support is limited to plain `@Required` and the integer length annotations; other validation annotations remain manual. Unsupported items remain planning/review tasks; the interface says so instead of fabricating a transformation.
 
 ## Vetted rules
 
@@ -30,8 +30,9 @@ It cannot yet migrate Struts controller method bodies, request binding, message 
 | `JSP-BEAN-MESSAGE-JSTL` | `JSP_VIEW` | `KEEP_JSP` | JSP |
 | `WEBXML-JAKARTA-NAMESPACE` | `CONFIGURATION` | `SPRING_BOOT_CONFIG` | XML |
 | `STRUTS-CONFIG-MESSAGE-SPRING` | `CONFIGURATION` | `SPRING_BOOT_CONFIG` | YAML |
+| `DICON-COMPONENT-SPRING-CONFIG` | `CONFIGURATION` | `SPRING_BOOT_CONFIG` | Java |
 
-The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts a bare `@TransactionAttribute` and the explicitly vetted `REQUIRED`/`REQUIRES_NEW` propagation values; other propagation values are refused rather than mapped onto a name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives, rewrites supported message/view tags, and modernizes legacy JSTL taglib URIs. The web descriptor rule rewrites only the `web-app` namespace, schema location, and version on `web.xml`. The config bridge rule reads `struts-config.xml` and appends one Spring message key to the module application config; it is the only rule whose target differs from the item source, protected by both source and target hashes. No rule pretty-prints or rewrites unrelated code.
+The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts a bare `@TransactionAttribute` and the six propagation values whose names and semantics are shared by Seasar2 and Spring (`REQUIRED`, `REQUIRES_NEW`, `SUPPORTS`, `NOT_SUPPORTED`, `MANDATORY`, `NEVER`); an unknown constant or a value outside that shared set is refused rather than mapped onto a name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives, rewrites supported message/view tags, and modernizes legacy JSTL taglib URIs. The web descriptor rule rewrites the `web-app` namespace, schema location, version, and supported `javax.*` class names in `servlet-class`, `filter-class`, `listener-class`, and `exception-type` elements on `web.xml`. The config bridge rule reads `struts-config.xml` and appends one Spring message key to the module application config; it is the only rule whose target differs from the item source, protected by both source and target hashes. The dicon rule merges same-module relative include chains before generating one configuration, refuses to migrate an included dicon directly, and emits anonymous components nested in properties or constructor arguments as separate named beans. No rule pretty-prints or rewrites unrelated code.
 
 ### Seasar2 DI → Spring DI
 
@@ -125,11 +126,11 @@ Supported edits:
 
 - A bare `@TransactionAttribute` → `@Transactional`.
 - `@TransactionAttribute(TransactionAttributeType.REQUIRED)` → `@Transactional`.
-- `@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)` → `@Transactional(propagation = Propagation.REQUIRES_NEW)`, with the Spring `Propagation` import added or reused.
+- `REQUIRES_NEW`, `SUPPORTS`, `NOT_SUPPORTED`, `MANDATORY`, and `NEVER` → `@Transactional(propagation = Propagation.<same value>)`, with the Spring `Propagation` import added or reused.
 
 Rejected for manual review:
 
-- Other propagation values.
+- An unknown constant or a propagation value outside the six shared names.
 - Non-enum values or attributes other than `value`.
 - A Seasar annotation next to an existing `@Transactional`, or a conflicting `Transactional`/`Propagation` import.
 - Transaction-manager configuration.
@@ -197,15 +198,41 @@ Supported edits:
 - A Java EE or J2EE `web-app` namespace → `https://jakarta.ee/xml/ns/jakartaee`.
 - The matching `web-app_2_3` … `web-app_4_0` schema file → `web-app_6_0.xsd`.
 - The root `version` attribute → `6.0`.
-- All other descriptor content is preserved.
+- Supported `javax.*` full class names in `servlet-class`, `filter-class`, `listener-class`, and `exception-type` → the corresponding `jakarta.*` class, using the same vetted package list as the Java import rule.
+- A `web.xml` that already uses Jakarta EE 6.0 can receive the class-name migration alone.
+- All other descriptor content, including comments and whitespace around class names, is preserved.
 
 Rejected for manual review:
 
-- Files not named `web.xml`, non-`web-app` roots, already-Jakarta descriptors, unsupported versions, or single-quoted version attributes.
-- Malformed XML.
-- Spring Boot configuration conversion, filter/listener class migration, and schema validation remain separate manual work.
+- Files not named `web.xml`, non-`web-app` roots, unsupported versions, or single-quoted version attributes when the namespace itself must be rewritten.
+- A `javax.*` class name in a supported class element that has no vetted Jakarta mapping; the whole proposal is refused rather than partially rewritten.
+- Class element content that is not a single class name, or malformed XML.
+- Spring Boot configuration conversion and complete filter/listener behavior migration remain separate manual work; schema validation is not performed.
 
-The rule is matched by item type, target, and the `web.xml` file-name hint in the rule catalog. It makes no claim that the descriptor is valid against the Jakarta schema; only XML well-formedness and the resulting root namespace/version are checked.
+The rule is matched by item type, target, and the `web.xml` file-name hint in the rule catalog. It makes no claim that the descriptor is valid against the Jakarta schema; only XML well-formedness, the resulting root namespace/version, and the absence of remaining `javax` class names in the supported elements are checked.
+
+### dicon explicit components → Spring @Configuration
+
+Supported edits:
+
+- Direct `<component name="..." class="...">` entries and same-module relative `<include path="..."/>` chains. Included components are merged in declaration order; only the root dicon is migrated, and a dicon that is included by another is refused. Aspects, interceptors, and top-level nested component declarations are refused.
+- One anonymous `<component class="...">` nested in a `<property name="...">`; it becomes a separate `@Bean` named after the parent bean and the capitalized property name (for example `orderServiceOrderDao`), and the parent receives it through a qualified parameter and a field/setter assignment. Nested components can recursively declare arguments, simple properties, and one init method; their class must match the parent property type exactly.
+- One anonymous `<component class="...">` nested in an `<arg>`; it becomes a separate `@Bean` named `<parentBean>Arg<argument position>` with a 1-based position (for example `orderActionArg2`), and the parent constructor receives it through a qualified parameter. Nested argument components support the same recursive arguments, simple properties, and one init method; their class must match the constructor parameter type exactly.
+- Singleton components only; a non-singleton `instance`, non-empty `autoBinding`, or unknown attribute is refused.
+- A `<property name="...">reference</property>` whose value is a simple component reference and whose target is a public field or public setter on the component class. The generated `@Bean` method takes a `@Qualifier("<reference>")` parameter and assigns or sets it.
+- One or more `<arg>reference</arg>` constructor references when the class has exactly one public constructor with the matching parameter count; the generated method takes qualified parameters and passes them to the constructor.
+- `instance="prototype"`, `request`, `session`, or `application` maps to a Spring `@Scope`; blank or `singleton` stays the default.
+- A quoted string, boolean, integer, long, or decimal literal for a property or constructor argument when the target type is String, boolean/Boolean, int/Integer, long/Long, or double/Double. Mismatched, escaped, out-of-range, and unsupported values are refused.
+- An `<initMethod name="..."/>` whose method is a public no-arg instance method on the component class; the generated method invokes it.
+- Each class must be a public project Java class with an implicit or public no-arg constructor.
+- A new `@Configuration` class is created in a shared package common to the component classes, under the dicon module's `src/main/java` root.
+- The dicon is never modified; apply is create-only, and restore removes the generated configuration only if its bytes still match.
+
+Rejected for manual review:
+
+- Mismatched, escaped, out-of-range, or unsupported property/argument literals; missing public field/setter; conflicting references; ambiguous or missing constructors; named, scoped, or auto-bound nested components; malformed nested arguments (text plus a component, multiple or unknown child elements, or a type mismatch); include cycles, missing dicons, absolute or cross-module include paths, duplicate component names across the chain, and include elements with extra attributes or child elements; aspects; interceptors; unknown scope values; `autoBinding`; unknown attributes; non-public classes; missing class sources; or unusable constructors.
+- A component class outside the project sources, or a dicon and component class with no shared module source root.
+- Bean initialization through an absent init method remains manual; external referenced beans must exist at runtime.
 
 ### Struts message-resources → Spring messages config
 
@@ -221,7 +248,7 @@ Rejected for manual review:
 - No message-resources declaration, a blank parameter, no application config target, or more than one target.
 - An existing `spring.messages.basename` key.
 - Malformed XML or an unsupported target type.
-- Removing the old declaration, dicon conversion, filter/listener migration, and full Spring Boot configuration conversion.
+- Removing the old declaration, dicon property/argument/lifecycle conversion, filter/listener behavior migration, and full Spring Boot configuration conversion.
 
 The proposal stores both the source hash and the target hash; apply requires both to still match, backs up and writes the target, and restore returns the target from that backup. The detailed contract is in [15-cross-file-config.md](15-cross-file-config.md).
 
@@ -265,7 +292,7 @@ Backup directory:
 
 ## Validation boundary
 
-The only automated validation is syntax parsing of the proposed artifact: Java parsing for Java rules, properties parsing plus UTF-8 round-tripping for the message rule, prefixed-tag structure validation for the JSP rule, and secure XML well-formedness plus root namespace/version checks for the web descriptor rule. This is not semantic equivalence, compilation against the project's dependencies, full JSP compilation, schema validation, or runtime verification. For the message rule, the decoded key/value map is also compared before a proposal is returned; for the JSP rule, only tag renames, legacy JSTL URI updates, and directive changes are made, and conditional scriptlet structure is rejected. Every generated proposal remains an assisted change requiring review before its migration item can be considered complete.
+The only automated validation is syntax parsing of the proposed artifact: Java parsing for Java rules, properties parsing plus UTF-8 round-tripping for the message rule, prefixed-tag structure validation for the JSP rule, and secure XML well-formedness plus root namespace/version and remaining-class-name checks for the web descriptor rule. This is not semantic equivalence, compilation against the project's dependencies, full JSP compilation, schema validation, or runtime verification. For the message rule, the decoded key/value map is also compared before a proposal is returned; for the JSP rule, only tag renames, legacy JSTL URI updates, and directive changes are made, and conditional scriptlet structure is rejected. Every generated proposal remains an assisted change requiring review before its migration item can be considered complete.
 
 ## Data model
 
@@ -324,8 +351,8 @@ Not implemented:
 - S2JDBC writes whose parameter types have no vetted SQL mapping, transactions, and non-literal queries.
 - Validation annotations other than plain `@Required` and integer length annotations.
 - Namespace changes outside the supported `javax.*` package list.
-- Spring Boot configuration conversion, dicon, XML descriptors other than `web.xml`, JSP custom tags, or TLD transformation.
+- Full Spring Boot configuration conversion, dicon AOP/aspect/interceptor components and unsupported dicon elements, XML descriptors other than `web.xml`, JSP custom tags, or TLD transformation.
 - Compile or runtime validation.
 - Batch execution across a plan.
 
-Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently eleven rules; unsupported items remain explicitly unsupported. The domain-by-domain close-out audit and its boundary evidence live in [10-delivery-plan.md](10-delivery-plan.md#phase-4-close-out-audit); cross-file edit safety is in [15-cross-file-config.md](15-cross-file-config.md).
+Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently twelve rules; unsupported items remain explicitly unsupported. The domain-by-domain close-out audit and its boundary evidence live in [10-delivery-plan.md](10-delivery-plan.md#phase-4-close-out-audit); cross-file edit safety is in [15-cross-file-config.md](15-cross-file-config.md).

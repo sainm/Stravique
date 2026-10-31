@@ -78,6 +78,10 @@ export default function MigrationInspector({
     detail.data?.item.itemType === "CONFIGURATION" &&
     detail.data?.item.targetKey === "SPRING_BOOT_CONFIG" &&
     detail.data?.item.title === "struts-config.xml";
+  const diconItem =
+    detail.data?.item.itemType === "CONFIGURATION" &&
+    detail.data?.item.targetKey === "SPRING_BOOT_CONFIG" &&
+    detail.data?.item.title.endsWith(".dicon");
   const fallbackRuleId = diItem
     ? "SEASAR-DI-SPRING-DI"
     : validationItem
@@ -96,9 +100,11 @@ export default function MigrationInspector({
                   ? "WEBXML-JAKARTA-NAMESPACE"
                   : strutsConfigItem
                     ? "STRUTS-CONFIG-MESSAGE-SPRING"
-                    : controllerItem
-                      ? "STRUTS-CONTROLLER-SKELETON"
-                      : undefined;
+                    : diconItem
+                      ? "DICON-COMPONENT-SPRING-CONFIG"
+                      : controllerItem
+                        ? "STRUTS-CONTROLLER-SKELETON"
+                        : undefined;
   const ruleCatalog = useQuery({
     queryKey: ["transformation-rules"],
     queryFn: api.transformationRules,
@@ -108,11 +114,16 @@ export default function MigrationInspector({
     (rule) =>
       rule.itemType === detail.data?.item.itemType &&
       rule.targetKey === detail.data?.item.targetKey &&
-      (!rule.fileName || rule.fileName === detail.data?.item.title)
+      (!rule.fileName ||
+        (rule.fileName.startsWith(".")
+          ? detail.data?.item.title.endsWith(rule.fileName)
+          : rule.fileName === detail.data?.item.title))
   );
   const activeRuleId = catalogRule?.ruleId ?? fallbackRuleId;
   const supported = ruleCatalog.data ? Boolean(catalogRule) : Boolean(fallbackRuleId);
-  const createsArtifact = activeRuleId === "STRUTS-CONTROLLER-SKELETON";
+  const createsArtifact =
+    activeRuleId === "STRUTS-CONTROLLER-SKELETON"
+    || activeRuleId === "DICON-COMPONENT-SPRING-CONFIG";
   const proposals = useQuery({
     queryKey: ["transformation-proposals", projectId, planId, itemId],
     queryFn: () => api.transformationProposals(projectId, planId, itemId),
@@ -312,6 +323,8 @@ export default function MigrationInspector({
                             ? t("migration.transformation.descriptionWebXml")
                             : activeRuleId === "STRUTS-CONFIG-MESSAGE-SPRING"
                               ? t("migration.transformation.descriptionMessageConfig")
+                              : activeRuleId === "DICON-COMPONENT-SPRING-CONFIG"
+                                ? t("migration.transformation.descriptionDicon")
                               : activeRuleId === "JAVAX-TO-JAKARTA"
                               ? t("migration.transformation.descriptionJakarta")
                             : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
@@ -366,6 +379,8 @@ export default function MigrationInspector({
                               ? t("migration.transformation.scopeWebXml")
                               : activeRuleId === "STRUTS-CONFIG-MESSAGE-SPRING"
                                 ? t("migration.transformation.scopeMessageConfig")
+                                : activeRuleId === "DICON-COMPONENT-SPRING-CONFIG"
+                                  ? t("migration.transformation.scopeDicon")
                                 : activeRuleId === "JAVAX-TO-JAKARTA"
                                 ? t("migration.transformation.scopeJakarta")
                               : activeRuleId === "STRUTS-ACTIONFORM-MODEL"

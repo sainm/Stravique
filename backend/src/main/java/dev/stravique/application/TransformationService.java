@@ -122,38 +122,12 @@ public class TransformationService {
 
     @Transactional
     public TransformationProposalDto propose(UUID projectId, UUID planId, UUID itemId) {
-        AnalysisProject project = requireProject(projectId);
-        MigrationPlan plan = requirePlan(projectId, planId);
-        MigrationItem item = requireItem(planId, itemId);
-        if (!item.isIncluded()) {
-            throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_ITEM_EXCLUDED",
-                    "error.transformation.itemExcluded");
-        }
-        requirePlanCurrent(plan);
-        ProjectFile file = item.getPrimaryFileId() == null ? null
-                : fileRepository.findById(item.getPrimaryFileId()).orElse(null);
-        if (file == null) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "TRANSFORMATION_UNSUPPORTED", "error.transformation.unsupported");
-        }
-        Path root = projectRoot(project);
-        Path target = safeSource(root, file.getRelativePath());
-        Source source = readSource(target, file);
-        List<TransformationCompanion> companions = companions(root, plan, item, file);
-        TransformationOutcome outcome;
-        try {
-            outcome = engine.propose(new TransformationRequest(item, file, source.text(),
-                    file.getRelativePath(), routes(plan.getScanId()), companions));
-        } catch (TransformationUnsupportedException exception) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "TRANSFORMATION_UNSUPPORTED", "error.transformation.unsupported");
-        } catch (TransformationInvalidException exception) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "TRANSFORMATION_INVALID", "error.transformation.invalid");
-        }
-        if (outcome.artifactType() == TransformationArtifactType.CREATE_FILE) {
-            safeNewTarget(root, outcome.targetRelativePath());
-        }
+        Prepared prepared = prepare(projectId, planId, itemId);
+        MigrationItem item = prepared.item();
+        ProjectFile file = prepared.file();
+        Source source = prepared.source();
+        TransformationOutcome outcome = prepared.outcome();
+        List<TransformationCompanion> companions = prepared.companions();
         String targetSha = null;
         Charset targetCharset = source.charset();
         if (outcome.artifactType() != TransformationArtifactType.CREATE_FILE) {
@@ -186,6 +160,51 @@ public class TransformationService {
         auditService.record(projectId, "TRANSFORMATION_PROPOSED", "TRANSFORMATION_PROPOSAL",
                 proposal.getId().toString(), outcome.targetRelativePath());
         return TransformationProposalDto.from(proposal);
+    }
+
+    @Transactional(readOnly = true)
+    public TransformationProbe probe(UUID projectId, UUID planId, UUID itemId) {
+        try {
+            prepare(projectId, planId, itemId);
+            return new TransformationProbe(true, null);
+        } catch (ApiException exception) {
+            return new TransformationProbe(false, exception.getCode());
+        }
+    }
+
+    private Prepared prepare(UUID projectId, UUID planId, UUID itemId) {
+        AnalysisProject project = requireProject(projectId);
+        MigrationPlan plan = requirePlan(projectId, planId);
+        MigrationItem item = requireItem(planId, itemId);
+        if (!item.isIncluded()) {
+            throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_ITEM_EXCLUDED",
+                    "error.transformation.itemExcluded");
+        }
+        requirePlanCurrent(plan);
+        ProjectFile file = item.getPrimaryFileId() == null ? null
+                : fileRepository.findById(item.getPrimaryFileId()).orElse(null);
+        if (file == null) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "TRANSFORMATION_UNSUPPORTED", "error.transformation.unsupported");
+        }
+        Path root = projectRoot(project);
+        Source source = readSource(safeSource(root, file.getRelativePath()), file);
+        List<TransformationCompanion> companions = companions(root, plan, item, file);
+        TransformationOutcome outcome;
+        try {
+            outcome = engine.propose(new TransformationRequest(item, file, source.text(),
+                    file.getRelativePath(), routes(plan.getScanId()), companions));
+        } catch (TransformationUnsupportedException exception) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "TRANSFORMATION_UNSUPPORTED", "error.transformation.unsupported");
+        } catch (TransformationInvalidException exception) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "TRANSFORMATION_INVALID", "error.transformation.invalid");
+        }
+        if (outcome.artifactType() == TransformationArtifactType.CREATE_FILE) {
+            safeNewTarget(root, outcome.targetRelativePath());
+        }
+        return new Prepared(item, file, source, companions, outcome);
     }
 
     @Transactional(readOnly = true)
@@ -346,10 +365,11 @@ public class TransformationService {
             throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
                     "error.transformation.sourceChanged");
         }
+        List<TransformationCompanion> companions = companions(root, plan, item, file);
         TransformationOutcome outcome;
         try {
             outcome = engine.propose(new TransformationRequest(item, file, decoded.text(),
-                    file.getRelativePath(), routes(plan.getScanId())));
+                    file.getRelativePath(), routes(plan.getScanId()), companions));
         } catch (TransformationUnsupportedException | TransformationInvalidException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "TRANSFORMATION_RULE_CHANGED",
                     "error.transformation.ruleChanged");
@@ -538,6 +558,19 @@ public class TransformationService {
                                                      MigrationItem item, ProjectFile primary) {
         if (item.getItemType() != MigrationItemType.CONFIGURATION) {
             return List.of();
+        }
+        if (primary.getFileType() == FileType.DICON) {
+            return fileRepository.findByScanIdOrderByRelativePathAsc(plan.getScanId()).stream()
+                    .filter(file -> file.getFileType() == FileType.JAVA
+                            || file.getFileType() == FileType.DICON)
+                    .filter(file -> !file.isGenerated())
+                    .map(file -> {
+                        Path path = safeSource(root, file.getRelativePath());
+                        Source source = readSource(path, file);
+                        return new TransformationCompanion(file.getRelativePath(), source.text(),
+                                source.sha256(), source.charset().name());
+                    })
+                    .toList();
         }
         return fileRepository.findByScanIdOrderByRelativePathAsc(plan.getScanId()).stream()
                 .filter(file -> Objects.equals(file.getModuleId(), primary.getModuleId()))
@@ -739,6 +772,11 @@ public class TransformationService {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
                     "error.internal");
         }
+    }
+
+    private record Prepared(MigrationItem item, ProjectFile file, Source source,
+                            List<TransformationCompanion> companions,
+                            TransformationOutcome outcome) {
     }
 
     private record Source(String text, Charset charset, String sha256) {

@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Clock3,
   GitBranch,
+  GitCompare,
   History,
   Layers,
   ListChecks,
@@ -25,15 +26,19 @@ import Modal from "../../components/Modal";
 import PageHeader from "../../components/PageHeader";
 import StatusBadge from "../../components/StatusBadge";
 import { api } from "../../lib/api";
-import { formatDate, formatNumber } from "../../lib/format";
+import { formatBytes, formatDate, formatNumber } from "../../lib/format";
 import type {
   MigrationGraph,
   MigrationItem,
   MigrationPlanSummary,
-  TransformationBatch
+  TransformationBackupPrune,
+  TransformationBatch,
+  TransformationCoverage,
+  TransformationPlanRun
 } from "../../lib/types";
 import MigrationGraphView from "./MigrationGraphView";
 import MigrationInspector from "./MigrationInspector";
+import MigrationPlanComparisonModal from "./MigrationPlanComparisonModal";
 
 type View = "plan" | "phases" | "dependencies" | "review" | "history";
 
@@ -74,6 +79,24 @@ export default function MigrationPage() {
   const [batchConfirm, setBatchConfirm] = useState(false);
   const [batchRestoreConfirm, setBatchRestoreConfirm] = useState(false);
   const [batchError, setBatchError] = useState<Error | null>(null);
+  const [planRunConfirmOpen, setPlanRunConfirmOpen] = useState(false);
+  const [planRunConfirm, setPlanRunConfirm] = useState(false);
+  const [planRunResult, setPlanRunResult] = useState<TransformationPlanRun | null>(null);
+  const [planRunResultOpen, setPlanRunResultOpen] = useState(false);
+  const [planRunRestoreConfirm, setPlanRunRestoreConfirm] = useState(false);
+  const [planRunRecoverConfirm, setPlanRunRecoverConfirm] = useState(false);
+  const [planRunResumeConfirm, setPlanRunResumeConfirm] = useState(false);
+  const [planRunCancelConfirm, setPlanRunCancelConfirm] = useState(false);
+  const [planRunError, setPlanRunError] = useState<Error | null>(null);
+  const [planRunSelection, setPlanRunSelection] = useState<Set<string>>(() => new Set());
+  const [planRunSelectionTouched, setPlanRunSelectionTouched] = useState(false);
+  const [coverageShowAll, setCoverageShowAll] = useState(false);
+  const [backupPruneOpen, setBackupPruneOpen] = useState(false);
+  const [backupPruneConfirm, setBackupPruneConfirm] = useState(false);
+  const [backupPruneResult, setBackupPruneResult] =
+    useState<TransformationBackupPrune | null>(null);
+  const [backupPruneError, setBackupPruneError] = useState<Error | null>(null);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
 
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -104,6 +127,22 @@ export default function MigrationPage() {
     setBatchConfirm(false);
     setBatchRestoreConfirm(false);
     setBatchError(null);
+    setPlanRunConfirmOpen(false);
+    setPlanRunConfirm(false);
+    setPlanRunResult(null);
+    setPlanRunResultOpen(false);
+    setPlanRunRestoreConfirm(false);
+    setPlanRunRecoverConfirm(false);
+    setPlanRunResumeConfirm(false);
+    setPlanRunCancelConfirm(false);
+    setPlanRunError(null);
+    setPlanRunSelection(new Set());
+    setPlanRunSelectionTouched(false);
+    setCoverageShowAll(false);
+    setBackupPruneOpen(false);
+    setBackupPruneConfirm(false);
+    setBackupPruneResult(null);
+    setBackupPruneError(null);
   }, [selectedPlanId, view]);
 
   const planQuery = useQuery({
@@ -112,6 +151,89 @@ export default function MigrationPage() {
     enabled: Boolean(selectedPlanId)
   });
   const plan = planQuery.data;
+  const coverageQuery = useQuery({
+    queryKey: ["transformation-coverage", projectId, selectedPlanId],
+    queryFn: () => api.transformationCoverage(projectId, selectedPlanId),
+    enabled: Boolean(selectedPlanId)
+  });
+  const coverage: TransformationCoverage | undefined = coverageQuery.data;
+  const planRunsQuery = useQuery({
+    queryKey: ["transformation-plan-runs", projectId, selectedPlanId],
+    queryFn: () => api.transformationPlanRuns(projectId, selectedPlanId),
+    enabled: Boolean(selectedPlanId)
+  });
+  const planRuns = planRunsQuery.data || [];
+  const backupsQuery = useQuery({
+    queryKey: ["transformation-backups", projectId],
+    queryFn: () => api.transformationBackups(projectId),
+    enabled: Boolean(projectId)
+  });
+  const backups = backupsQuery.data;
+  const activePlanRunId =
+    planRunResult?.status === "RUNNING" ? planRunResult.id : null;
+  useEffect(() => {
+    if (!coverage) {
+      return;
+    }
+    const eligibleIds = new Set(
+      coverage.items.filter((item) => item.eligible).map((item) => item.itemId)
+    );
+    setPlanRunSelection((previous) => {
+      if (!planRunSelectionTouched) {
+        return new Set(eligibleIds);
+      }
+      return new Set([...previous].filter((itemId) => eligibleIds.has(itemId)));
+    });
+  }, [coverage, planRunSelectionTouched]);
+
+  const planRunDetailQuery = useQuery({
+    queryKey: [
+      "transformation-plan-run",
+      projectId,
+      selectedPlanId,
+      activePlanRunId
+    ],
+    queryFn: () =>
+      api.transformationPlanRun(projectId, selectedPlanId, activePlanRunId as string),
+    enabled: Boolean(activePlanRunId),
+    refetchInterval: 1000
+  });
+
+  useEffect(() => {
+    const detail = planRunDetailQuery.data;
+    if (detail && planRunResult?.id === detail.id) {
+      setPlanRunResult(detail);
+    }
+  }, [planRunDetailQuery.data]);
+
+  const refreshAfterPlanRun = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["migration-plan", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-items", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-item", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-graph", projectId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["transformation-coverage", projectId]
+      }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-plan-runs", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-proposals", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-runs", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-backups", projectId] })
+    ]);
+  };
+
+  useEffect(() => {
+    if (!planRunResult || planRunResult.status === "RUNNING") {
+      return;
+    }
+    void queryClient.invalidateQueries({
+      queryKey: ["transformation-coverage", projectId]
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["transformation-plan-runs", projectId]
+    });
+  }, [planRunResult?.status]);
+
   const summary = plan?.summary || plans.find((item) => item.id === selectedPlanId);
 
   const itemsQuery = useQuery({
@@ -222,7 +344,8 @@ export default function MigrationPage() {
       queryClient.invalidateQueries({ queryKey: ["migration-graph", projectId] }),
       queryClient.invalidateQueries({ queryKey: ["migration-item", projectId] }),
       queryClient.invalidateQueries({ queryKey: ["transformation-proposals", projectId] }),
-      queryClient.invalidateQueries({ queryKey: ["transformation-runs", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["transformation-runs", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-backups", projectId] })
     ]);
   };
 
@@ -268,6 +391,102 @@ export default function MigrationPage() {
     onError: (error) => setBatchError(error as Error)
   });
 
+  const planRunDetailMutation = useMutation({
+    mutationFn: (planRunId: string) =>
+      api.transformationPlanRun(projectId, selectedPlanId, planRunId),
+    onSuccess: (data) => {
+      setPlanRunResult(data);
+      setPlanRunRestoreConfirm(false);
+      setPlanRunRecoverConfirm(false);
+      setPlanRunResumeConfirm(false);
+      setPlanRunCancelConfirm(false);
+      setPlanRunResultOpen(true);
+      setPlanRunError(null);
+    },
+    onError: (error) => setPlanRunError(error as Error)
+  });
+
+  const planRunApplyMutation = useMutation({
+    mutationFn: () =>
+      api.applyTransformationPlanRun(
+        projectId,
+        selectedPlanId,
+        Array.from(planRunSelection)
+      ),
+    onSuccess: async (data) => {
+      setPlanRunResult(data);
+      setPlanRunConfirmOpen(false);
+      setPlanRunConfirm(false);
+      setPlanRunRestoreConfirm(false);
+      setPlanRunResultOpen(true);
+      setPlanRunError(null);
+      await refreshAfterPlanRun();
+    },
+    onError: (error) => setPlanRunError(error as Error)
+  });
+
+  const planRunRestoreMutation = useMutation({
+    mutationFn: (planRunId: string) =>
+      api.restoreTransformationPlanRun(projectId, selectedPlanId, planRunId),
+    onSuccess: async (data) => {
+      setPlanRunResult(data);
+      setPlanRunRestoreConfirm(false);
+      setPlanRunError(null);
+      await refreshAfterPlanRun();
+    },
+    onError: (error) => setPlanRunError(error as Error)
+  });
+
+  const planRunRecoverMutation = useMutation({
+    mutationFn: (planRunId: string) =>
+      api.recoverTransformationPlanRun(projectId, selectedPlanId, planRunId),
+    onSuccess: async (data) => {
+      setPlanRunResult(data);
+      setPlanRunRecoverConfirm(false);
+      setPlanRunResumeConfirm(false);
+      setPlanRunCancelConfirm(false);
+      setPlanRunError(null);
+      await refreshAfterPlanRun();
+    },
+    onError: (error) => setPlanRunError(error as Error)
+  });
+
+  const planRunCancelMutation = useMutation({
+    mutationFn: (planRunId: string) =>
+      api.cancelTransformationPlanRun(projectId, selectedPlanId, planRunId),
+    onSuccess: (data) => {
+      setPlanRunResult(data);
+      setPlanRunCancelConfirm(false);
+      setPlanRunError(null);
+    },
+    onError: (error) => setPlanRunError(error as Error)
+  });
+
+  const planRunResumeMutation = useMutation({
+    mutationFn: (planRunId: string) =>
+      api.resumeTransformationPlanRun(projectId, selectedPlanId, planRunId),
+    onSuccess: (data) => {
+      setPlanRunResult(data);
+      setPlanRunResumeConfirm(false);
+      setPlanRunError(null);
+    },
+    onError: (error) => setPlanRunError(error as Error)
+  });
+
+  const backupPruneMutation = useMutation({
+    mutationFn: () => api.pruneTransformationBackups(projectId),
+    onSuccess: async (data) => {
+      setBackupPruneResult(data);
+      setBackupPruneOpen(false);
+      setBackupPruneConfirm(false);
+      setBackupPruneError(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["transformation-backups", projectId]
+      });
+    },
+    onError: (error) => setBackupPruneError(error as Error)
+  });
+
   const latestCompleted = useMemo(
     () => scansQuery.data?.find((scan) => scan.status === "COMPLETED"),
     [scansQuery.data]
@@ -287,6 +506,7 @@ export default function MigrationPage() {
 
   const selectPlan = (planId: string) => {
     setSelectedItemId(null);
+    setComparisonOpen(false);
     setPage(0);
     updateParams({ plan: planId, view: "plan" });
   };
@@ -451,9 +671,21 @@ export default function MigrationPage() {
             <div className="migration-summary-identity">
               <div className="migration-summary-topline">
                 <span className="eyebrow">{t("migration.planLabel")}</span>
-                <span className="migration-plan-number">
-                  {t("migration.planNumber", { number: summary.sequence })}
-                </span>
+                <div className="migration-summary-actions">
+                  <span className="migration-plan-number">
+                    {t("migration.planNumber", { number: summary.sequence })}
+                  </span>
+                  {summary.sequence > 1 ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={() => setComparisonOpen(true)}
+                    >
+                      <GitCompare size={14} />
+                      {t("migration.compare.button")}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               <div className="migration-profile-flow">
                 <div>
@@ -536,6 +768,275 @@ export default function MigrationPage() {
               >
                 {t("migration.regenerate")}
               </button>
+            </section>
+          ) : null}
+
+          {coverage ? (
+            <section className="surface migration-coverage">
+              <header className="section-header">
+                <div>
+                  <span className="eyebrow">{t("migration.coverage.eyebrow")}</span>
+                  <h2>{t("migration.coverage.title")}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="button button-primary button-small"
+                  disabled={
+                    planRunSelection.size === 0 || planRunApplyMutation.isPending
+                  }
+                  onClick={() => {
+                    setPlanRunError(null);
+                    setPlanRunConfirm(false);
+                    setPlanRunConfirmOpen(true);
+                  }}
+                >
+                  <Play size={14} />
+                  {t("migration.coverage.run")}
+                </button>
+              </header>
+              <p className="migration-note">{t("migration.coverage.description")}</p>
+              <p className="migration-note">
+                {t("migration.coverage.selectedOf", {
+                  selected: planRunSelection.size,
+                  eligible: coverage.summary.eligible
+                })}
+              </p>
+              <div className="migration-metrics">
+                <Metric
+                  label={t("migration.coverage.eligible")}
+                  value={coverage.summary.eligible}
+                  tone="success"
+                />
+                <Metric
+                  label={t("migration.coverage.supported")}
+                  value={coverage.summary.supported}
+                />
+                <Metric
+                  label={t("migration.coverage.unsupported")}
+                  value={coverage.summary.unsupported}
+                  tone={coverage.summary.unsupported > 0 ? "warning" : "neutral"}
+                />
+                <Metric
+                  label={t("migration.coverage.appliedRuns")}
+                  value={coverage.summary.appliedRuns}
+                />
+              </div>
+              <div className="migration-coverage-facts">
+                <span>{t("migration.coverage.rules", { count: coverage.ruleCount })}</span>
+                <span>
+                  {t("migration.coverage.excluded", { count: coverage.summary.excluded })}
+                </span>
+                <span>
+                  {t("migration.coverage.review", {
+                    count: coverage.summary.reviewRequired
+                  })}
+                </span>
+                <span>
+                  {t("migration.coverage.blocked", { count: coverage.summary.blocked })}
+                </span>
+              </div>
+              <div className="migration-coverage-toolbar">
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => {
+                    setPlanRunSelectionTouched(true);
+                    setPlanRunSelection(new Set(coverage.items
+                      .filter((item) => item.eligible)
+                      .map((item) => item.itemId)));
+                  }}
+                >
+                  {t("migration.coverage.selectAll")}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => {
+                    setPlanRunSelectionTouched(true);
+                    setPlanRunSelection(new Set());
+                  }}
+                >
+                  {t("migration.coverage.clear")}
+                </button>
+                <label className="migration-coverage-toggle">
+                  <input
+                    type="checkbox"
+                    checked={coverageShowAll}
+                    onChange={(event) => setCoverageShowAll(event.target.checked)}
+                  />
+                  <span>{t("migration.coverage.showAll")}</span>
+                </label>
+              </div>
+              <div className="migration-coverage-list">
+                {(coverageShowAll
+                  ? coverage.items
+                  : coverage.items.filter((item) => item.eligible)).map((item) => {
+                  const ruleLabel = item.ruleId
+                    ? `${item.ruleId} ${item.ruleVersion ?? ""}`.trim()
+                    : "";
+                  const reason = item.ineligibleReason
+                    ? t(`migration.coverage.reasons.${item.ineligibleReason}`, {
+                        defaultValue: item.ineligibleReason
+                      })
+                    : "";
+                  return (
+                    <label
+                      className={`migration-coverage-item${
+                        item.eligible ? "" : " migration-coverage-item-disabled"
+                      }`}
+                      key={item.itemId}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={!item.eligible}
+                        checked={planRunSelection.has(item.itemId)}
+                        onChange={(event) => {
+                          setPlanRunSelectionTouched(true);
+                          setPlanRunSelection((previous) => {
+                            const next = new Set(previous);
+                            if (event.target.checked) {
+                              next.add(item.itemId);
+                            } else {
+                              next.delete(item.itemId);
+                            }
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="migration-coverage-item-copy">
+                        <strong>{item.title}</strong>
+                        <small>
+                          {[ruleLabel, reason].filter(Boolean).join(" · ")
+                            || t("migration.coverage.noRule")}
+                        </small>
+                      </span>
+                      <StatusBadge value={item.status} kind="migration" />
+                    </label>
+                  );
+                })}
+              </div>
+              {planRuns.length > 0 ? (
+                <div className="migration-plan-runs">
+                  <span className="migration-fact-label">
+                    {t("migration.coverage.history")}
+                  </span>
+                  <div className="migration-plan-run-list">
+                    {planRuns.slice(0, 3).map((run) => (
+                      <button
+                        type="button"
+                        className="migration-plan-run"
+                        key={run.id}
+                        onClick={() => planRunDetailMutation.mutate(run.id)}
+                      >
+                        <StatusBadge value={run.status} kind="transformation" />
+                        <span>
+                          {t("migration.coverage.appliedOf", {
+                            applied: run.appliedCount,
+                            eligible: run.eligibleCount
+                          })}
+                        </span>
+                        <small>{formatDate(run.createdAt, i18n.language)}</small>
+                        <ChevronRight size={14} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {planRunError && !planRunResultOpen ? (
+                <p className="inline-error">{planRunError.message}</p>
+              ) : null}
+            </section>
+          ) : null}
+
+          {backups ? (
+            <section className="surface migration-backups">
+              <header className="section-header">
+                <div>
+                  <span className="eyebrow">{t("migration.backups.eyebrow")}</span>
+                  <h2>{t("migration.backups.title")}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  disabled={backups.prunable === 0 || backupPruneMutation.isPending}
+                  onClick={() => {
+                    setBackupPruneError(null);
+                    setBackupPruneConfirm(false);
+                    setBackupPruneOpen(true);
+                  }}
+                >
+                  <RotateCcw size={14} />
+                  {t("migration.backups.prune")}
+                </button>
+              </header>
+              <p className="migration-note">{t("migration.backups.description")}</p>
+              <div className="migration-metrics">
+                <Metric label={t("migration.backups.total")} value={backups.total} />
+                <Metric
+                  label={t("migration.backups.restorable")}
+                  value={backups.restorable}
+                  tone="success"
+                />
+                <Metric
+                  label={t("migration.backups.prunableCount")}
+                  value={backups.prunable}
+                  tone={backups.prunable > 0 ? "warning" : "neutral"}
+                />
+                <Metric
+                  label={t("migration.backups.missing")}
+                  value={backups.missing}
+                  tone={backups.missing > 0 ? "danger" : "neutral"}
+                />
+              </div>
+              <div className="migration-coverage-facts">
+                <span>
+                  {t("migration.backups.size", {
+                    value: formatBytes(backups.totalBytes, i18n.language)
+                  })}
+                </span>
+                <span>
+                  {t("migration.backups.existing", { count: backups.existing })}
+                </span>
+              </div>
+              {backupPruneResult ? (
+                <p className="migration-note">
+                  {t("migration.backups.pruned", {
+                    deleted: backupPruneResult.deleted,
+                    failed: backupPruneResult.failed
+                  })}
+                </p>
+              ) : null}
+              {backups.items.length > 0 ? (
+                <div className="migration-backup-list">
+                  {backups.items.slice(0, 8).map((item) => (
+                    <div className="migration-backup-item" key={item.runId}>
+                      <div>
+                        <strong>{item.title ?? item.relativePath}</strong>
+                        <small>
+                          {item.relativePath} · {item.ruleId} {item.ruleVersion}
+                        </small>
+                      </div>
+                      <span className="migration-chip">
+                        {item.exists
+                          ? t("migration.backups.states.EXISTS")
+                          : t("migration.backups.states.MISSING")}
+                      </span>
+                      <StatusBadge value={item.status} kind="transformation" />
+                      <small>{formatBytes(item.sizeBytes, i18n.language)}</small>
+                      {item.prunable ? (
+                        <span className="migration-chip">
+                          {t("migration.backups.prunable")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="migration-note">{t("migration.backups.empty")}</p>
+              )}
+              {backupPruneError ? (
+                <p className="inline-error">{backupPruneError.message}</p>
+              ) : null}
             </section>
           ) : null}
 
@@ -978,6 +1479,20 @@ export default function MigrationPage() {
         />
       ) : null}
 
+      {selectedPlanId && summary ? (
+        <MigrationPlanComparisonModal
+          projectId={projectId}
+          plan={summary}
+          plans={plans}
+          open={comparisonOpen}
+          onClose={() => setComparisonOpen(false)}
+          onOpenItem={(itemId) => {
+            setComparisonOpen(false);
+            setSelectedItemId(itemId);
+          }}
+        />
+      ) : null}
+
       <Modal
         open={generateOpen}
         title={t("migration.generateTitle")}
@@ -1178,6 +1693,294 @@ export default function MigrationPage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={planRunConfirmOpen}
+        title={t("migration.planRun.confirmTitle")}
+        description={t("migration.planRun.confirmDescription", {
+          count: planRunSelection.size
+        })}
+        onClose={() => {
+          setPlanRunConfirmOpen(false);
+          setPlanRunConfirm(false);
+          setPlanRunError(null);
+        }}
+      >
+        <div className="migration-generate-body">
+          <div className="migration-plan-run-preview">
+            <span>
+              {t("migration.planRun.eligible", {
+                count: planRunSelection.size
+              })}
+            </span>
+            <span>
+              {t("migration.planRun.supported", {
+                count: coverage?.summary.supported ?? 0
+              })}
+            </span>
+            <span>
+              {t("migration.planRun.unsupported", {
+                count: coverage?.summary.unsupported ?? 0
+              })}
+            </span>
+          </div>
+          <p className="migration-note">{t("migration.planRun.warning")}</p>
+          <label className="migration-confirm">
+            <input
+              type="checkbox"
+              checked={planRunConfirm}
+              onChange={(event) => setPlanRunConfirm(event.target.checked)}
+            />
+            <span>{t("migration.planRun.confirm")}</span>
+          </label>
+          {planRunError ? <p className="inline-error">{planRunError.message}</p> : null}
+          <div className="modal-actions">
+            <button
+              className="button button-ghost"
+              onClick={() => {
+                setPlanRunConfirmOpen(false);
+                setPlanRunConfirm(false);
+                setPlanRunError(null);
+              }}
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              className="button button-primary"
+              disabled={!planRunConfirm || planRunApplyMutation.isPending}
+              onClick={() => planRunApplyMutation.mutate()}
+            >
+              <Play size={15} />
+              {planRunApplyMutation.isPending
+                ? t("migration.planRun.working")
+                : t("migration.planRun.apply")}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={planRunResultOpen}
+        title={t("migration.planRun.resultTitle")}
+        onClose={() => {
+          setPlanRunResultOpen(false);
+          setPlanRunRestoreConfirm(false);
+          setPlanRunRecoverConfirm(false);
+          setPlanRunResumeConfirm(false);
+          setPlanRunCancelConfirm(false);
+          setPlanRunError(null);
+        }}
+      >
+        {planRunResult ? (
+          <div className="migration-batch-result">
+            <div className="migration-batch-summary">
+              <StatusBadge value={planRunResult.status} kind="transformation" />
+              <span>
+                {t("migration.planRun.eligibleCount")}: {planRunResult.eligibleCount}
+              </span>
+              <span>
+                {t("migration.planRun.appliedCount")}: {planRunResult.appliedCount}
+              </span>
+              {planRunResult.rolledBackCount > 0 ? (
+                <span>
+                  {t("migration.planRun.rolledBackCount")}: {planRunResult.rolledBackCount}
+                </span>
+              ) : null}
+              {planRunResult.restoredCount > 0 ? (
+                <span>
+                  {t("migration.planRun.restoredCount")}: {planRunResult.restoredCount}
+                </span>
+              ) : null}
+              {planRunResult.failedCount > 0 ? (
+                <span>
+                  {t("migration.planRun.failedCount")}: {planRunResult.failedCount}
+                </span>
+              ) : null}
+            </div>
+            {planRunResult.status === "RUNNING" ? (
+              <p className="migration-note">
+                {t("migration.planRun.progress", {
+                  done: planRunResult.items.filter((item) => item.status === "APPLIED").length,
+                  total: planRunResult.items.length
+                })}
+              </p>
+            ) : null}
+            <p className="migration-note">{t("migration.planRun.resultNote")}</p>
+            <div className="migration-batch-items">
+              {planRunResult.items.map((item) => (
+                <div className="migration-batch-item" key={item.itemId}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <small>{item.errorCode ?? `#${item.ordinal}`}</small>
+                  </div>
+                  <StatusBadge value={item.status} kind="transformation" />
+                  {item.errorMessage ? (
+                    <p className="inline-error">{item.errorMessage}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            {planRunResult.status === "RUNNING" ? (
+              <div className="migration-batch-restore">
+                {planRunResult.cancelRequested ? (
+                  <p className="migration-note">{t("migration.planRun.cancelRequested")}</p>
+                ) : (
+                  <>
+                    <label className="migration-confirm">
+                      <input
+                        type="checkbox"
+                        checked={planRunCancelConfirm}
+                        onChange={(event) => setPlanRunCancelConfirm(event.target.checked)}
+                      />
+                      <span>{t("migration.planRun.cancelConfirm")}</span>
+                    </label>
+                    <button
+                      className="button button-secondary"
+                      disabled={!planRunCancelConfirm || planRunCancelMutation.isPending}
+                      onClick={() => planRunCancelMutation.mutate(planRunResult.id)}
+                    >
+                      <RotateCcw size={15} />
+                      {planRunCancelMutation.isPending
+                        ? t("migration.planRun.cancelWorking")
+                        : t("migration.planRun.cancel")}
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : planRunResult.status === "INTERRUPTED" ? (
+              <>
+                <div className="migration-batch-restore">
+                  <label className="migration-confirm">
+                    <input
+                      type="checkbox"
+                      checked={planRunResumeConfirm}
+                      onChange={(event) => setPlanRunResumeConfirm(event.target.checked)}
+                    />
+                    <span>{t("migration.planRun.resumeConfirm")}</span>
+                  </label>
+                  <button
+                    className="button button-primary"
+                    disabled={!planRunResumeConfirm || planRunResumeMutation.isPending}
+                    onClick={() => planRunResumeMutation.mutate(planRunResult.id)}
+                  >
+                    <Play size={15} />
+                    {planRunResumeMutation.isPending
+                      ? t("migration.planRun.resumeWorking")
+                      : t("migration.planRun.resume")}
+                  </button>
+                </div>
+                <div className="migration-batch-restore">
+                  <label className="migration-confirm">
+                    <input
+                      type="checkbox"
+                      checked={planRunRecoverConfirm}
+                      onChange={(event) => setPlanRunRecoverConfirm(event.target.checked)}
+                    />
+                    <span>{t("migration.planRun.recoverConfirm")}</span>
+                  </label>
+                  <button
+                    className="button button-secondary"
+                    disabled={!planRunRecoverConfirm || planRunRecoverMutation.isPending}
+                    onClick={() => planRunRecoverMutation.mutate(planRunResult.id)}
+                  >
+                    <RotateCcw size={15} />
+                    {planRunRecoverMutation.isPending
+                      ? t("migration.planRun.recoverWorking")
+                      : t("migration.planRun.recover")}
+                  </button>
+                </div>
+              </>
+            ) : planRunResult.status === "APPLIED" && planRunResult.appliedCount > 0 ? (
+              <div className="migration-batch-restore">
+                <label className="migration-confirm">
+                  <input
+                    type="checkbox"
+                    checked={planRunRestoreConfirm}
+                    onChange={(event) => setPlanRunRestoreConfirm(event.target.checked)}
+                  />
+                  <span>{t("migration.planRun.restoreConfirm")}</span>
+                </label>
+                <button
+                  className="button button-secondary"
+                  disabled={!planRunRestoreConfirm || planRunRestoreMutation.isPending}
+                  onClick={() => planRunRestoreMutation.mutate(planRunResult.id)}
+                >
+                  <RotateCcw size={15} />
+                  {planRunRestoreMutation.isPending
+                    ? t("migration.planRun.restoreWorking")
+                    : t("migration.planRun.restore")}
+                </button>
+              </div>
+            ) : null}
+            {planRunError ? <p className="inline-error">{planRunError.message}</p> : null}
+            <div className="modal-actions">
+              <button
+                className="button button-ghost"
+                onClick={() => {
+                  setPlanRunResultOpen(false);
+                  setPlanRunRestoreConfirm(false);
+                  setPlanRunRecoverConfirm(false);
+                  setPlanRunResumeConfirm(false);
+                  setPlanRunCancelConfirm(false);
+                  setPlanRunError(null);
+                }}
+              >
+                {t("migration.planRun.close")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={backupPruneOpen}
+        title={t("migration.backups.pruneTitle")}
+        description={t("migration.backups.pruneDescription", {
+          count: backups?.prunable ?? 0
+        })}
+        onClose={() => {
+          setBackupPruneOpen(false);
+          setBackupPruneConfirm(false);
+          setBackupPruneError(null);
+        }}
+      >
+        <div className="migration-generate-body">
+          <p className="migration-note">{t("migration.backups.protected")}</p>
+          <label className="migration-confirm">
+            <input
+              type="checkbox"
+              checked={backupPruneConfirm}
+              onChange={(event) => setBackupPruneConfirm(event.target.checked)}
+            />
+            <span>{t("migration.backups.pruneConfirm")}</span>
+          </label>
+          {backupPruneError ? (
+            <p className="inline-error">{backupPruneError.message}</p>
+          ) : null}
+          <div className="modal-actions">
+            <button
+              className="button button-ghost"
+              onClick={() => {
+                setBackupPruneOpen(false);
+                setBackupPruneConfirm(false);
+                setBackupPruneError(null);
+              }}
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              className="button button-primary"
+              disabled={!backupPruneConfirm || backupPruneMutation.isPending}
+              onClick={() => backupPruneMutation.mutate()}
+            >
+              <RotateCcw size={15} />
+              {backupPruneMutation.isPending
+                ? t("migration.backups.pruneWorking")
+                : t("migration.backups.prune")}
+            </button>
+          </div>
+        </div>
       </Modal>
     </>
   );

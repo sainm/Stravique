@@ -270,6 +270,83 @@ else
   migration_has_edges=0
 fi
 check "migration graph uses persisted dependencies" "1" "${migration_has_edges}"
+coverage_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/transformation-coverage")"
+coverage_eligible="$(printf '%s' "${coverage_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("eligible",0))')"
+coverage_unsupported="$(printf '%s' "${coverage_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("unsupported",0))')"
+coverage_reasons="$(printf '%s' "${coverage_json}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(sum(1 for i in d.get("items",[]) if i.get("ineligibleReason")))')"
+if [[ "${coverage_eligible}" -gt 0 ]]; then
+  coverage_has_eligible=1
+else
+  coverage_has_eligible=0
+fi
+if [[ "${coverage_unsupported}" -gt 0 && "${coverage_reasons}" -gt 0 ]]; then
+  coverage_has_gaps=1
+else
+  coverage_has_gaps=0
+fi
+check "plan coverage finds executable items" "1" "${coverage_has_eligible}"
+check "plan coverage explains ineligible items" "1" "${coverage_has_gaps}"
+comparison_item_id="$(printf '%s' "${migration_items}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next((i["id"] for i in d.get("content",[]) if i.get("included") and i.get("dependentCount",0)==0),""))')"
+comparison_item_key="$(printf '%s' "${migration_items}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next((i["itemKey"] for i in d.get("content",[]) if i.get("included") and i.get("dependentCount",0)==0),""))')"
+curl -s -X PATCH "${base_url}/projects/${project_id}/migration-plans/${plan_id}/items/${comparison_item_id}" \
+  -H 'Content-Type: application/json' -d '{"included":false}' >/dev/null
+second_plan_json="$(curl -s -X POST "${base_url}/projects/${project_id}/migration-plans" \
+  -H 'Content-Type: application/json' \
+  -d '{"targetProfile":"SPRING_BOOT_MVC"}')"
+second_plan_id="$(printf '%s' "${second_plan_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("id",""))')"
+second_plan_item_count="$(printf '%s' "${second_plan_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("itemCount",0))')"
+plan_options_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/options")"
+plan_options_count="$(printf '%s' "${plan_options_json}" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')"
+plan_options_include_first="$(printf '%s' "${plan_options_json}" | python3 -c 'import sys,json;target=sys.argv[1];print(1 if any(p.get("id")==target for p in json.load(sys.stdin)) else 0)' "${plan_id}")"
+if [[ "${plan_options_count}" -ge 2 && "${plan_options_include_first}" -eq 1 ]]; then
+  plan_options_complete=1
+else
+  plan_options_complete=0
+fi
+check "plan comparison lists every plan as a base option" "1" "${plan_options_complete}"
+comparison_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${second_plan_id}/comparison")"
+second_items_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${second_plan_id}/items?size=200")"
+comparison_current_item="$(printf '%s' "${second_items_json}" | python3 -c 'import sys,json;d=json.load(sys.stdin);target=sys.argv[1];print(next((i["id"] for i in d.get("content",[]) if i.get("itemKey")==target),""))' "${comparison_item_key}")"
+comparison_unchanged="$(printf '%s' "${comparison_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("unchanged",-1))')"
+comparison_changed="$(printf '%s' "${comparison_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("changed",-1))')"
+comparison_item="$(printf '%s' "${comparison_json}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next((i.get("itemId","") for i in d.get("items",[]) if i.get("status")=="CHANGED"),""))')"
+comparison_base_sequence="$(printf '%s' "${comparison_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("basePlan",{}).get("sequence",-1))')"
+comparison_plan_sequence="$(printf '%s' "${comparison_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("plan",{}).get("sequence",-1))')"
+if [[ "${comparison_base_sequence}" -eq "$((comparison_plan_sequence - 1))" ]]; then
+  comparison_previous=1
+else
+  comparison_previous=0
+fi
+if [[ "${comparison_unchanged}" -eq "$((second_plan_item_count - 1))" && "${comparison_changed}" -eq 1 ]]; then
+  comparison_scope_change=1
+else
+  comparison_scope_change=0
+fi
+check "plan comparison finds the scope change" "1" "${comparison_scope_change}"
+check "plan comparison returns the current item id" "${comparison_current_item}" "${comparison_item}"
+check "plan comparison defaults to the previous plan" "1" "${comparison_previous}"
+comparison_self="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${second_plan_id}/comparison?basePlanId=${second_plan_id}" | json_field code)"
+check "plan comparison rejects the same plan" "MIGRATION_PLAN_COMPARISON_SELF" "${comparison_self}"
+rule_catalog="$(curl -s "${base_url}/transformation-rules")"
+dicon_rule_count="$(printf '%s' "${rule_catalog}" | python3 -c 'import sys,json;print(sum(1 for r in json.load(sys.stdin) if r.get("ruleId")=="DICON-COMPONENT-SPRING-CONFIG" and r.get("ruleVersion")=="1.6.0" and r.get("fileName")==".dicon"))')"
+if [[ "${dicon_rule_count}" -eq 1 ]]; then
+  dicon_rule_present=1
+else
+  dicon_rule_present=0
+fi
+check "dicon configuration rule is cataloged" "1" "${dicon_rule_present}"
+plan_runs_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/transformation-plan-runs")"
+plan_runs_count="$(printf '%s' "${plan_runs_json}" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')"
+check "plan run history starts empty" "0" "${plan_runs_count}"
+backup_ledger="$(curl -s "${base_url}/projects/${project_id}/transformation-backups")"
+backup_total="$(printf '%s' "${backup_ledger}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("total",-1))')"
+backup_prunable="$(printf '%s' "${backup_ledger}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("prunable",-1))')"
+if [[ "${backup_total}" -eq 0 && "${backup_prunable}" -eq 0 ]]; then
+  backup_empty=1
+else
+  backup_empty=0
+fi
+check "backup ledger starts empty" "1" "${backup_empty}"
 dependent_item="$(printf '%s' "${migration_items}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next((i["id"] for i in d.get("content",[]) if i.get("dependentCount",0)>0),""))')"
 scope_error="$(curl -s -X PATCH "${base_url}/projects/${project_id}/migration-plans/${plan_id}/items/${dependent_item}" \
   -H 'Content-Type: application/json' -d '{"included":false}' | json_field code)"

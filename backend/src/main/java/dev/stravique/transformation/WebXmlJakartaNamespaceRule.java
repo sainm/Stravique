@@ -10,14 +10,18 @@ import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class WebXmlJakartaNamespaceRule implements TransformationRule {
 
     private static final String RULE_ID = "WEBXML-JAKARTA-NAMESPACE";
-    private static final String RULE_VERSION = "1.0.0";
+    private static final String RULE_VERSION = "1.2.0";
     private static final String JAKARTA_NAMESPACE = "https://jakarta.ee/xml/ns/jakartaee";
     private static final String JAVAEE_NAMESPACE = "http://java.sun.com/xml/ns/javaee";
     private static final String J2EE_NAMESPACE = "http://java.sun.com/xml/ns/j2ee";
@@ -26,6 +30,10 @@ public class WebXmlJakartaNamespaceRule implements TransformationRule {
     private static final List<String> OLD_SCHEMAS = List.of(
             "web-app_2_3.xsd", "web-app_2_4.xsd", "web-app_2_5.xsd",
             "web-app_3_0.xsd", "web-app_3_1.xsd", "web-app_4_0.xsd");
+    private static final Pattern CLASS_ELEMENT = Pattern.compile(
+            "(?s)(<((?:[\\w.-]+:)?(?:servlet-class|filter-class|listener-class|exception-type))"
+                    + "(?:\\s[^>]*)?>)(.*?)(</\\2\\s*>)");
+    private static final Pattern CLASS_NAME = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$.]*");
 
     @Override
     public String ruleId() {
@@ -74,14 +82,52 @@ public class WebXmlJakartaNamespaceRule implements TransformationRule {
                     "Only a web-app descriptor is supported.");
         }
         String version = root.getAttribute("version").trim();
-        if (!OLD_VERSIONS.contains(version)) {
+        String namespace = root.getNamespaceURI();
+        boolean migrateNamespace;
+        if (JAVAEE_NAMESPACE.equals(namespace) || J2EE_NAMESPACE.equals(namespace)) {
+            if (!OLD_VERSIONS.contains(version)) {
+                throw new TransformationUnsupportedException(
+                        "The web-app version is not a supported Java EE version.");
+            }
+            migrateNamespace = true;
+        } else if (JAKARTA_NAMESPACE.equals(namespace)) {
+            if (!"6.0".equals(version)) {
+                throw new TransformationUnsupportedException(
+                        "The web-app version is not a supported Jakarta EE version.");
+            }
+            migrateNamespace = false;
+        } else {
             throw new TransformationUnsupportedException(
-                    "The web-app version is not a supported Java EE version.");
+                    "No Java EE or Jakarta web-app namespace was found.");
         }
-        if (!source.contains(JAVAEE_NAMESPACE) && !source.contains(J2EE_NAMESPACE)) {
+        String proposed = rewriteClassNames(source);
+        if (migrateNamespace) {
+            proposed = migrateNamespace(proposed, version);
+        } else if (proposed.equals(source)) {
             throw new TransformationUnsupportedException(
-                    "No Java EE web-app namespace was found.");
+                    "The descriptor already uses the Jakarta namespace and no supported class name was found.");
         }
+        validate(proposed);
+        return proposed;
+    }
+
+    @Override
+    public void validate(String proposed) {
+        Document document = parse(proposed);
+        Element root = document.getDocumentElement();
+        if (!"web-app".equals(localName(root))
+                || !JAKARTA_NAMESPACE.equals(root.getNamespaceURI())
+                || !"6.0".equals(root.getAttribute("version").trim())) {
+            throw new TransformationInvalidException(
+                    "The descriptor is not a Jakarta EE 6.0 web-app.");
+        }
+        if (containsJavaxClass(proposed)) {
+            throw new TransformationInvalidException(
+                    "The descriptor still references a javax class name.");
+        }
+    }
+
+    private String migrateNamespace(String source, String version) {
         String rootTag = rootTag(source);
         String oldVersionAttribute = "version=\"" + version + "\"";
         if (!rootTag.contains(oldVersionAttribute)) {
@@ -107,20 +153,88 @@ public class WebXmlJakartaNamespaceRule implements TransformationRule {
             throw new TransformationUnsupportedException(
                     "The descriptor already uses the Jakarta namespace.");
         }
-        validate(proposed);
         return proposed;
     }
 
-    @Override
-    public void validate(String proposed) {
-        Document document = parse(proposed);
-        Element root = document.getDocumentElement();
-        if (!"web-app".equals(localName(root))
-                || !JAKARTA_NAMESPACE.equals(root.getNamespaceURI())
-                || !"6.0".equals(root.getAttribute("version").trim())) {
-            throw new TransformationInvalidException(
-                    "The descriptor is not a Jakarta EE 6.0 web-app.");
+    private String rewriteClassNames(String source) {
+        Matcher matcher = CLASS_ELEMENT.matcher(maskUneditableSections(source));
+        List<Edit> edits = new ArrayList<>();
+        while (matcher.find()) {
+            String content = source.substring(matcher.start(3), matcher.end(3));
+            String trimmed = content.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (!CLASS_NAME.matcher(trimmed).matches()) {
+                throw new TransformationUnsupportedException(
+                        "A web.xml class element does not contain a single class name.");
+            }
+            if (!trimmed.startsWith("javax.")) {
+                continue;
+            }
+            if (!JakartaMappings.supports(trimmed)) {
+                throw new TransformationUnsupportedException(
+                        "The descriptor references a javax class without a vetted Jakarta mapping.");
+            }
+            int start = matcher.start(3) + content.indexOf(trimmed);
+            edits.add(new Edit(start, start + trimmed.length(),
+                    JakartaMappings.toJakarta(trimmed)));
         }
+        List<Edit> sorted = edits.stream()
+                .sorted(Comparator.comparingInt(Edit::start).reversed())
+                .toList();
+        String proposed = source;
+        for (Edit edit : sorted) {
+            proposed = proposed.substring(0, edit.start()) + edit.replacement()
+                    + proposed.substring(edit.end());
+        }
+        return proposed;
+    }
+
+    private boolean containsJavaxClass(String source) {
+        Matcher matcher = CLASS_ELEMENT.matcher(maskUneditableSections(source));
+        while (matcher.find()) {
+            String trimmed = source.substring(matcher.start(3), matcher.end(3)).trim();
+            if (trimmed.startsWith("javax.")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String maskUneditableSections(String source) {
+        char[] characters = source.toCharArray();
+        int index = 0;
+        while (index < source.length()) {
+            int comment = source.indexOf("<!--", index);
+            int cdata = source.indexOf("<![CDATA[", index);
+            if (comment < 0 && cdata < 0) {
+                break;
+            }
+            String open;
+            String close;
+            int start;
+            if (cdata < 0 || (comment >= 0 && comment < cdata)) {
+                open = "<!--";
+                close = "-->";
+                start = comment;
+            } else {
+                open = "<![CDATA[";
+                close = "]]>";
+                start = cdata;
+            }
+            int end = source.indexOf(close, start + open.length());
+            if (end < 0) {
+                break;
+            }
+            for (int cursor = start; cursor < end + close.length(); cursor++) {
+                if (characters[cursor] != '\n' && characters[cursor] != '\r') {
+                    characters[cursor] = ' ';
+                }
+            }
+            index = end + close.length();
+        }
+        return new String(characters);
     }
 
     private Document parse(String text) {
@@ -148,5 +262,8 @@ public class WebXmlJakartaNamespaceRule implements TransformationRule {
 
     private String localName(Element element) {
         return element.getLocalName() == null ? element.getNodeName() : element.getLocalName();
+    }
+
+    private record Edit(int start, int end, String replacement) {
     }
 }

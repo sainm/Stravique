@@ -63,6 +63,25 @@ if (existingPlans.length > 0) {
 } else if (project.latestScan?.status === "COMPLETED") {
   migrationPlanId = await createMigrationPlan();
 }
+let comparisonReady = false;
+if (migrationPlanId) {
+  const plansForComparison = await fetch(
+    `${apiUrl}/projects/${project.id}/migration-plans`
+  ).then((response) => (response.ok ? response.json() : []));
+  const selectedPlan = plansForComparison.find(
+    (plan) => plan.id === migrationPlanId
+  );
+  if (!selectedPlan || selectedPlan.sequence < 2) {
+    migrationPlanId = (await createMigrationPlan()) || migrationPlanId;
+  }
+  const refreshedPlans = await fetch(
+    `${apiUrl}/projects/${project.id}/migration-plans`
+  ).then((response) => (response.ok ? response.json() : []));
+  const currentPlan = refreshedPlans.find(
+    (plan) => plan.id === migrationPlanId
+  );
+  comparisonReady = Boolean(currentPlan && currentPlan.sequence > 1);
+}
 let transformationTitle = "";
 let validationItemId = "";
 let formItemId = "";
@@ -75,6 +94,7 @@ let jspItemId = "";
 let listJspItemId = "";
 let webXmlItemId = "";
 let strutsConfigItemId = "";
+let diconItemId = "";
 if (migrationPlanId) {
   const migrationItems = await fetch(
     `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items?size=200`
@@ -289,6 +309,15 @@ if (migrationPlanId) {
         { method: "POST" }
       );
     }
+  }
+  const dicon = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "CONFIGURATION" &&
+      item.targetKey === "SPRING_BOOT_CONFIG" &&
+      item.title.endsWith(".dicon")
+  );
+  if (dicon) {
+    diconItemId = dicon.id;
   }
 }
 const migrationQuery = migrationPlanId ? `?plan=${migrationPlanId}` : "";
@@ -966,6 +995,112 @@ for (const language of languages) {
         await page.waitForTimeout(200);
       }
 
+      if (name === "migration" && diconItemId) {
+        const searchInput = page.locator(".migration-filters input").first();
+        await searchInput.fill(".dicon");
+        await page.waitForTimeout(300);
+        const diconRow = page
+          .locator(`[data-item-id="${diconItemId}"] .migration-row-open`)
+          .first();
+        await diconRow
+          .waitFor({ state: "visible", timeout: 5000 })
+          .catch(() => {});
+        if ((await diconRow.count()) > 0) {
+          await diconRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-transformation-actions")
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-dicon-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+        await searchInput.fill("");
+        await page.waitForTimeout(200);
+      }
+
+      if (name === "migration" && comparisonReady) {
+        const compareButton = page
+          .locator(".migration-summary-actions .button")
+          .first();
+        await compareButton
+          .waitFor({ state: "visible", timeout: 5000 })
+          .catch(() => {});
+        if ((await compareButton.count()) > 0) {
+          await compareButton.click();
+          const comparisonModal = page.locator(".modal-card");
+          await comparisonModal
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          await page
+            .locator(".migration-comparison-body")
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const comparisonMetrics = await page
+            .locator(".migration-comparison-metric")
+            .count();
+          if (comparisonMetrics !== 4) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-plan-comparison",
+              comparisonMetrics
+            });
+          }
+          const baseSelect = page
+            .locator(".migration-comparison-base select")
+            .first();
+          const baseOptions = await baseSelect.locator("option").count();
+          if (baseOptions === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-plan-comparison",
+              baseOptions
+            });
+          } else if (baseOptions > 1) {
+            await baseSelect.selectOption({ index: 1 });
+            await page.waitForTimeout(500);
+            const switchedMetrics = await page
+              .locator(".migration-comparison-metric")
+              .count();
+            if (switchedMetrics !== 4) {
+              issues.push({
+                language,
+                viewport: viewport.name,
+                route: "migration-plan-comparison",
+                switchedMetrics
+              });
+            }
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-plan-comparison.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await comparisonModal.waitFor({ state: "hidden" });
+        } else {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: "migration-plan-comparison",
+            compareButton: false
+          });
+        }
+      }
+
       if (name === "migration" && validationItemId && controllerItemId) {
         const searchInput = page.locator(".migration-filters input").first();
         await searchInput.fill("OrderAction.java");
@@ -1029,6 +1164,39 @@ for (const language of languages) {
         }
         await searchInput.fill("");
         await page.waitForTimeout(200);
+      }
+
+      if (name === "migration") {
+        const coverage = page.locator(".migration-coverage").first();
+        await coverage.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+        if ((await coverage.count()) > 0) {
+          const runButton = coverage.locator(".section-header .button-primary").first();
+          if ((await runButton.count()) > 0 && (await runButton.isEnabled())) {
+            await runButton.click();
+            const confirmModal = page.locator(".modal-card");
+            const confirmVisible = await confirmModal
+              .waitFor({ state: "visible", timeout: 5000 })
+              .then(() => true)
+              .catch(() => false);
+            if (confirmVisible) {
+              await page
+                .locator(".migration-plan-run-preview")
+                .waitFor({ state: "visible", timeout: 5000 })
+                .catch(() => {});
+              await page.locator(".migration-plan-run-preview").scrollIntoViewIfNeeded();
+              await page.waitForTimeout(200);
+              await page.screenshot({
+                path: path.join(
+                  outputDirectory,
+                  `${language}-${viewport.name}-migration-plan-run-confirm.png`
+                ),
+                fullPage: false
+              });
+              await page.keyboard.press("Escape");
+              await confirmModal.waitFor({ state: "hidden" });
+            }
+          }
+        }
       }
 
       const filename = `${language}-${viewport.name}-${name}.png`;

@@ -11,7 +11,11 @@ public interface MigrationPlanRepository extends JpaRepository<MigrationPlan, UU
 
     List<MigrationPlan> findTop20ByProjectIdOrderBySequenceDesc(UUID projectId);
 
+    List<MigrationPlan> findByProjectIdOrderBySequenceDesc(UUID projectId);
+
     Optional<MigrationPlan> findFirstByProjectIdOrderBySequenceDesc(UUID projectId);
+
+    Optional<MigrationPlan> findByProjectIdAndSequence(UUID projectId, int sequence);
 
     Optional<MigrationPlan> findByIdAndProjectId(UUID id, UUID projectId);
 }

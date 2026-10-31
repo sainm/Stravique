@@ -29,7 +29,7 @@ import java.util.Set;
 public class SeasarTransactionSpringRule implements TransformationRule {
 
     private static final String RULE_ID = "S2TX-SPRING-TRANSACTIONAL";
-    private static final String RULE_VERSION = "1.1.0";
+    private static final String RULE_VERSION = "1.2.0";
     private static final String SEASAR_ANNOTATION =
             "org.seasar.extension.tx.annotation.TransactionAttribute";
     private static final String SEASAR_TYPE =
@@ -38,6 +38,8 @@ public class SeasarTransactionSpringRule implements TransformationRule {
             "org.springframework.transaction.annotation.Transactional";
     private static final String SPRING_PROPAGATION =
             "org.springframework.transaction.annotation.Propagation";
+    private static final Set<String> PROPAGATIONS = Set.of(
+            "REQUIRES_NEW", "SUPPORTS", "NOT_SUPPORTED", "MANDATORY", "NEVER");
 
     @Override
     public String ruleId() {
@@ -168,7 +170,7 @@ public class SeasarTransactionSpringRule implements TransformationRule {
         if (propagation.equals("REQUIRED")) {
             return null;
         }
-        if (propagation.equals("REQUIRES_NEW")) {
+        if (PROPAGATIONS.contains(propagation)) {
             return propagation;
         }
         throw new TransformationUnsupportedException(

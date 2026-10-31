@@ -15,27 +15,13 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 @Component
 public class JavaxToJakartaRule implements TransformationRule {
 
     private static final String RULE_ID = "JAVAX-TO-JAKARTA";
     private static final String RULE_VERSION = "1.0.0";
-    private static final Set<String> SUPPORTED_PREFIXES = new LinkedHashSet<>(List.of(
-            "javax.servlet.",
-            "javax.annotation.",
-            "javax.persistence.",
-            "javax.validation.",
-            "javax.inject.",
-            "javax.transaction.",
-            "javax.xml.bind.",
-            "javax.ws.rs.",
-            "javax.mail.",
-            "javax.activation."
-    ));
 
     @Override
     public String ruleId() {
@@ -70,10 +56,10 @@ public class JavaxToJakartaRule implements TransformationRule {
         List<Edit> edits = new ArrayList<>();
         for (ImportDeclaration declaration : unit.getImports()) {
             String imported = declaration.getNameAsString();
-            if (!isSupported(imported)) {
+            if (!JakartaMappings.supports(imported)) {
                 continue;
             }
-            String target = "jakarta." + imported.substring("javax.".length());
+            String target = JakartaMappings.toJakarta(imported);
             boolean targetPresent = unit.getImports().stream()
                     .anyMatch(candidate -> candidate.getNameAsString().equals(target)
                             && candidate.isAsterisk() == declaration.isAsterisk());
@@ -88,12 +74,6 @@ public class JavaxToJakartaRule implements TransformationRule {
                     "The source does not import a supported javax namespace.");
         }
         return apply(source, edits);
-    }
-
-    private boolean isSupported(String imported) {
-        return SUPPORTED_PREFIXES.stream()
-                .anyMatch(prefix -> imported.startsWith(prefix)
-                        || (imported + ".").equals(prefix));
     }
 
     private String apply(String source, List<Edit> edits) {

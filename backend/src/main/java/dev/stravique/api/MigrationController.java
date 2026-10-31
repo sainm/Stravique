@@ -4,6 +4,7 @@ import dev.stravique.api.dto.MigrationGraphDto;
 import dev.stravique.api.dto.MigrationItemDetailDto;
 import dev.stravique.api.dto.MigrationItemDto;
 import dev.stravique.api.dto.MigrationPlanDto;
+import dev.stravique.api.dto.MigrationPlanComparisonDto;
 import dev.stravique.api.dto.MigrationPlanRequest;
 import dev.stravique.api.dto.MigrationPlanSummaryDto;
 import dev.stravique.api.dto.MigrationScopeRequest;
@@ -39,6 +40,11 @@ public class MigrationController {
         return planService.plans(projectId);
     }
 
+    @GetMapping("/options")
+    public List<MigrationPlanSummaryDto> planOptions(@PathVariable UUID projectId) {
+        return planService.planOptions(projectId);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public MigrationPlanDto generate(
@@ -50,6 +56,14 @@ public class MigrationController {
     @GetMapping("/{planId}")
     public MigrationPlanDto plan(@PathVariable UUID projectId, @PathVariable UUID planId) {
         return planService.plan(projectId, planId);
+    }
+
+    @GetMapping("/{planId}/comparison")
+    public MigrationPlanComparisonDto comparison(
+            @PathVariable UUID projectId,
+            @PathVariable UUID planId,
+            @RequestParam(required = false) UUID basePlanId) {
+        return planService.comparison(projectId, planId, basePlanId);
     }
 
     @GetMapping("/{planId}/items")

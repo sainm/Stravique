@@ -56,7 +56,7 @@ Rejected for manual review:
 - No application config target, or more than one candidate (ambiguous).
 - An existing `spring.messages.basename` in the target.
 - Malformed XML or an unsupported target type.
-- Removing the old Struts declaration, dicon/struts-config conversion, filter/listener migration, and full Spring Boot config generation remain manual.
+- Removing the old Struts declaration, dicon AOP/aspect conversion, complete filter/listener behavior migration, and full Spring Boot config generation remain manual.
 
 ## Catalog and UI
 

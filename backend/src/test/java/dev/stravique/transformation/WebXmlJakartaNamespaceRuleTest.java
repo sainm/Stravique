@@ -30,6 +30,18 @@ class WebXmlJakartaNamespaceRuleTest {
                     <listener>
                         <listener-class>com.example.legacy.LegacyStartupListener</listener-class>
                     </listener>
+                    <filter>
+                        <filter-name>encoding</filter-name>
+                        <filter-class>javax.servlet.Filter</filter-class>
+                    </filter>
+                    <servlet>
+                        <servlet-name>legacy</servlet-name>
+                        <servlet-class>javax.servlet.http.HttpServlet</servlet-class>
+                    </servlet>
+                    <error-page>
+                        <exception-type>javax.servlet.ServletException</exception-type>
+                        <location>/error.jsp</location>
+                    </error-page>
                 </web-app>
                 """;
 
@@ -40,8 +52,91 @@ class WebXmlJakartaNamespaceRuleTest {
                 .contains("https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd")
                 .contains("version=\"6.0\"")
                 .doesNotContain("java.sun.com/xml/ns/javaee")
-                .contains("<listener-class>com.example.legacy.LegacyStartupListener</listener-class>");
+                .contains("<listener-class>com.example.legacy.LegacyStartupListener</listener-class>")
+                .contains("<filter-class>jakarta.servlet.Filter</filter-class>")
+                .contains("<servlet-class>jakarta.servlet.http.HttpServlet</servlet-class>")
+                .contains("<exception-type>jakarta.servlet.ServletException</exception-type>")
+                .contains("<location>/error.jsp</location>")
+                .doesNotContain("javax.servlet");
         rule.validate(proposed);
+        assertThat(rule.ruleVersion()).isEqualTo("1.2.0");
+    }
+
+    @Test
+    void rewritesClassNamesOnAnAlreadyJakartaDescriptor() {
+        String source = """
+                <web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+                         version="6.0">
+                    <filter>
+                        <filter-name>encoding</filter-name>
+                        <filter-class>
+                            javax.servlet.Filter
+                        </filter-class>
+                    </filter>
+                </web-app>
+                """;
+
+        String proposed = rule.propose(source, "web.xml");
+
+        assertThat(proposed)
+                .contains("<filter-class>\n            jakarta.servlet.Filter\n        </filter-class>")
+                .doesNotContain("javax.servlet");
+        rule.validate(proposed);
+    }
+
+    @Test
+    void refusesUnknownJavaxClassesAndNonClassContent() {
+        String unknownClass = """
+                <web-app xmlns="https://jakarta.ee/xml/ns/jakartaee" version="6.0">
+                    <listener>
+                        <listener-class>javax.faces.event.PhaseListener</listener-class>
+                    </listener>
+                </web-app>
+                """;
+        String notASingleClass = """
+                <web-app xmlns="https://jakarta.ee/xml/ns/jakartaee" version="6.0">
+                    <listener>
+                        <listener-class>javax.servlet.Filter jakarta.servlet.Filter</listener-class>
+                    </listener>
+                </web-app>
+                """;
+        String unknownException = """
+                <web-app xmlns="https://jakarta.ee/xml/ns/jakartaee" version="6.0">
+                    <error-page>
+                        <exception-type>javax.foo.CustomException</exception-type>
+                        <location>/error.jsp</location>
+                    </error-page>
+                </web-app>
+                """;
+
+        assertThatThrownBy(() -> rule.propose(unknownClass, "web.xml"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(notASingleClass, "web.xml"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(unknownException, "web.xml"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+    }
+
+    @Test
+    void leavesCommentedClassElementsUntouched() {
+        String source = """
+                <web-app xmlns="http://java.sun.com/xml/ns/javaee" version="2.5">
+                    <description><![CDATA[<filter-class>javax.servlet.Filter</filter-class>]]></description>
+                    <!-- <filter-class>javax.servlet.Filter</filter-class> -->
+                    <filter>
+                        <filter-name>encoding</filter-name>
+                        <filter-class>javax.servlet.Filter</filter-class>
+                    </filter>
+                </web-app>
+                """;
+
+        String proposed = rule.propose(source, "web.xml");
+
+        assertThat(proposed)
+                .contains("<description><![CDATA[<filter-class>javax.servlet.Filter</filter-class>]]></description>")
+                .contains("<!-- <filter-class>javax.servlet.Filter</filter-class> -->")
+                .contains("<filter-class>jakarta.servlet.Filter</filter-class>")
+                .doesNotContain("            <filter-class>javax.servlet.Filter</filter-class>");
     }
 
     @Test

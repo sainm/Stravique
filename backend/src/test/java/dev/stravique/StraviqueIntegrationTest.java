@@ -19,8 +19,10 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -54,9 +56,13 @@ class StraviqueIntegrationTest {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    dev.stravique.application.PlanRunInterruptionMarker interruptionMarker;
+
     @BeforeEach
     void clearDatabase() {
-        jdbcTemplate.execute("TRUNCATE TABLE analysis_project, audit_event CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE analysis_project, audit_event, "
+                + "transformation_plan_run, transformation_plan_run_item CASCADE");
     }
 
     @Test
@@ -586,6 +592,19 @@ class StraviqueIntegrationTest {
         byte[] originalApplicationYmlBytes = Files.readAllBytes(applicationYmlFile);
         byte[] fixtureBytes = Files.readAllBytes(SAMPLE.resolve(
                 "web-app/src/main/java/com/example/legacy/service/OrderService.java"));
+        byte[] webXmlWithServlet = new String(originalWebXmlBytes, StandardCharsets.UTF_8)
+                .replace("    <welcome-file-list>",
+                        "    <servlet>\n"
+                                + "        <servlet-name>legacy</servlet-name>\n"
+                                + "        <servlet-class>javax.servlet.http.HttpServlet</servlet-class>\n"
+                                + "    </servlet>\n"
+                                + "    <error-page>\n"
+                                + "        <exception-type>javax.servlet.ServletException</exception-type>\n"
+                                + "        <location>/error.jsp</location>\n"
+                                + "    </error-page>\n"
+                                + "    <welcome-file-list>")
+                .getBytes(StandardCharsets.UTF_8);
+        Files.write(webXmlFile, webXmlWithServlet);
 
         String projectResponse = mockMvc.perform(post("/api/v1/projects")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -1045,6 +1064,7 @@ class StraviqueIntegrationTest {
                                 + "transformation-proposals", projectId, planId, webXmlItemId))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ruleId").value("WEBXML-JAKARTA-NAMESPACE"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.2.0"))
                 .andExpect(jsonPath("$.artifactType").value("EDIT_FILE"))
                 .andExpect(jsonPath("$.validationStatus").value("PARSED"))
                 .andExpect(jsonPath("$.diff").value(
@@ -1063,14 +1083,18 @@ class StraviqueIntegrationTest {
                 .contains("https://jakarta.ee/xml/ns/jakartaee")
                 .contains("web-app_6_0.xsd")
                 .contains("version=\"6.0\"")
-                .doesNotContain("java.sun.com/xml/ns/javaee");
+                .contains("<servlet-class>jakarta.servlet.http.HttpServlet</servlet-class>")
+                .contains("<exception-type>jakarta.servlet.ServletException</exception-type>")
+                .contains("<location>/error.jsp</location>")
+                .doesNotContain("java.sun.com/xml/ns/javaee")
+                .doesNotContain("javax.servlet");
         mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
                         projectId, objectMapper.readTree(webXmlRunResponse).get("id").asText())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"confirmed\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESTORED"));
-        assertThat(Files.readAllBytes(webXmlFile)).isEqualTo(originalWebXmlBytes);
+        assertThat(Files.readAllBytes(webXmlFile)).isEqualTo(webXmlWithServlet);
 
         String strutsConfigItemId = strutsConfig.get("id").asText();
         String configProposalResponse = mockMvc.perform(post(
@@ -1216,6 +1240,7 @@ class StraviqueIntegrationTest {
                                 + "transformation-proposals", projectId, planId, transactionItemId))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ruleId").value("S2TX-SPRING-TRANSACTIONAL"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.2.0"))
                 .andExpect(jsonPath("$.validationStatus").value("PARSED"))
                 .andExpect(jsonPath("$.diff").value(
                         org.hamcrest.Matchers.containsString("Propagation.REQUIRES_NEW")))
@@ -1320,6 +1345,1333 @@ class StraviqueIntegrationTest {
         deleteRecursively(tempProject);
     }
 
+    @Test
+    void previewsPlanCoverageAndRunsEveryEligibleItemOnACopy() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build", "plan-run-fixture")
+                .toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Map<String, Path> files = new LinkedHashMap<>();
+        for (String relative : List.of(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java",
+                "domain/src/main/java/com/example/legacy/dao/OrderQueryDao.java",
+                "web-app/src/main/resources/messages.properties",
+                "web-app/src/main/webapp/WEB-INF/jsp/order/list.jsp",
+                "web-app/src/main/webapp/WEB-INF/web.xml",
+                "web-app/src/main/webapp/WEB-INF/struts-config.xml",
+                "web-app/src/main/resources/application.yml")) {
+            files.put(relative, tempProject.resolve(relative));
+        }
+        Map<String, byte[]> originals = new LinkedHashMap<>();
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            originals.put(entry.getKey(), Files.readAllBytes(entry.getValue()));
+        }
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Run Copy");
+
+        String coverageBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-coverage",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.eligible").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.summary.unsupported").value(
+                        org.hamcrest.Matchers.greaterThan(0)))
+                .andExpect(jsonPath("$.items[?(@.title == 'OrderService.java'"
+                        + " && @.eligible == true)]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.title == 'messages.properties'"
+                        + " && @.supported == true)]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.supported == false)]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.title == 'landing.jsp'"
+                        + " && @.supported == true && @.eligible == false"
+                        + " && @.ineligibleReason == 'TRANSFORMATION_UNSUPPORTED')]").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode coverage = objectMapper.readTree(coverageBody);
+        int eligible = coverage.at("/summary/eligible").asInt();
+        assertThat(eligible).isGreaterThan(1);
+        assertThat(Files.readAllBytes(files.get(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java")))
+                .isEqualTo(originals.get(
+                        "web-app/src/main/java/com/example/legacy/service/OrderService.java"));
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":false}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_CONFIRMATION_REQUIRED"));
+
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode started = objectMapper.readTree(startBody);
+        assertThat(started.get("status").asText()).isEqualTo("RUNNING");
+        String planRunId = started.get("id").asText();
+        JsonNode planRun = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(planRun.get("status").asText()).as(planRun.toString()).isEqualTo("APPLIED");
+        assertThat(planRun.get("eligibleCount").asInt()).isEqualTo(eligible);
+        assertThat(planRun.get("appliedCount").asInt()).isEqualTo(eligible);
+        assertThat(planRun.get("failedCount").asInt()).isZero();
+        assertThat(planRun.get("rolledBackCount").asInt()).isZero();
+        assertThat(planRun.get("items").size()).isEqualTo(eligible);
+        Integer planRunAudit = jdbcTemplate.queryForObject(
+                "select count(*) from audit_event where project_id = ? "
+                        + "and action = 'TRANSFORMATION_PLAN_RUN_APPLIED'",
+                Integer.class, java.util.UUID.fromString(setup.projectId()));
+        assertThat(planRunAudit).isGreaterThan(0);
+        assertThat(new String(Files.readAllBytes(files.get(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java")),
+                StandardCharsets.UTF_8))
+                .contains("org.springframework.stereotype.Component")
+                .doesNotContain("org.seasar.framework");
+        assertThat(new String(Files.readAllBytes(files.get(
+                "web-app/src/main/resources/application.yml")), StandardCharsets.UTF_8))
+                .contains("spring.messages.basename");
+
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(planRunId))
+                .andExpect(jsonPath("$[0].status").value("APPLIED"));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}",
+                        setup.projectId(), setup.planId(), planRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.status == 'APPLIED')]").isNotEmpty());
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/restore",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"))
+                .andExpect(jsonPath("$.restoredCount").value(eligible))
+                .andExpect(jsonPath("$.failedCount").value(0));
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            assertThat(Files.readAllBytes(entry.getValue()))
+                    .isEqualTo(originals.get(entry.getKey()));
+        }
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/restore",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_RESTORABLE"));
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void rollsBackEarlierPlanItemsWhenALaterItemCannotBeWritten() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-run-failure-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Run Failure Copy");
+        String coverageBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-coverage",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.title == 'web.xml'"
+                        + " && @.eligible == true)]").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        List<JsonNode> eligible = new ArrayList<>();
+        for (JsonNode row : objectMapper.readTree(coverageBody).get("items")) {
+            if (row.get("eligible").asBoolean()) {
+                eligible.add(row);
+            }
+        }
+        assertThat(eligible.size()).isGreaterThan(1);
+        Map<String, String> paths = new LinkedHashMap<>();
+        for (JsonNode item : setup.items()) {
+            paths.put(item.get("title").asText(), item.get("primaryFilePath").asText());
+        }
+        Path firstFile = tempProject.resolve(paths.get(eligible.get(0).get("title").asText()));
+        byte[] firstBytes = Files.readAllBytes(firstFile);
+        Path webInf = tempProject.resolve("web-app/src/main/webapp/WEB-INF");
+        Set<PosixFilePermission> webInfPermissions = Files.getPosixFilePermissions(webInf);
+        JsonNode run;
+        try {
+            Files.setPosixFilePermissions(webInf, Set.of(
+                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_EXECUTE,
+                    PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+                    PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE));
+            String startBody = mockMvc.perform(post(
+                            "/api/v1/projects/{id}/migration-plans/{plan}/"
+                                    + "transformation-plan-runs",
+                            setup.projectId(), setup.planId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"confirmed\":true}"))
+                    .andExpect(status().isAccepted())
+                    .andReturn().getResponse().getContentAsString();
+            String startedId = objectMapper.readTree(startBody).get("id").asText();
+            run = awaitPlanRun(setup.projectId(), setup.planId(), startedId);
+        } finally {
+            Files.setPosixFilePermissions(webInf, webInfPermissions);
+        }
+        assertThat(run.get("status").asText()).as(run.toString()).isEqualTo("FAILED");
+        assertThat(run.get("eligibleCount").asInt()).isEqualTo(eligible.size());
+        int applied = run.get("appliedCount").asInt();
+        assertThat(applied).isGreaterThan(0);
+        assertThat(run.get("failedCount").asInt()).isEqualTo(1);
+        assertThat(run.get("rolledBackCount").asInt()).isEqualTo(applied);
+        assertThat(run.get("items").toString()).contains("FAILED").contains("ROLLED_BACK");
+        Integer rollbackAudit = jdbcTemplate.queryForObject(
+                "select count(*) from audit_event where project_id = ? "
+                        + "and action = 'TRANSFORMATION_PLAN_RUN_FAILED'",
+                Integer.class, java.util.UUID.fromString(setup.projectId()));
+        assertThat(rollbackAudit).isGreaterThan(0);
+        assertThat(Files.readAllBytes(firstFile)).isEqualTo(firstBytes);
+
+        String historyBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(historyBody).get(0).get("id").asText();
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/restore",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_RESTORABLE"));
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void recoversAnInterruptedPlanRun() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-run-recovery-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Map<String, Path> files = new LinkedHashMap<>();
+        for (String relative : List.of(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java",
+                "web-app/src/main/resources/messages.properties",
+                "web-app/src/main/webapp/WEB-INF/web.xml",
+                "web-app/src/main/resources/application.yml")) {
+            files.put(relative, tempProject.resolve(relative));
+        }
+        Map<String, byte[]> originals = new LinkedHashMap<>();
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            originals.put(entry.getKey(), Files.readAllBytes(entry.getValue()));
+        }
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Run Recovery Copy");
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(startBody).get("id").asText();
+        JsonNode planRun = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(planRun.get("status").asText()).isEqualTo("APPLIED");
+        int eligible = planRun.get("eligibleCount").asInt();
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/recover",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_RECOVERABLE"));
+
+        jdbcTemplate.update("update transformation_plan_run set status = 'RUNNING', "
+                        + "applied_count = 0, restored_count = 0, completed_at = null "
+                        + "where id = ?",
+                java.util.UUID.fromString(planRunId));
+        interruptionMarker.run(null);
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}",
+                        setup.projectId(), setup.planId(), planRunId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("INTERRUPTED"));
+        String recoveredBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/recover",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RECOVERED"))
+                .andExpect(jsonPath("$.appliedCount").value(eligible))
+                .andExpect(jsonPath("$.restoredCount").value(eligible))
+                .andExpect(jsonPath("$.failedCount").value(0))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(recoveredBody).get("items").toString())
+                .contains("RESTORED");
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            assertThat(Files.readAllBytes(entry.getValue()))
+                    .isEqualTo(originals.get(entry.getKey()));
+        }
+        Integer recoveryAudit = jdbcTemplate.queryForObject(
+                "select count(*) from audit_event where project_id = ? "
+                        + "and action = 'TRANSFORMATION_PLAN_RUN_RECOVERED'",
+                Integer.class, java.util.UUID.fromString(setup.projectId()));
+        assertThat(recoveryAudit).isGreaterThan(0);
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/recover",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_RECOVERABLE"));
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void cancelsAnOrphanedRunningPlanRunAndRollsBack() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-run-cancel-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Map<String, Path> files = new LinkedHashMap<>();
+        for (String relative : List.of(
+                "web-app/src/main/java/com/example/legacy/service/OrderService.java",
+                "web-app/src/main/resources/application.yml")) {
+            files.put(relative, tempProject.resolve(relative));
+        }
+        Map<String, byte[]> originals = new LinkedHashMap<>();
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            originals.put(entry.getKey(), Files.readAllBytes(entry.getValue()));
+        }
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Run Cancel Copy");
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(startBody).get("id").asText();
+        JsonNode applied = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(applied.get("status").asText()).isEqualTo("APPLIED");
+        int eligible = applied.get("eligibleCount").asInt();
+
+        jdbcTemplate.update("update transformation_plan_run set status = 'RUNNING', "
+                        + "applied_count = 0, restored_count = 0, rolled_back_count = 0, "
+                        + "completed_at = null where id = ?",
+                java.util.UUID.fromString(planRunId));
+        String cancelledBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/cancel",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.appliedCount").value(eligible))
+                .andExpect(jsonPath("$.rolledBackCount").value(eligible))
+                .andExpect(jsonPath("$.failedCount").value(0))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(cancelledBody).get("items").toString())
+                .contains("ROLLED_BACK");
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            assertThat(Files.readAllBytes(entry.getValue()))
+                    .isEqualTo(originals.get(entry.getKey()));
+        }
+        Integer cancelAudit = jdbcTemplate.queryForObject(
+                "select count(*) from audit_event where project_id = ? "
+                        + "and action = 'TRANSFORMATION_PLAN_RUN_CANCELLED'",
+                Integer.class, java.util.UUID.fromString(setup.projectId()));
+        assertThat(cancelAudit).isGreaterThan(0);
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/cancel",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_CANCELLABLE"));
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void resumesAnInterruptedPlanRunFromRemainingItems() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-run-resume-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Run Resume Copy");
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(startBody).get("id").asText();
+        JsonNode applied = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(applied.get("status").asText()).isEqualTo("APPLIED");
+        int eligible = applied.get("eligibleCount").asInt();
+        Map<String, String> pathByItemId = new LinkedHashMap<>();
+        for (JsonNode item : setup.items()) {
+            pathByItemId.put(item.get("id").asText(), item.get("primaryFilePath").asText());
+        }
+        Map<String, Integer> pathCounts = new LinkedHashMap<>();
+        for (JsonNode item : applied.get("items")) {
+            pathCounts.merge(pathByItemId.get(item.get("itemId").asText()), 1, Integer::sum);
+        }
+        JsonNode resumeItem = null;
+        for (JsonNode item : applied.get("items")) {
+            String path = pathByItemId.get(item.get("itemId").asText());
+            if (item.get("ordinal").asInt() > 1 && pathCounts.get(path) == 1) {
+                resumeItem = item;
+                break;
+            }
+        }
+        assertThat(resumeItem).isNotNull();
+        Path resumeFile = tempProject.resolve(
+                pathByItemId.get(resumeItem.get("itemId").asText()));
+        byte[] transformedBytes = Files.readAllBytes(resumeFile);
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/resume",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_RESUMABLE"));
+
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        setup.projectId(), resumeItem.get("runId").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        jdbcTemplate.update("update transformation_plan_run_item set status = 'NOT_ATTEMPTED', "
+                        + "run_id = null where plan_run_id = ? and item_id = ?",
+                java.util.UUID.fromString(planRunId),
+                java.util.UUID.fromString(resumeItem.get("itemId").asText()));
+        jdbcTemplate.update("update transformation_plan_run set status = 'INTERRUPTED', "
+                        + "applied_count = ?, completed_at = null where id = ?",
+                eligible - 1, java.util.UUID.fromString(planRunId));
+
+        String resumeBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/resume",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(resumeBody).get("status").asText()).isEqualTo("RUNNING");
+        JsonNode resumed = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(resumed.get("status").asText()).isEqualTo("APPLIED");
+        assertThat(resumed.get("appliedCount").asInt()).isEqualTo(eligible);
+        assertThat(resumed.get("failedCount").asInt()).isZero();
+        assertThat(resumed.get("items").toString()).doesNotContain("NOT_ATTEMPTED");
+        assertThat(Files.readAllBytes(resumeFile)).isEqualTo(transformedBytes);
+        Integer resumeAudit = jdbcTemplate.queryForObject(
+                "select count(*) from audit_event where project_id = ? "
+                        + "and action = 'TRANSFORMATION_PLAN_RUN_RESUMED'",
+                Integer.class, java.util.UUID.fromString(setup.projectId()));
+        assertThat(resumeAudit).isGreaterThan(0);
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/resume",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_RUN_NOT_RESUMABLE"));
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void runsOnlySelectedEligiblePlanItems() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-run-targeted-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Run Targeted Copy");
+        String coverageBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-coverage",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode coverage = objectMapper.readTree(coverageBody);
+        Map<String, String> pathByItemId = new LinkedHashMap<>();
+        for (JsonNode item : setup.items()) {
+            pathByItemId.put(item.get("id").asText(), item.get("primaryFilePath").asText());
+        }
+        List<JsonNode> javaEligible = new ArrayList<>();
+        JsonNode ineligible = null;
+        for (JsonNode row : coverage.get("items")) {
+            if (!row.get("eligible").asBoolean()) {
+                if (ineligible == null) {
+                    ineligible = row;
+                }
+                continue;
+            }
+            String path = pathByItemId.get(row.get("itemId").asText());
+            if (path != null && path.endsWith(".java")
+                    && !"STRUTS-CONTROLLER-SKELETON".equals(row.get("ruleId").asText())) {
+                javaEligible.add(row);
+            }
+        }
+        assertThat(javaEligible.size()).isGreaterThan(2);
+        assertThat(ineligible).isNotNull();
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "itemIds", List.of(ineligible.get("itemId").asText()),
+                                "confirmed", true))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_ITEMS_INVALID"));
+
+        JsonNode first = javaEligible.get(0);
+        JsonNode second = javaEligible.stream()
+                .filter(row -> !pathByItemId.get(row.get("itemId").asText())
+                        .equals(pathByItemId.get(first.get("itemId").asText())))
+                .findFirst()
+                .orElseThrow();
+        String firstPath = pathByItemId.get(first.get("itemId").asText());
+        String secondPath = pathByItemId.get(second.get("itemId").asText());
+        String untouchedPath = javaEligible.stream()
+                .map(row -> pathByItemId.get(row.get("itemId").asText()))
+                .filter(path -> !path.equals(firstPath) && !path.equals(secondPath))
+                .findFirst()
+                .orElseThrow();
+        Path firstFile = tempProject.resolve(firstPath);
+        Path secondFile = tempProject.resolve(secondPath);
+        Path untouchedFile = tempProject.resolve(untouchedPath);
+        byte[] firstBytes = Files.readAllBytes(firstFile);
+        byte[] secondBytes = Files.readAllBytes(secondFile);
+        byte[] untouchedBytes = Files.readAllBytes(untouchedFile);
+
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "itemIds", List.of(first.get("itemId").asText(),
+                                        second.get("itemId").asText()),
+                                "confirmed", true))))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(startBody).get("id").asText();
+        JsonNode applied = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(applied.get("status").asText()).isEqualTo("APPLIED");
+        assertThat(applied.get("eligibleCount").asInt()).isEqualTo(2);
+        assertThat(applied.get("appliedCount").asInt()).isEqualTo(2);
+        assertThat(applied.get("items").size()).isEqualTo(2);
+        assertThat(Files.readAllBytes(firstFile)).isNotEqualTo(firstBytes);
+        assertThat(Files.readAllBytes(secondFile)).isNotEqualTo(secondBytes);
+        assertThat(Files.readAllBytes(untouchedFile)).isEqualTo(untouchedBytes);
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/restore",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.readAllBytes(firstFile)).isEqualTo(firstBytes);
+        assertThat(Files.readAllBytes(secondFile)).isEqualTo(secondBytes);
+        assertThat(Files.readAllBytes(untouchedFile)).isEqualTo(untouchedBytes);
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void generatesASpringConfigurationFromASimpleDiconOnACopy() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "dicon-config-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Path simpleDicon = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/dicon/simple.dicon");
+        Files.writeString(simpleDicon, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <components>
+                    <component name="orderService"
+                               class="com.example.legacy.service.OrderService"
+                               instance="prototype"/>
+                </components>
+                """);
+        byte[] diconBytes = Files.readAllBytes(simpleDicon);
+        Path componentsDicon = tempProject.resolve(
+                "web-app/src/main/resources/config/components.dicon");
+        byte[] componentsDiconBytes = Files.readAllBytes(componentsDicon);
+        Files.writeString(tempProject.resolve(
+                        "web-app/src/main/java/com/example/legacy/service/LiteralSettings.java"),
+                """
+                        package com.example.legacy.service;
+                        public class LiteralSettings {
+                            public String name;
+                            public boolean enabled;
+                            public int count;
+                            public long total;
+                            public double ratio;
+                        }
+                        """);
+        Path literalDicon = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/dicon/literal.dicon");
+        Files.writeString(literalDicon, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <components>
+                    <component name="literalSettings"
+                               class="com.example.legacy.service.LiteralSettings">
+                        <property name="name">"demo"</property>
+                        <property name="enabled">true</property>
+                        <property name="count">3</property>
+                        <property name="total">10L</property>
+                        <property name="ratio">1.5</property>
+                    </component>
+                </components>
+                """);
+        byte[] literalDiconBytes = Files.readAllBytes(literalDicon);
+        PlanSetup setup = createPlanSetup(tempProject, "Dicon Configuration Copy");
+        JsonNode simple = null;
+        JsonNode components = null;
+        JsonNode app = null;
+        JsonNode literal = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("simple.dicon")) {
+                simple = item;
+            }
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("components.dicon")) {
+                components = item;
+            }
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("app.dicon")) {
+                app = item;
+            }
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("literal.dicon")) {
+                literal = item;
+            }
+        }
+        assertThat(simple).isNotNull();
+        assertThat(components).isNotNull();
+        assertThat(app).isNotNull();
+        assertThat(literal).isNotNull();
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-coverage",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.title == 'simple.dicon'"
+                        + " && @.eligible == true"
+                        + " && @.ruleId == 'DICON-COMPONENT-SPRING-CONFIG')]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.title == 'components.dicon'"
+                        + " && @.eligible == true"
+                        + " && @.ruleId == 'DICON-COMPONENT-SPRING-CONFIG')]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.title == 'app.dicon'"
+                        + " && @.eligible == false"
+                        + " && @.ineligibleReason == 'TRANSFORMATION_UNSUPPORTED')]").isNotEmpty());
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), app.get("id").asText()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_UNSUPPORTED"));
+
+        String proposalBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), simple.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("DICON-COMPONENT-SPRING-CONFIG"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.6.0"))
+                .andExpect(jsonPath("$.artifactType").value("CREATE_FILE"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/java/com/example/legacy/service/"
+                                + "SimpleDiconConfiguration.java"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("@Configuration")))
+                .andReturn().getResponse().getContentAsString();
+        String proposalId = objectMapper.readTree(proposalBody).get("id").asText();
+        String runBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        setup.projectId(), proposalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andExpect(jsonPath("$.artifactType").value("CREATE_FILE"))
+                .andReturn().getResponse().getContentAsString();
+        Path generated = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/service/"
+                        + "SimpleDiconConfiguration.java");
+        assertThat(Files.readAllBytes(simpleDicon)).isEqualTo(diconBytes);
+        assertThat(new String(Files.readAllBytes(generated), StandardCharsets.UTF_8))
+                .contains("package com.example.legacy.service;")
+                .contains("@Configuration")
+                .contains("@Scope(\"prototype\")")
+                .contains("public com.example.legacy.service.OrderService orderService()")
+                .contains("return new com.example.legacy.service.OrderService();");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        setup.projectId(), objectMapper.readTree(runBody).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.exists(generated)).isFalse();
+        assertThat(Files.readAllBytes(simpleDicon)).isEqualTo(diconBytes);
+
+        String literalProposalBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), literal.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("DICON-COMPONENT-SPRING-CONFIG"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.6.0"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/java/com/example/legacy/service/"
+                                + "LiteralDiconConfiguration.java"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("name = \"demo\"")))
+                .andReturn().getResponse().getContentAsString();
+        String literalRunBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        setup.projectId(), objectMapper.readTree(literalProposalBody)
+                                .get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        Path literalConfig = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/service/"
+                        + "LiteralDiconConfiguration.java");
+        assertThat(Files.readAllBytes(literalDicon)).isEqualTo(literalDiconBytes);
+        assertThat(new String(Files.readAllBytes(literalConfig), StandardCharsets.UTF_8))
+                .contains("bean.name = \"demo\";")
+                .contains("bean.enabled = true;")
+                .contains("bean.count = 3;")
+                .contains("bean.total = 10L;")
+                .contains("bean.ratio = 1.5;");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        setup.projectId(), objectMapper.readTree(literalRunBody).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.exists(literalConfig)).isFalse();
+        assertThat(Files.readAllBytes(literalDicon)).isEqualTo(literalDiconBytes);
+
+        String componentProposalBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), components.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("DICON-COMPONENT-SPRING-CONFIG"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.6.0"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/java/com/example/legacy/action/"
+                                + "ComponentsDiconConfiguration.java"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("@Qualifier(\"orderService\")")))
+                .andReturn().getResponse().getContentAsString();
+        String componentRunBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        setup.projectId(), objectMapper.readTree(componentProposalBody)
+                                .get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"))
+                .andReturn().getResponse().getContentAsString();
+        Path componentConfig = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/action/"
+                        + "ComponentsDiconConfiguration.java");
+        assertThat(Files.readAllBytes(componentsDicon)).isEqualTo(componentsDiconBytes);
+        assertThat(new String(Files.readAllBytes(componentConfig), StandardCharsets.UTF_8))
+                .contains("public com.example.legacy.action.OrderAction orderAction("
+                        + "@Qualifier(\"orderService\")"
+                        + " com.example.legacy.service.OrderService orderService)")
+                .contains("bean.orderService = orderService;");
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        setup.projectId(), objectMapper.readTree(componentRunBody)
+                                .get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.exists(componentConfig)).isFalse();
+        assertThat(Files.readAllBytes(componentsDicon)).isEqualTo(componentsDiconBytes);
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void combinesSameModuleDiconIncludesIntoOneConfigurationOnACopy() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "dicon-include-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Path baseDicon = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/dicon/base.dicon");
+        Files.writeString(baseDicon, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <components>
+                    <component name="orderService"
+                               class="com.example.legacy.service.OrderService"/>
+                </components>
+                """);
+        Path rootDicon = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/dicon/root.dicon");
+        Files.writeString(rootDicon, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <components>
+                    <include path="base.dicon"/>
+                    <component name="orderAction"
+                               class="com.example.legacy.action.OrderAction">
+                        <property name="orderService">orderService</property>
+                    </component>
+                </components>
+                """);
+        byte[] baseBytes = Files.readAllBytes(baseDicon);
+        byte[] rootBytes = Files.readAllBytes(rootDicon);
+        PlanSetup setup = createPlanSetup(tempProject, "Dicon Include Copy");
+        JsonNode base = null;
+        JsonNode root = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("base.dicon")) {
+                base = item;
+            }
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("root.dicon")) {
+                root = item;
+            }
+        }
+        assertThat(base).isNotNull();
+        assertThat(root).isNotNull();
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-coverage",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.title == 'root.dicon'"
+                        + " && @.eligible == true"
+                        + " && @.ruleId == 'DICON-COMPONENT-SPRING-CONFIG')]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.title == 'base.dicon'"
+                        + " && @.eligible == false"
+                        + " && @.ineligibleReason == 'TRANSFORMATION_UNSUPPORTED')]").isNotEmpty());
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), base.get("id").asText()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_UNSUPPORTED"));
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "itemIds", List.of(base.get("id").asText()),
+                                "confirmed", true))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_PLAN_ITEMS_INVALID"));
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), root.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("DICON-COMPONENT-SPRING-CONFIG"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.6.0"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/java/com/example/legacy/"
+                                + "RootDiconConfiguration.java"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("@Qualifier(\"orderService\")")));
+
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "itemIds", List.of(root.get("id").asText()),
+                                "confirmed", true))))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(startBody).get("id").asText();
+        JsonNode planRun = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(planRun.get("status").asText()).isEqualTo("APPLIED");
+        assertThat(planRun.get("eligibleCount").asInt()).isEqualTo(1);
+        assertThat(planRun.get("appliedCount").asInt()).isEqualTo(1);
+        Path generated = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/RootDiconConfiguration.java");
+        assertThat(Files.readAllBytes(baseDicon)).isEqualTo(baseBytes);
+        assertThat(Files.readAllBytes(rootDicon)).isEqualTo(rootBytes);
+        assertThat(new String(Files.readAllBytes(generated), StandardCharsets.UTF_8))
+                .contains("public com.example.legacy.service.OrderService orderService()")
+                .contains("public com.example.legacy.action.OrderAction orderAction("
+                        + "@Qualifier(\"orderService\")"
+                        + " com.example.legacy.service.OrderService orderService)")
+                .contains("bean.orderService = orderService;");
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/restore",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.exists(generated)).isFalse();
+        assertThat(Files.readAllBytes(baseDicon)).isEqualTo(baseBytes);
+        assertThat(Files.readAllBytes(rootDicon)).isEqualTo(rootBytes);
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void generatesNestedAnonymousComponentsOnACopy() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "dicon-nested-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Files.writeString(tempProject.resolve(
+                        "web-app/src/main/java/com/example/legacy/service/NestedParent.java"), """
+                package com.example.legacy.service;
+                public class NestedParent {
+                    public NestedChild child;
+                }
+                """);
+        Files.writeString(tempProject.resolve(
+                        "web-app/src/main/java/com/example/legacy/service/NestedChild.java"), """
+                package com.example.legacy.service;
+                public class NestedChild {
+                    public void initialize() {
+                    }
+                }
+                """);
+        Files.writeString(tempProject.resolve(
+                        "web-app/src/main/java/com/example/legacy/service/NestedAction.java"), """
+                package com.example.legacy.service;
+                public class NestedAction {
+                    public NestedAction(NestedChild child, String label) {
+                    }
+                }
+                """);
+        Path nestedDicon = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/dicon/nested.dicon");
+        Files.writeString(nestedDicon, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <components>
+                    <component name="nestedParent"
+                               class="com.example.legacy.service.NestedParent">
+                        <property name="child">
+                            <component class="com.example.legacy.service.NestedChild">
+                                <initMethod name="initialize"/>
+                            </component>
+                        </property>
+                    </component>
+                    <component name="nestedAction"
+                               class="com.example.legacy.service.NestedAction">
+                        <arg>
+                            <component class="com.example.legacy.service.NestedChild">
+                                <initMethod name="initialize"/>
+                            </component>
+                        </arg>
+                        <arg>"demo"</arg>
+                    </component>
+                </components>
+                """);
+        byte[] nestedBytes = Files.readAllBytes(nestedDicon);
+        PlanSetup setup = createPlanSetup(tempProject, "Dicon Nested Copy");
+        JsonNode nested = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("itemType").asText().equals("CONFIGURATION")
+                    && item.get("title").asText().equals("nested.dicon")) {
+                nested = item;
+            }
+        }
+        assertThat(nested).isNotNull();
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-coverage",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.title == 'nested.dicon'"
+                        + " && @.eligible == true"
+                        + " && @.ruleId == 'DICON-COMPONENT-SPRING-CONFIG')]").isNotEmpty());
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), nested.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.ruleId").value("DICON-COMPONENT-SPRING-CONFIG"))
+                .andExpect(jsonPath("$.ruleVersion").value("1.6.0"))
+                .andExpect(jsonPath("$.relativePath").value(
+                        "web-app/src/main/java/com/example/legacy/service/"
+                                + "NestedDiconConfiguration.java"))
+                .andExpect(jsonPath("$.diff").value(
+                        org.hamcrest.Matchers.containsString("nestedParentChild")));
+        String startBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/transformation-plan-runs",
+                        setup.projectId(), setup.planId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "itemIds", List.of(nested.get("id").asText()),
+                                "confirmed", true))))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String planRunId = objectMapper.readTree(startBody).get("id").asText();
+        JsonNode planRun = awaitPlanRun(setup.projectId(), setup.planId(), planRunId);
+        assertThat(planRun.get("status").asText()).isEqualTo("APPLIED");
+        Path generated = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/service/"
+                        + "NestedDiconConfiguration.java");
+        assertThat(Files.readAllBytes(nestedDicon)).isEqualTo(nestedBytes);
+        assertThat(new String(Files.readAllBytes(generated), StandardCharsets.UTF_8))
+                .contains("public com.example.legacy.service.NestedChild nestedParentChild()")
+                .contains("bean.initialize();")
+                .contains("public com.example.legacy.service.NestedParent nestedParent("
+                        + "@Qualifier(\"nestedParentChild\")"
+                        + " com.example.legacy.service.NestedChild nestedParentChild)")
+                .contains("bean.child = nestedParentChild;")
+                .contains("public com.example.legacy.service.NestedChild nestedActionArg1()")
+                .contains("public com.example.legacy.service.NestedAction nestedAction("
+                        + "@Qualifier(\"nestedActionArg1\")"
+                        + " com.example.legacy.service.NestedChild nestedActionArg1)")
+                .contains("return new com.example.legacy.service.NestedAction("
+                        + "nestedActionArg1, \"demo\");");
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/"
+                                + "transformation-plan-runs/{run}/restore",
+                        setup.projectId(), setup.planId(), planRunId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+        assertThat(Files.exists(generated)).isFalse();
+        assertThat(Files.readAllBytes(nestedDicon)).isEqualTo(nestedBytes);
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void keepsAppliedBackupsAndPrunesRestoredBackups() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "backup-ledger-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        PlanSetup setup = createPlanSetup(tempProject, "Backup Ledger Copy");
+        JsonNode component = null;
+        JsonNode queryDao = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("itemType").asText().equals("COMPONENT_BEAN")
+                    && item.get("title").asText().equals("OrderService.java")) {
+                component = item;
+            }
+            if (item.get("itemType").asText().equals("DATA_ACCESS")
+                    && item.get("title").asText().equals("OrderQueryDao.java")) {
+                queryDao = item;
+            }
+        }
+        assertThat(component).isNotNull();
+        assertThat(queryDao).isNotNull();
+
+        String componentProposal = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), component.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        setup.projectId(), objectMapper.readTree(componentProposal).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPLIED"));
+
+        String queryProposal = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
+                                + "transformation-proposals",
+                        setup.projectId(), setup.planId(), queryDao.get("id").asText()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String queryRun = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/transformation-proposals/{proposal}/apply",
+                        setup.projectId(), objectMapper.readTree(queryProposal).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
+                        setup.projectId(), objectMapper.readTree(queryRun).get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESTORED"));
+
+        String ledgerBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/transformation-backups", setup.projectId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(org.hamcrest.Matchers.greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.existing").value(
+                        org.hamcrest.Matchers.greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.restorable").value(
+                        org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.prunable").value(
+                        org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.items[?(@.status == 'APPLIED' && @.exists == true"
+                        + " && @.restorable == true)]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.status == 'RESTORED' && @.exists == true"
+                        + " && @.prunable == true)]").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode ledger = objectMapper.readTree(ledgerBody);
+        JsonNode appliedBackup = null;
+        for (JsonNode item : ledger.get("items")) {
+            if (item.get("status").asText().equals("APPLIED")) {
+                appliedBackup = item;
+            }
+        }
+        assertThat(appliedBackup).isNotNull();
+        String appliedRunId = appliedBackup.get("runId").asText();
+
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-backups/prune",
+                        setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":false}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("TRANSFORMATION_CONFIRMATION_REQUIRED"));
+        mockMvc.perform(post("/api/v1/projects/{id}/transformation-backups/prune",
+                        setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmed\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deleted").value(
+                        org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.failed").value(0));
+
+        String afterBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/transformation-backups", setup.projectId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prunable").value(0))
+                .andExpect(jsonPath("$.items[?(@.runId == '" + appliedRunId
+                        + "' && @.status == 'APPLIED' && @.exists == true)]").isNotEmpty())
+                .andExpect(jsonPath("$.items[?(@.status == 'RESTORED' && @.exists == false)]")
+                        .isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(afterBody).get("total").asInt())
+                .isGreaterThanOrEqualTo(2);
+        Integer pruneAudit = jdbcTemplate.queryForObject(
+                "select count(*) from audit_event where project_id = ? "
+                        + "and action = 'TRANSFORMATION_BACKUPS_PRUNED'",
+                Integer.class, java.util.UUID.fromString(setup.projectId()));
+        assertThat(pruneAudit).isGreaterThan(0);
+        deleteRecursively(tempProject);
+    }
+
+    @Test
+    void comparesMigrationPlanVersionsAndGuardsTheBasePlan() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-comparison-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Comparison Copy");
+        JsonNode scopeItem = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("included").asBoolean()
+                    && item.get("dependentCount").asInt() == 0) {
+                scopeItem = item;
+                break;
+            }
+        }
+        assertThat(scopeItem).isNotNull();
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        setup.projectId(), setup.planId(), scopeItem.get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.included").value(false));
+
+        String secondPlanBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans", setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProfile\":\"SPRING_BOOT_MVC\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode secondPlan = objectMapper.readTree(secondPlanBody).get("summary");
+        String secondPlanId = secondPlan.get("id").asText();
+        assertThat(secondPlan.get("sequence").asInt()).isEqualTo(2);
+        String optionsBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/options", setup.projectId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode options = objectMapper.readTree(optionsBody);
+        assertThat(options.size()).isGreaterThanOrEqualTo(2);
+        assertThat(options.findValuesAsText("id"))
+                .contains(setup.planId(), secondPlanId);
+
+        String comparisonBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), secondPlanId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plan.sequence").value(2))
+                .andExpect(jsonPath("$.basePlan.sequence").value(1))
+                .andExpect(jsonPath("$.summary.added").value(0))
+                .andExpect(jsonPath("$.summary.removed").value(0))
+                .andExpect(jsonPath("$.summary.changed").value(1))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode comparison = objectMapper.readTree(comparisonBody);
+        assertThat(comparison.at("/summary/unchanged").asInt())
+                .isEqualTo(secondPlan.get("itemCount").asInt() - 1);
+        JsonNode changedItem = comparison.get("items").get(0);
+        assertThat(changedItem.get("status").asText()).isEqualTo("CHANGED");
+        assertThat(changedItem.get("itemKey").asText())
+                .isEqualTo(scopeItem.get("itemKey").asText());
+        String secondItemsBody = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items",
+                        setup.projectId(), secondPlanId)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String currentItemId = null;
+        for (JsonNode item : objectMapper.readTree(secondItemsBody).get("content")) {
+            if (item.get("itemKey").asText().equals(scopeItem.get("itemKey").asText())) {
+                currentItemId = item.get("id").asText();
+            }
+        }
+        assertThat(currentItemId).isNotNull();
+        assertThat(changedItem.get("itemId").asText()).isEqualTo(currentItemId);
+        assertThat(changedItem.get("changes").get(0).get("field").asText())
+                .isEqualTo("INCLUDED");
+        assertThat(changedItem.get("changes").get(0).get("before").asText())
+                .isEqualTo("false");
+        assertThat(changedItem.get("changes").get(0).get("after").asText())
+                .isEqualTo("true");
+
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), secondPlanId)
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.basePlan.id").value(setup.planId()))
+                .andExpect(jsonPath("$.summary.changed").value(1));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), secondPlanId)
+                        .param("basePlanId", secondPlanId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_COMPARISON_SELF"));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), setup.planId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_COMPARISON_UNAVAILABLE"));
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), secondPlanId)
+                        .param("basePlanId", java.util.UUID.randomUUID().toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_NOT_FOUND"));
+
+        Path addedDicon = tempProject.resolve(
+                "web-app/src/main/webapp/WEB-INF/dicon/added.dicon");
+        Files.writeString(addedDicon, """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <components>
+                    <component name="addedService"
+                               class="com.example.legacy.service.OrderService"/>
+                </components>
+                """);
+        rescanProject(setup.projectId());
+        String thirdPlanId = createPlan(setup.projectId());
+        String thirdComparison = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), thirdPlanId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.basePlan.sequence").value(2))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(thirdComparison).at("/summary/added").asInt())
+                .isGreaterThan(0);
+        assertThat(objectMapper.readTree(thirdComparison).at("/summary/removed").asInt())
+                .isZero();
+        JsonNode addedRow = null;
+        for (JsonNode row : objectMapper.readTree(thirdComparison).get("items")) {
+            if (row.get("status").asText().equals("ADDED")) {
+                addedRow = row;
+                break;
+            }
+        }
+        assertThat(addedRow).isNotNull();
+        assertThat(addedRow.hasNonNull("itemId")).isTrue();
+
+        Files.delete(addedDicon);
+        rescanProject(setup.projectId());
+        String fourthPlanId = createPlan(setup.projectId());
+        String fourthComparison = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), fourthPlanId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.basePlan.sequence").value(3))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(objectMapper.readTree(fourthComparison).at("/summary/removed").asInt())
+                .isGreaterThan(0);
+        assertThat(objectMapper.readTree(fourthComparison).at("/summary/added").asInt())
+                .isZero();
+        JsonNode removedRow = null;
+        for (JsonNode row : objectMapper.readTree(fourthComparison).get("items")) {
+            if (row.get("status").asText().equals("REMOVED")) {
+                removedRow = row;
+                break;
+            }
+        }
+        assertThat(removedRow).isNotNull();
+        assertThat(removedRow.hasNonNull("itemId")).isFalse();
+
+        Path otherProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-comparison-other").toAbsolutePath().normalize();
+        deleteRecursively(otherProject);
+        copyRecursively(SAMPLE, otherProject);
+        PlanSetup other = createPlanSetup(otherProject, "Plan Comparison Other");
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), fourthPlanId)
+                        .param("basePlanId", other.planId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_NOT_FOUND"));
+        deleteRecursively(tempProject);
+        deleteRecursively(otherProject);
+    }
+
+    private void rescanProject(String projectId) throws Exception {
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode scan = awaitScan(objectMapper.readTree(scanResponse).get("id").asText());
+        assertThat(scan.get("status").asText()).isEqualTo("COMPLETED");
+    }
+
+    private String createPlan(String projectId) throws Exception {
+        String response = mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProfile\":\"SPRING_BOOT_MVC\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).at("/summary/id").asText();
+    }
+
+    private PlanSetup createPlanSetup(Path source, String name) throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", name, "sourcePath", source.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode scan = awaitScan(objectMapper.readTree(scanResponse).get("id").asText());
+        assertThat(scan.get("status").asText()).isEqualTo("COMPLETED");
+        String planResponse = mockMvc.perform(post("/api/v1/projects/{id}/migration-plans",
+                        projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProfile\":\"SPRING_BOOT_MVC\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String planId = objectMapper.readTree(planResponse).at("/summary/id").asText();
+        String itemsResponse = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items", projectId, planId)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return new PlanSetup(projectId, planId,
+                objectMapper.readTree(itemsResponse).get("content"));
+    }
+
+    private record PlanSetup(String projectId, String planId, JsonNode items) {
+    }
+
     private void copyRecursively(Path source, Path target) throws Exception {
         try (Stream<Path> paths = Files.walk(source)) {
             for (Path path : paths.toList()) {
@@ -1362,7 +2714,7 @@ class StraviqueIntegrationTest {
                         + " && @.ruleVersion == '1.3.0')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'S2TX-SPRING-TRANSACTIONAL')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'S2TX-SPRING-TRANSACTIONAL'"
-                        + " && @.ruleVersion == '1.1.0')]").isNotEmpty())
+                        + " && @.ruleVersion == '1.2.0')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONTROLLER-SKELETON')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'MESSAGE-RESOURCE-SPRING-UTF8')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'MESSAGE-RESOURCE-SPRING-UTF8'"
@@ -1374,11 +2726,18 @@ class StraviqueIntegrationTest {
                         + " && @.ruleVersion == '1.2.0')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE'"
+                        + " && @.ruleVersion == '1.2.0')]").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE'"
                         + " && @.language == 'XML' && @.fileName == 'web.xml')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONFIG-MESSAGE-SPRING')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'STRUTS-CONFIG-MESSAGE-SPRING'"
                         + " && @.language == 'YAML' && @.fileName == 'struts-config.xml')]")
-                        .isNotEmpty());
+                        .isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'DICON-COMPONENT-SPRING-CONFIG')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$[?(@.ruleId == 'DICON-COMPONENT-SPRING-CONFIG'"
+                        + " && @.ruleVersion == '1.6.0' && @.language == 'JAVA'"
+                        + " && @.fileName == '.dicon')]").isNotEmpty());
     }
 
     @Test
@@ -1476,6 +2835,26 @@ class StraviqueIntegrationTest {
                     content.forEach(file ->
                             assertThat(file.get("scanStatus").asText()).isEqualTo("ANALYZED"));
                 });
+    }
+
+    private JsonNode awaitPlanRun(String projectId, String planId, String planRunId)
+            throws Exception {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(20));
+        JsonNode last = null;
+        while (Instant.now().isBefore(deadline)) {
+            String response = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/migration-plans/{plan}/"
+                                    + "transformation-plan-runs/{run}",
+                            projectId, planId, planRunId))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            last = objectMapper.readTree(response);
+            if (!"RUNNING".equals(last.get("status").asText())) {
+                return last;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("Plan run did not finish: " + last);
     }
 
     private JsonNode awaitScan(String scanId) throws Exception {

@@ -14,6 +14,8 @@ public interface MigrationItemRepository extends JpaRepository<MigrationItem, UU
 
     List<MigrationItem> findByPlanIdOrderByPhaseAscPriorityAscTitleAsc(UUID planId);
 
+    List<MigrationItem> findByPlanIdOrderByPhaseAscPriorityAscTitleAscIdAsc(UUID planId);
+
     List<MigrationItem> findByPlanIdAndIncludedTrueOrderByPhaseAscPriorityAscTitleAscIdAsc(
             UUID planId);
 

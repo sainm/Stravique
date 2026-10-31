@@ -2,6 +2,8 @@ package dev.stravique.transformation;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -33,7 +35,32 @@ class SeasarTransactionSpringRuleTest {
                 .contains("    @Transactional\n    public void flush()")
                 .contains("repository.update();");
         rule.validate(proposed);
-        assertThat(rule.ruleVersion()).isEqualTo("1.1.0");
+        assertThat(rule.ruleVersion()).isEqualTo("1.2.0");
+    }
+
+    @Test
+    void mapsAllSharedPropagationValues() {
+        String header = """
+                package com.example.legacy.dao;
+
+                import org.seasar.extension.tx.TransactionAttributeType;
+                import org.seasar.extension.tx.annotation.TransactionAttribute;
+
+                public class OrderDao {
+                """;
+        for (String propagation : List.of(
+                "REQUIRES_NEW", "SUPPORTS", "NOT_SUPPORTED", "MANDATORY", "NEVER")) {
+            String proposed = rule.propose(header
+                    + "    @TransactionAttribute(TransactionAttributeType." + propagation + ")\n"
+                    + "    public void flush() {}\n}\n", "OrderDao.java");
+
+            assertThat(proposed)
+                    .contains("import org.springframework.transaction.annotation.Transactional;")
+                    .contains("import org.springframework.transaction.annotation.Propagation;")
+                    .contains("@Transactional(propagation = Propagation." + propagation + ")")
+                    .doesNotContain("org.seasar.extension.tx");
+            rule.validate(proposed);
+        }
     }
 
     @Test
@@ -159,7 +186,7 @@ class SeasarTransactionSpringRuleTest {
                 """;
 
         assertThatThrownBy(() -> rule.propose(header
-                + "    @TransactionAttribute(TransactionAttributeType.MANDATORY)\n"
+                + "    @TransactionAttribute(TransactionAttributeType.UNKNOWN)\n"
                 + "    public void flush() {}\n}\n",
                 "OrderDao.java"))
                 .isInstanceOf(TransformationUnsupportedException.class)

@@ -61,6 +61,7 @@ Selecting a file loads persisted evidence. Evidence rows show the source range a
 - Shows item type, target, risk, automation, priority, phase, evidence count, and scope state.
 - Opens an item inspector with linked evidence, dependencies, dependents, and scope control.
 - Rejects excluding an item while another included item depends on it.
+- Compares the selected plan with the previous version by item key, with added/removed/changed/unchanged counts, before/after field values, and grouped rows in a three-language dialog; the base version is selectable, added/changed rows open the current item, and removed rows state that they are absent from the current plan.
 - Provides a persisted dependency map with explicit limits and truncation messaging.
 - Never presents a planning status as transformed or validated.
 - For items with a vetted rule, shows a read-only diff preview, syntax-validation state, explicit confirmation, apply, restore, and execution history. Create-only rules mark the proposal as a new file and warn that no existing file is overwritten.

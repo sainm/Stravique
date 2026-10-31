@@ -9,6 +9,7 @@ import type {
   MigrationItem,
   MigrationItemDetail,
   MigrationPlan,
+  MigrationPlanComparison,
   MigrationPlanSummary,
   ModuleInfo,
   Overview,
@@ -24,7 +25,12 @@ import type {
   RuntimeInfo,
   Scan,
   Technology,
+  TransformationBackupLedger,
+  TransformationBackupPrune,
   TransformationBatch,
+  TransformationCoverage,
+  TransformationPlanRun,
+  TransformationPlanRunSummary,
   TransformationProposal,
   TransformationRule,
   TransformationRun
@@ -215,8 +221,17 @@ export const api = {
     }),
   migrationPlans: (projectId: string) =>
     request<MigrationPlanSummary[]>(`/projects/${projectId}/migration-plans`),
+  migrationPlanOptions: (projectId: string) =>
+    request<MigrationPlanSummary[]>(
+      `/projects/${projectId}/migration-plans/options`
+    ),
   migrationPlan: (projectId: string, planId: string) =>
     request<MigrationPlan>(`/projects/${projectId}/migration-plans/${planId}`),
+  migrationPlanComparison: (projectId: string, planId: string, basePlanId?: string) =>
+    request<MigrationPlanComparison>(
+      `/projects/${projectId}/migration-plans/${planId}/comparison`,
+      { query: basePlanId ? { basePlanId } : undefined }
+    ),
   generateMigrationPlan: (
     projectId: string,
     input: { targetProfile?: string; scanId?: string }
@@ -300,5 +315,56 @@ export const api = {
     request<TransformationBatch>(
       `/projects/${projectId}/migration-plans/${planId}/transformation-batches/restore`,
       { method: "POST", body: JSON.stringify({ runIds, confirmed: true }) }
+    ),
+  transformationCoverage: (projectId: string, planId: string) =>
+    request<TransformationCoverage>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-coverage`
+    ),
+  transformationPlanRuns: (projectId: string, planId: string) =>
+    request<TransformationPlanRunSummary[]>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs`
+    ),
+  transformationPlanRun: (projectId: string, planId: string, planRunId: string) =>
+    request<TransformationPlanRun>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs/${planRunId}`
+    ),
+  applyTransformationPlanRun: (projectId: string, planId: string, itemIds?: string[]) =>
+    request<TransformationPlanRun>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs`,
+      {
+        method: "POST",
+        body: JSON.stringify(
+          itemIds ? { itemIds, confirmed: true } : { confirmed: true }
+        )
+      }
+    ),
+  restoreTransformationPlanRun: (projectId: string, planId: string, planRunId: string) =>
+    request<TransformationPlanRun>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs/${planRunId}/restore`,
+      { method: "POST", body: JSON.stringify({ confirmed: true }) }
+    ),
+  recoverTransformationPlanRun: (projectId: string, planId: string, planRunId: string) =>
+    request<TransformationPlanRun>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs/${planRunId}/recover`,
+      { method: "POST", body: JSON.stringify({ confirmed: true }) }
+    ),
+  cancelTransformationPlanRun: (projectId: string, planId: string, planRunId: string) =>
+    request<TransformationPlanRun>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs/${planRunId}/cancel`,
+      { method: "POST", body: JSON.stringify({ confirmed: true }) }
+    ),
+  resumeTransformationPlanRun: (projectId: string, planId: string, planRunId: string) =>
+    request<TransformationPlanRun>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-plan-runs/${planRunId}/resume`,
+      { method: "POST", body: JSON.stringify({ confirmed: true }) }
+    ),
+  transformationBackups: (projectId: string) =>
+    request<TransformationBackupLedger>(
+      `/projects/${projectId}/transformation-backups`
+    ),
+  pruneTransformationBackups: (projectId: string) =>
+    request<TransformationBackupPrune>(
+      `/projects/${projectId}/transformation-backups/prune`,
+      { method: "POST", body: JSON.stringify({ confirmed: true }) }
     )
 };

@@ -10,6 +10,10 @@ import java.util.UUID;
 
 public interface TransformationRunRepository extends JpaRepository<TransformationRun, UUID> {
 
+    List<TransformationRun> findByPlanIdOrderByCreatedAtAsc(UUID planId);
+
+    List<TransformationRun> findByProjectIdOrderByCreatedAtDesc(UUID projectId);
+
     List<TransformationRun> findByPlanIdAndItemIdOrderByCreatedAtDesc(UUID planId, UUID itemId);
 
     Optional<TransformationRun> findByIdAndProjectId(UUID id, UUID projectId);
