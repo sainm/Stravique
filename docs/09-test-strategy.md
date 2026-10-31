@@ -47,6 +47,7 @@
 - Message bundle proposal, UTF-8 apply, and byte-exact restore on the isolated fixture copy, with unchanged keys and placeholders.
 - JSP message/view-tag proposal, apply, taglib insertion, unused directive removal, legacy JSTL URI modernization, and byte-exact restore on the isolated fixture copy.
 - `web.xml` Jakarta descriptor proposal, apply, namespace/schema/version verification, and byte-exact restore on the isolated fixture copy.
+- Cross-file `struts-config.xml` message-resource proposal to a Spring Boot application config companion: the item source stays byte-identical, the YAML key appears, an externally modified target is rejected with `409`, an existing `spring.messages.basename` is rejected, a missing or ambiguous companion is rejected, the run records both hashes and a target backup outside the project, an externally modified source blocks restore, and restore returns both files to their originals.
 - Same-file re-proposal after an applied transformation, with a manual edit still rejected, and batch preview/apply/restore on the isolated fixture copy, including failure rollback, batch audit events, and byte-exact restoration.
 - The shipped fixture remains byte-identical after transformation tests.
 

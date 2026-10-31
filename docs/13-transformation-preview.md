@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage, and a Jakarta EE `web.xml` descriptor. It is deliberately narrow and safety-first.
+Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage, a Jakarta EE `web.xml` descriptor, and an additive Struts message-resources config bridge. It is deliberately narrow and safety-first.
 
 The engine can:
 
@@ -29,8 +29,9 @@ It cannot yet migrate Struts controller method bodies, request binding, message 
 | `MESSAGE-RESOURCE-SPRING-UTF8` | `MESSAGE_RESOURCE` | `SPRING_MESSAGES` | Properties |
 | `JSP-BEAN-MESSAGE-JSTL` | `JSP_VIEW` | `KEEP_JSP` | JSP |
 | `WEBXML-JAKARTA-NAMESPACE` | `CONFIGURATION` | `SPRING_BOOT_CONFIG` | XML |
+| `STRUTS-CONFIG-MESSAGE-SPRING` | `CONFIGURATION` | `SPRING_BOOT_CONFIG` | YAML |
 
-The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts a bare `@TransactionAttribute` and the explicitly vetted `REQUIRED`/`REQUIRES_NEW` propagation values; other propagation values are refused rather than mapped onto a name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives, rewrites supported message/view tags, and modernizes legacy JSTL taglib URIs. The web descriptor rule rewrites only the `web-app` namespace, schema location, and version on `web.xml`. No rule pretty-prints or rewrites unrelated code.
+The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts a bare `@TransactionAttribute` and the explicitly vetted `REQUIRED`/`REQUIRES_NEW` propagation values; other propagation values are refused rather than mapped onto a name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives, rewrites supported message/view tags, and modernizes legacy JSTL taglib URIs. The web descriptor rule rewrites only the `web-app` namespace, schema location, and version on `web.xml`. The config bridge rule reads `struts-config.xml` and appends one Spring message key to the module application config; it is the only rule whose target differs from the item source, protected by both source and target hashes. No rule pretty-prints or rewrites unrelated code.
 
 ### Seasar2 DI → Spring DI
 
@@ -206,12 +207,31 @@ Rejected for manual review:
 
 The rule is matched by item type, target, and the `web.xml` file-name hint in the rule catalog. It makes no claim that the descriptor is valid against the Jakarta schema; only XML well-formedness and the resulting root namespace/version are checked.
 
+### Struts message-resources → Spring messages config
+
+Supported edits:
+
+- Read the explicit `<message-resources parameter="...">` value from `struts-config.xml`.
+- Append `spring.messages.basename: "<value>"` to the module's `application.yml`/`.yaml`, or `spring.messages.basename=<value>` to `application.properties`.
+- Preserve the target's existing content and line endings.
+- Leave `struts-config.xml` byte-identical.
+
+Rejected for manual review:
+
+- No message-resources declaration, a blank parameter, no application config target, or more than one target.
+- An existing `spring.messages.basename` key.
+- Malformed XML or an unsupported target type.
+- Removing the old declaration, dicon conversion, filter/listener migration, and full Spring Boot configuration conversion.
+
+The proposal stores both the source hash and the target hash; apply requires both to still match, backs up and writes the target, and restore returns the target from that backup. The detailed contract is in [15-cross-file-config.md](15-cross-file-config.md).
+
 ## Safety model
 
 Proposal generation:
 
 - Requires a completed, current plan (a newer completed scan makes the plan stale).
 - Requires the current source SHA-256 to equal the scan record's hash, or the `appliedSha256` of the latest `APPLIED` run for the same project and path. Any other change is rejected; see [14-multi-item-workflow.md](14-multi-item-workflow.md).
+- For a cross-file edit, records the target file's current hash as `targetSha256`; the source file is never the target.
 - Reads the file, builds the diff in memory, and writes only database rows.
 - Refuses a create proposal when the target path already exists or its parent is outside the project.
 - Supersedes earlier proposed versions for the same item.
@@ -220,10 +240,10 @@ Apply:
 
 - Requires `confirmed: true`.
 - Requires the proposal to still be `PROPOSED`.
-- Rechecks the plan is current and the current file hash equals the proposal's original hash.
+- Rechecks the plan is current, the current source hash equals the proposal's original hash, and the target hash equals `targetSha256` (for same-file rules both hashes are the same file).
 - Re-runs the same rule version and verifies the proposed hash equals the persisted proposal.
 - Uses the rule's declared output encoding when hashing and writing; the message rule writes UTF-8.
-- For an edit, copies the original bytes to a backup directory outside the project before writing, and restores the original bytes if the database transaction fails.
+- For an edit, backs up the target bytes outside the project before writing, and restores the target bytes if the database transaction fails.
 - For a create, verifies the target does not exist before writing, and deletes the created file if the database transaction fails.
 - Writes atomically through a temporary file.
 - Never deletes or replaces the whole project.
@@ -232,7 +252,7 @@ Restore:
 
 - Requires `confirmed: true`.
 - Requires an `APPLIED` run and the current file hash equal to the applied hash.
-- For an edit, verifies the backup bytes against the original hash and writes only that file, atomically.
+- For an edit, verifies the backup bytes against the target hash and writes only that target file, atomically.
 - For a create, deletes only that generated file.
 - Leaves an existing backup in place for audit.
 
@@ -249,8 +269,8 @@ The only automated validation is syntax parsing of the proposed artifact: Java p
 
 ## Data model
 
-- `transformation_proposal`: source file, item, rule/version, artifact type, original and proposed hashes, target path, unified diff, syntax-validation result, status, timestamps.
-- `transformation_run`: applied/restored log with the proposal, item, artifact type, file path, backup path, original/applied hashes, rule/version, timestamps.
+- `transformation_proposal`: source file, item, rule/version, artifact type, source and target hashes, target path, unified diff, syntax-validation result, status, timestamps.
+- `transformation_run`: applied/restored log with the proposal, item, artifact type, file path, backup path, source/target/applied hashes, rule/version, timestamps.
 
 Artifact types: `EDIT_FILE` and `CREATE_FILE`. A rule may declare a non-source output encoding; the message rule declares UTF-8. The encoding is re-derived from the rule on apply and is not stored separately.
 
@@ -308,4 +328,4 @@ Not implemented:
 - Compile or runtime validation.
 - Batch execution across a plan.
 
-Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently ten rules; unsupported items remain explicitly unsupported. The domain-by-domain close-out audit and its boundary evidence live in [10-delivery-plan.md](10-delivery-plan.md#phase-4-close-out-audit).
+Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently eleven rules; unsupported items remain explicitly unsupported. The domain-by-domain close-out audit and its boundary evidence live in [10-delivery-plan.md](10-delivery-plan.md#phase-4-close-out-audit); cross-file edit safety is in [15-cross-file-config.md](15-cross-file-config.md).
