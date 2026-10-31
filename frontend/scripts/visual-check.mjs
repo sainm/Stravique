@@ -74,6 +74,7 @@ let messageItemId = "";
 let jspItemId = "";
 let listJspItemId = "";
 let webXmlItemId = "";
+let strutsConfigItemId = "";
 if (migrationPlanId) {
   const migrationItems = await fetch(
     `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items?size=200`
@@ -267,6 +268,24 @@ if (migrationPlanId) {
     if (proposals.length === 0) {
       await fetch(
         `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${webXml.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const strutsConfig = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "CONFIGURATION" &&
+      item.targetKey === "SPRING_BOOT_CONFIG" &&
+      item.title === "struts-config.xml"
+  );
+  if (strutsConfig) {
+    strutsConfigItemId = strutsConfig.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${strutsConfig.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${strutsConfig.id}/transformation-proposals`,
         { method: "POST" }
       );
     }
@@ -895,6 +914,48 @@ for (const language of languages) {
             path: path.join(
               outputDirectory,
               `${language}-${viewport.name}-migration-webxml-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+        await searchInput.fill("");
+        await page.waitForTimeout(200);
+      }
+
+      if (name === "migration" && strutsConfigItemId) {
+        const searchInput = page.locator(".migration-filters input").first();
+        await searchInput.fill("struts-config.xml");
+        await page.waitForTimeout(300);
+        const strutsConfigRow = page
+          .locator(`[data-item-id="${strutsConfigItemId}"] .migration-row-open`)
+          .first();
+        await strutsConfigRow
+          .waitFor({ state: "visible", timeout: 5000 })
+          .catch(() => {});
+        if ((await strutsConfigRow.count()) > 0) {
+          await strutsConfigRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-message-config-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-message-config-inspector.png`
             ),
             fullPage: false
           });

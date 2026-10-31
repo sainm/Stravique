@@ -394,6 +394,7 @@ export interface TransformationProposal {
   ruleId: string;
   ruleVersion: string;
   originalSha256?: string;
+  targetSha256?: string;
   proposedSha256: string;
   diff: string;
   validationStatus: string;
@@ -422,7 +423,9 @@ export interface TransformationRun {
   status: string;
   relativePath: string;
   artifactType: string;
+  backupPath?: string;
   originalSha256?: string;
+  targetSha256?: string;
   appliedSha256: string;
   ruleId: string;
   ruleVersion: string;

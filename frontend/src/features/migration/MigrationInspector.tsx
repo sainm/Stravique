@@ -74,6 +74,10 @@ export default function MigrationInspector({
     detail.data?.item.itemType === "CONFIGURATION" &&
     detail.data?.item.targetKey === "SPRING_BOOT_CONFIG" &&
     detail.data?.item.title === "web.xml";
+  const strutsConfigItem =
+    detail.data?.item.itemType === "CONFIGURATION" &&
+    detail.data?.item.targetKey === "SPRING_BOOT_CONFIG" &&
+    detail.data?.item.title === "struts-config.xml";
   const fallbackRuleId = diItem
     ? "SEASAR-DI-SPRING-DI"
     : validationItem
@@ -90,9 +94,11 @@ export default function MigrationInspector({
                 ? "JSP-BEAN-MESSAGE-JSTL"
                 : webXmlItem
                   ? "WEBXML-JAKARTA-NAMESPACE"
-                  : controllerItem
-                    ? "STRUTS-CONTROLLER-SKELETON"
-                    : undefined;
+                  : strutsConfigItem
+                    ? "STRUTS-CONFIG-MESSAGE-SPRING"
+                    : controllerItem
+                      ? "STRUTS-CONTROLLER-SKELETON"
+                      : undefined;
   const ruleCatalog = useQuery({
     queryKey: ["transformation-rules"],
     queryFn: api.transformationRules,
@@ -159,6 +165,11 @@ export default function MigrationInspector({
   }, [itemId]);
 
   const latestProposal = proposals.data?.[0];
+  const crossFile = Boolean(
+    latestProposal?.relativePath &&
+      detail.data?.item.primaryFilePath &&
+      latestProposal.relativePath !== detail.data.item.primaryFilePath
+  );
   const appliedRun = runs.data?.find((run) => run.status === "APPLIED");
   const transformationError =
     proposeMutation.error || applyMutation.error || restoreMutation.error;
@@ -299,7 +310,9 @@ export default function MigrationInspector({
                           ? t("migration.transformation.descriptionJspTags")
                           : activeRuleId === "WEBXML-JAKARTA-NAMESPACE"
                             ? t("migration.transformation.descriptionWebXml")
-                            : activeRuleId === "JAVAX-TO-JAKARTA"
+                            : activeRuleId === "STRUTS-CONFIG-MESSAGE-SPRING"
+                              ? t("migration.transformation.descriptionMessageConfig")
+                              : activeRuleId === "JAVAX-TO-JAKARTA"
                               ? t("migration.transformation.descriptionJakarta")
                             : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
                               ? t("migration.transformation.descriptionForm")
@@ -314,9 +327,18 @@ export default function MigrationInspector({
                   <span>
                     {createsArtifact
                       ? t("migration.transformation.createWarning")
-                      : t("migration.transformation.sourceWarning")}
+                      : crossFile
+                        ? t("migration.transformation.crossFileWarning")
+                        : t("migration.transformation.sourceWarning")}
                   </span>
                 </p>
+                {crossFile ? (
+                  <p className="migration-note">
+                    {t("migration.transformation.targetFileNote", {
+                      path: latestProposal?.relativePath ?? ""
+                    })}
+                  </p>
+                ) : null}
                 <div className="migration-transformation-actions">
                   <button
                     className="button button-secondary button-small"
@@ -342,7 +364,9 @@ export default function MigrationInspector({
                             ? t("migration.transformation.scopeJspTags")
                             : activeRuleId === "WEBXML-JAKARTA-NAMESPACE"
                               ? t("migration.transformation.scopeWebXml")
-                              : activeRuleId === "JAVAX-TO-JAKARTA"
+                              : activeRuleId === "STRUTS-CONFIG-MESSAGE-SPRING"
+                                ? t("migration.transformation.scopeMessageConfig")
+                                : activeRuleId === "JAVAX-TO-JAKARTA"
                                 ? t("migration.transformation.scopeJakarta")
                               : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
                                 ? t("migration.transformation.scopeForm")
@@ -384,6 +408,14 @@ export default function MigrationInspector({
                           {t("migration.transformation.newFile")}
                         </span>
                       ) : null}
+                      {crossFile ? (
+                        <span
+                          className="migration-chip"
+                          title={latestProposal.relativePath}
+                        >
+                          {t("migration.transformation.targetFile")}
+                        </span>
+                      ) : null}
                     </div>
                     <pre className="migration-diff">{latestProposal.diff}</pre>
                     {latestProposal.status === "PROPOSED" ||
@@ -397,7 +429,9 @@ export default function MigrationInspector({
                         <span>
                           {createsArtifact
                             ? t("migration.transformation.confirmCreate")
-                            : t("migration.transformation.confirm")}
+                            : crossFile
+                              ? t("migration.transformation.confirmCrossFile")
+                              : t("migration.transformation.confirm")}
                         </span>
                       </label>
                     ) : null}
