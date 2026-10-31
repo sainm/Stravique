@@ -34,7 +34,7 @@ It covers the following acceptance areas.
 | Protect plan scope | Excluding an item still required by an included item returns `MIGRATION_DEPENDENCY_CONFLICT` |
 | Expose planning status honestly | Plans emit only `READY`, `REVIEW_REQUIRED`, and `BLOCKED`; transformation statuses are not fabricated |
 | Plan workspace | List, phase, dependency map, review, and history views render in three languages with persisted counts |
-| Preview vetted transformations | Integration test generates Seasar DI → Spring DI, SAStruts `@Required` → `@NotNull`, ActionForm model, supported `javax.*` → `jakarta.*`, S2JDBC select and write chains → JdbcTemplate, create-only Spring controller skeleton, UTF-8 message-bundle, and JSTL message-tag diffs with persisted rule versions and hashes |
+| Preview vetted transformations | Integration test generates Seasar DI → Spring DI, SAStruts `@Required`/length → `@NotNull`/`@Size`, ActionForm model, supported `javax.*` → `jakarta.*`, S2JDBC select and write chains → JdbcTemplate, vetted transaction propagation, create-only Spring controller skeleton, UTF-8 message-bundle, JSTL message/view-tag and JSTL URI, and Jakarta `web.xml` diffs with persisted rule versions and hashes |
 | Apply with protection | Edit apply requires confirmation, creates a backup, writes atomically, and updates a transformation run; create apply requires the target to be absent |
 | Restore safely | Edit restore verifies the applied hash and backup hash before writing the original bytes; create restore deletes only the unchanged generated file |
 | Create without overwriting | Controller skeleton apply leaves the legacy action byte-identical and refuses an existing target |
@@ -65,7 +65,7 @@ The fixture migration plan should report these minimum characteristics:
 - More than one phase.
 - No `TRANSFORMED`, `VALIDATED`, or `VALIDATION_FAILED` item.
 
-Transformation acceptance uses a temporary copy of the fixture. It previews `OrderService.java` as a Seasar DI → Spring DI diff, `OrderAction.java` as a plain `@Required` → `@NotNull` diff, `OrderForm.java` as an ActionForm inheritance removal, `Order.java` as a supported `javax.*` → `jakarta.*` diff, `OrderQueryDao.java` as a read-only select diff, and `OrderDao.java` as a select-and-write diff whose parameter types map to `java.sql.Types`, applies each, verifies the backup and run records, restores the original bytes, and confirms the shipped fixture was never modified. It also previews `OrderAction.java` as a create-only controller skeleton, verifies the new file and `CREATE_FILE` run record, restores to remove the generated file, and rechecks the action source bytes. It previews `messages.properties` as a UTF-8 bundle, verifies the escaped Japanese message becomes literal UTF-8 text with unchanged keys, and restores the original bytes. It previews `edit.jsp` as a JSTL message-tag change, verifies the fmt taglib is added and the unused bean taglib removed, and restores the original bytes.
+Transformation acceptance uses a temporary copy of the fixture. It previews `OrderService.java` as a Seasar DI → Spring DI diff including `@Scope("prototype")`, `OrderAction.java` as a `@Required` and length-annotation diff to `@NotNull`/`@Size`, `OrderForm.java` as an ActionForm inheritance removal, `Order.java` as a supported `javax.*` → `jakarta.*` diff, `OrderQueryDao.java` as a read-only select diff, and `OrderDao.java` as a select-and-write diff whose parameter types map to `java.sql.Types`, applies each, verifies the backup and run records, restores the original bytes, and confirms the shipped fixture was never modified. It also previews `OrderAction.java` as a create-only controller skeleton, verifies the new file and `CREATE_FILE` run record, restores to remove the generated file, and rechecks the action source bytes. It previews `messages.properties` as a UTF-8 bundle, verifies the escaped Japanese message becomes literal UTF-8 text with unchanged keys, and restores the original bytes. It previews `edit.jsp` as a JSTL message-tag change, verifies the fmt taglib is added and the unused bean taglib removed, and restores the original bytes. It previews `list.jsp` as a JSTL taglib-URI modernization and `bean:write` conversion, verifies core/fmt become `jakarta.tags.*` and the custom tag remains, and restores the original bytes. It previews `web.xml` as a Jakarta EE descriptor, verifies the namespace, schema, and version change while the listener and filter blocks stay intact, and restores the original bytes. It also re-proposes a second item on an already transformed file without a rescan, rejects a manual edit after apply, applies and restores a selected-item batch, and verifies that a later batch failure restores the earlier applied item.
 
 Exact counts can change when the fixture changes, but must remain derived from the current persisted scan.
 
@@ -78,8 +78,8 @@ Exact counts can change when the fixture changes, but must remain derived from t
 - Inventory Explorer with evidence inspector.
 - Framework Usage.
 - Relations table and map.
-- Migration plan, review, and dependency map.
-- Migration item inspector with transformation preview for edit rules, the transaction annotation, the create-only controller skeleton, message bundles, and JSP message tags.
+- Migration plan, review, dependency map, and selected-item batch preview/confirmation.
+- Migration item inspector with transformation preview for edit rules, the transaction annotation, the create-only controller skeleton, message bundles, JSP message tags, and the Jakarta web descriptor.
 - Reports.
 - Settings.
 - Desktop and mobile layouts.
@@ -106,4 +106,4 @@ Technical acceptance does not establish migration readiness. A human must still 
 - Transformation previews: annotation mapping, import side effects, dicon remains, and whether the resulting code compiles with the target stack.
 - Apply/restore records and backup retention.
 
-Phase 3 acceptance does not imply that any plan item has been transformed or validated. Phase 4 acceptance covers nine assisted rules—DI annotations, `@Required`, simple ActionForm inheritance, supported `javax.*` namespace imports, S2JDBC queries and parameterised writes, bare S2 transaction annotations, a create-only controller skeleton, UTF-8 message bundles, and JSTL message tags—and does not establish semantic equivalence, compilation, or runtime behavior.
+Phase 3 acceptance does not imply that any plan item has been transformed or validated. Phase 4 acceptance covers ten assisted rules—DI annotations, `@Required` and length annotations, simple ActionForm inheritance, supported `javax.*` namespace imports, S2JDBC queries and parameterised writes, S2 transaction propagation, a create-only controller skeleton, UTF-8 message bundles, JSTL message tags and taglib URIs, and the Jakarta `web.xml` descriptor—and does not establish semantic equivalence, compilation, or runtime behavior.

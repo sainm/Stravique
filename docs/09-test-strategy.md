@@ -17,15 +17,16 @@
 - Report message coverage derived from the report declarations, so a new type or column cannot ship without labels or leave orphaned keys.
 - Technology certainty aggregation.
 - Migration plan graph adaptation and prerequisite-before-dependent layout.
-- Seasar2 DI → Spring DI AST-range rule: imports, component/binding annotations, supported scopes, formatting preservation, and rejected constructs.
-- SAStruts `@Required` → Bean Validation `@NotNull` rule and its rejected attribute forms.
+- Seasar2 DI → Spring DI AST-range rule: imports, component/binding annotations, prototype/request/session/application → `@Scope`, singleton omission, formatting preservation, and rejected constructs.
+- SAStruts `@Required` → Bean Validation `@NotNull` and length annotations → `@Size`, including import merge/removal, rejected attribute forms, duplicate annotations, conflicting imports, and non-integer values.
 - Struts ActionForm inheritance removal rule, including lifecycle-method and residual-reference rejection.
 - Supported `javax.*` → `jakarta.*` import rule, including wildcard imports and unsupported-package refusal.
-- Read-only S2JDBC `selectBySql` → JdbcTemplate rule, including rejection of update calls and unsupported manager usage.
-- Seasar2 `@TransactionAttribute` → Spring `@Transactional` rule: bare annotation and import replacement, an existing Spring import reused, and rejection of parameterized annotations, a missing import, and an import with no annotation.
+- S2JDBC `selectBySql` and insert/update/delete writes → JdbcTemplate rule, including the expanded `java.sql.Types` table, rejection of unmapped types and mismatched parameter counts, and unsupported manager usage.
+- Seasar2 `@TransactionAttribute` → Spring `@Transactional` rule: bare and REQUIRED/REQUIRES_NEW propagation, propagation import reuse, and rejection of other values, non-enum values, duplicate `@Transactional`, a missing import, and an import with no annotation.
 - Struts controller skeleton rule: explicit-mapping generation, package and forward filtering, no invented routes, and supported item/target.
 - Message bundle UTF-8 rule: non-ASCII escape conversion, comment and continuation preservation, surrogate pairs, rejected malformed bundles, and unchanged message maps.
-- JSP `bean:message` → JSTL rule: taglib reuse and insertion, unused taglib removal, rejected attribute and body forms, and unbalanced tag structure rejection.
+- JSP tag rule: `bean:message` conversion, `bean:write` conversion, taglib reuse and insertion, unused taglib removal, legacy JSTL URI modernization, rejected attribute/body forms and unknown URIs, and unbalanced tag structure rejection.
+- `web.xml` Jakarta namespace rule: Java EE and J2EE namespace/schema/version conversion, already-Jakarta and unsupported-version rejection, malformed XML, and file-name support.
 - Atomic source replacement: a replaced file keeps its own permissions and executable bit, a created file takes the platform default rather than the private mode of a staging file, a shorter replacement truncates, and no staging file survives.
 - Paged query ordering ends at the row identifier and never repeats a column, so offset paging cannot duplicate or drop rows that share a sort key.
 
@@ -41,10 +42,12 @@
 - i18n error response keys in all three locales.
 - Migration plan generation from a completed scan, item type coverage, evidence links, phases, dependency counts, graph limits, and staleness.
 - Scope guards: excluding a required prerequisite and re-including an item with an excluded prerequisite are both rejected.
-- Transformation preview, apply, and restore on an isolated fixture copy for DI, validation, form-model, Jakarta-namespace, S2JDBC, and transaction rules, including confirmation, backup, hash, and changed-source guards, and the applied and restored file keeping its original permissions.
+- Transformation preview, apply, and restore on an isolated fixture copy for DI/scope, validation, form-model, Jakarta-namespace, S2JDBC, and transaction rules, including confirmation, backup, hash, and changed-source guards, and the applied and restored file keeping its original permissions.
 - Create-only controller skeleton proposal, apply, run record, and restore on the isolated fixture copy: the target must not exist, the action source stays byte-identical, and restore removes the generated file.
 - Message bundle proposal, UTF-8 apply, and byte-exact restore on the isolated fixture copy, with unchanged keys and placeholders.
-- JSP message-tag proposal, apply, taglib insertion, unused directive removal, and byte-exact restore on the isolated fixture copy.
+- JSP message/view-tag proposal, apply, taglib insertion, unused directive removal, legacy JSTL URI modernization, and byte-exact restore on the isolated fixture copy.
+- `web.xml` Jakarta descriptor proposal, apply, namespace/schema/version verification, and byte-exact restore on the isolated fixture copy.
+- Same-file re-proposal after an applied transformation, with a manual edit still rejected, and batch preview/apply/restore on the isolated fixture copy, including failure rollback, batch audit events, and byte-exact restoration.
 - The shipped fixture remains byte-identical after transformation tests.
 
 ### Fixture tests
@@ -98,7 +101,8 @@ When a browser runtime is available:
 - Check evidence panes and status labels for overflow.
 - Check relation filters and source/target rows for overflow.
 - Check migration item rows, plan metrics, and the migration dependency canvas for content and overflow.
-- Open every vetted-rule inspector, including the create-only controller skeleton with its new-file warning, and the transaction rule's annotation swap.
+- Open every vetted-rule inspector, including the create-only controller skeleton with its new-file warning, the transaction rule's annotation swap, and the web descriptor's namespace change.
+- Select two plan items, open the batch preview and confirmation modal, and verify the three-language layout and counts.
 - Verify no locale produces clipped primary actions.
 
 Persisted screenshots are verification artifacts, not product data.

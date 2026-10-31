@@ -410,6 +410,7 @@ export interface TransformationRule {
   itemType: string;
   targetKey: string;
   language: string;
+  fileName?: string | null;
 }
 
 export interface TransformationRun {
@@ -428,4 +429,26 @@ export interface TransformationRun {
   errorMessage?: string;
   createdAt: string;
   finishedAt?: string;
+}
+
+export interface TransformationBatchItem {
+  itemId?: string;
+  title?: string;
+  runId?: string;
+  status: string;
+  proposal?: TransformationProposal;
+  run?: TransformationRun;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface TransformationBatch {
+  batchId: string;
+  status: string;
+  requested: number;
+  applied: number;
+  restored: number;
+  failed: number;
+  restoredOnFailure: number;
+  items: TransformationBatchItem[];
 }

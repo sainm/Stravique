@@ -7,6 +7,7 @@ import org.apache.struts.action.ActionMessage;
 import org.apache.struts.action.ActionMessages;
 import org.seasar.framework.container.annotation.twig.Binding;
 import org.seasar.struts.annotation.Execute;
+import org.seasar.struts.annotation.MaxLength;
 import org.seasar.struts.annotation.Required;
 
 public class OrderAction extends BaseWorkflowController {
@@ -16,6 +17,10 @@ public class OrderAction extends BaseWorkflowController {
 
     @Required
     public OrderForm orderForm;
+
+    @Required
+    @MaxLength(120)
+    public String customerName;
 
     @Execute(validator = false)
     public String index() {

@@ -45,6 +45,161 @@ class SaStrutsValidationSpringRuleTest {
         assertThat(proposed.split("@NotNull", -1)).hasSize(3);
         assertThat(StaticJavaParser.parse(proposed)).isNotNull();
         assertThat(rule.ruleId()).isEqualTo("SASTRUTS-VALIDATION-BEAN");
+        assertThat(rule.ruleVersion()).isEqualTo("1.1.0");
+    }
+
+    @Test
+    void rewritesLengthAnnotationsToSize() {
+        String source = """
+                package example;
+
+                import org.seasar.struts.annotation.Length;
+                import org.seasar.struts.annotation.MaxLength;
+                import org.seasar.struts.annotation.Required;
+
+                public class OrderAction {
+
+                    @Required
+                    @MaxLength(120)
+                    public String customerName;
+
+                    @Length(min = 2, max = 20)
+                    public String status;
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderAction.java");
+
+        assertThat(proposed)
+                .contains("import jakarta.validation.constraints.NotNull;")
+                .contains("import jakarta.validation.constraints.Size;")
+                .contains("@Size(max = 120)")
+                .contains("@Size(min = 2, max = 20)")
+                .doesNotContain("org.seasar.struts.annotation");
+        assertThat(proposed.split("@Size", -1)).hasSize(3);
+        assertThat(StaticJavaParser.parse(proposed)).isNotNull();
+    }
+
+    @Test
+    void rewritesSizeAnnotationsWithoutARequiredImport() {
+        String source = """
+                package example;
+
+                import org.seasar.struts.annotation.MinLength;
+
+                public class OrderForm {
+                    @MinLength(3)
+                    public String name;
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderForm.java");
+
+        assertThat(proposed)
+                .contains("import jakarta.validation.constraints.Size;")
+                .contains("@Size(min = 3)")
+                .doesNotContain("jakarta.validation.constraints.NotNull")
+                .doesNotContain("org.seasar.struts.annotation");
+    }
+
+    @Test
+    void reusesAnExistingSizeImportAndRemovesTheSourceImport() {
+        String source = """
+                package example;
+
+                import jakarta.validation.constraints.Size;
+                import org.seasar.struts.annotation.MaxLength;
+
+                public class OrderForm {
+                    @MaxLength(5)
+                    public String name;
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderForm.java");
+
+        assertThat(proposed)
+                .contains("import jakarta.validation.constraints.Size;")
+                .contains("@Size(max = 5)")
+                .doesNotContain("org.seasar.struts.annotation");
+        assertThat(proposed.split("import jakarta.validation.constraints.Size;", -1))
+                .hasSize(2);
+    }
+
+    @Test
+    void rejectsLengthAnnotationsThatNeedManualReview() {
+        String header = """
+                package example;
+
+                import org.seasar.struts.annotation.Length;
+                import org.seasar.struts.annotation.MaxLength;
+                import org.seasar.struts.annotation.MinLength;
+
+                public class OrderForm {
+                """;
+
+        assertThatThrownBy(() -> rule.propose(header
+                + "    @Length(min = 1, max = 10, message = \"x\")\n"
+                + "    public String name;\n}\n", "OrderForm.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(header
+                + "    @MaxLength(value = 5)\n"
+                + "    public String name;\n}\n", "OrderForm.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(header
+                + "    @MaxLength(5)\n    @MinLength(1)\n"
+                + "    public String name;\n}\n", "OrderForm.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(header
+                + "    @MaxLength(-1)\n"
+                + "    public String name;\n}\n", "OrderForm.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(header
+                + "    @Length(min = 9, max = 2)\n"
+                + "    public String name;\n}\n", "OrderForm.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+    }
+
+    @Test
+    void rejectsDuplicateOrConflictingTargets() {
+        assertThatThrownBy(() -> rule.propose("""
+                package example;
+
+                import jakarta.validation.constraints.Size;
+                import org.seasar.struts.annotation.MaxLength;
+
+                public class OrderForm {
+                    @Size(max = 5)
+                    @MaxLength(5)
+                    public String name;
+                }
+                """, "OrderForm.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose("""
+                package example;
+
+                import jakarta.validation.constraints.NotNull;
+                import org.seasar.struts.annotation.Required;
+
+                public class OrderAction {
+                    @NotNull
+                    @Required
+                    public String name;
+                }
+                """, "OrderAction.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose("""
+                package example;
+
+                import javax.validation.constraints.NotNull;
+                import org.seasar.struts.annotation.Required;
+
+                public class OrderAction {
+                    @Required
+                    public String name;
+                }
+                """, "OrderAction.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
     }
 
     @Test

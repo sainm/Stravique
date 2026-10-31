@@ -106,6 +106,16 @@ public class TransformationService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
+    public <T> T withProjectLock(UUID projectId, java.util.function.Supplier<T> action) {
+        ReentrantLock lock = locks.computeIfAbsent(projectId, ignored -> new ReentrantLock());
+        lock.lock();
+        try {
+            return action.get();
+        } finally {
+            lock.unlock();
+        }
+    }
+
     @Transactional
     public TransformationProposalDto propose(UUID projectId, UUID planId, UUID itemId) {
         AnalysisProject project = requireProject(projectId);
@@ -592,7 +602,8 @@ public class TransformationService {
         try {
             byte[] bytes = Files.readAllBytes(target);
             String currentSha = sha256(bytes);
-            if (file.getSha256() != null && !file.getSha256().equals(currentSha)) {
+            if (file.getSha256() != null && !file.getSha256().equals(currentSha)
+                    && !isLatestAppliedContent(file, currentSha)) {
                 throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
                         "error.transformation.sourceChanged");
             }
@@ -602,6 +613,15 @@ public class TransformationService {
             throw new ApiException(HttpStatus.CONFLICT, "SOURCE_CHANGED",
                     "error.transformation.sourceChanged");
         }
+    }
+
+    private boolean isLatestAppliedContent(ProjectFile file, String currentSha) {
+        return runRepository
+                .findFirstByProjectIdAndRelativePathAndStatusOrderByCreatedAtDesc(
+                        file.getProjectId(), file.getRelativePath(),
+                        TransformationRunStatus.APPLIED)
+                .map(run -> currentSha.equals(run.getAppliedSha256()))
+                .orElse(false);
     }
 
     private byte[] readBytes(Path target) {

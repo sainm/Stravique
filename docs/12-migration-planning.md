@@ -67,7 +67,7 @@ Every item carries a deterministic `itemKey` and links to its primary file and p
 | `CONFIGURATION` | web.xml, struts-config, or dicon findings | `SPRING_BOOT_CONFIG` | `ASSISTED` | `MEDIUM` | `READY` |
 | `REVIEW` | Parse failure, dynamic loading, reflection, or project-owned framework evidence without another item | `MANUAL_REVIEW` | `MANUAL` | `HIGH` | `REVIEW_REQUIRED` |
 
-`MESSAGE_RESOURCE` items carry the message bundle only. Its vetted transformation normalizes non-ASCII escapes to UTF-8; message APIs, lifecycle flow, and JSP error/message-block tags remain `MESSAGE_FLOW` or manual review work. `JSP_VIEW` items target `KEEP_JSP`; the vetted JSP rule rewrites self-closing `bean:message` tags as JSTL `fmt:message`, while form, error, and custom tags remain manual.
+`MESSAGE_RESOURCE` items carry the message bundle only. Its vetted transformation normalizes non-ASCII escapes to UTF-8; message APIs, lifecycle flow, and JSP error/message-block tags remain `MESSAGE_FLOW` or manual review work. `JSP_VIEW` items target `KEEP_JSP`; the vetted JSP rule rewrites self-closing `bean:message` as JSTL `fmt:message`, `bean:write` as `c:out`, and modernizes legacy JSTL taglib URIs to `jakarta.tags.*`, while form, error, and custom tags remain manual. `CONFIGURATION` items cover several descriptor kinds; only `web.xml` has a vetted rule, which updates the Jakarta EE namespace, schema, and version, while dicon, struts-config, and other configuration conversion remain manual. `VALIDATION` items are covered by one rule for plain `@Required` and integer length annotations; other SAStruts validation annotations remain manual.
 
 Escalations:
 

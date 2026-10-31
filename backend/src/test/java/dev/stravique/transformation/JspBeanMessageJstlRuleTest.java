@@ -50,7 +50,7 @@ class JspBeanMessageJstlRuleTest {
     }
 
     @Test
-    void reusesAnExistingFmtTaglibAndKeepsOtherBeanTags() {
+    void reusesFmtAndConvertsBeanWriteWithANewCoreTaglib() {
         String source = """
                 <%@ taglib prefix="bean" uri="http://struts.apache.org/tags-bean" %>
                 <%@ taglib prefix="jstl" uri="http://java.sun.com/jsp/jstl/fmt" %>
@@ -62,13 +62,16 @@ class JspBeanMessageJstlRuleTest {
 
         assertThat(proposed)
                 .contains("<jstl:message key=\"order.list.title\"/>")
-                .contains("<bean:write name=\"orderForm\" property=\"customerName\"/>")
-                .contains("prefix=\"bean\"")
-                .doesNotContain("prefix=\"fmt\"");
+                .contains("<c:out value=\"${orderForm.customerName}\"/>")
+                .contains("<%@ taglib prefix=\"c\" uri=\"jakarta.tags.core\" %>")
+                .contains("prefix=\"jstl\" uri=\"jakarta.tags.fmt\"")
+                .doesNotContain("<bean:write")
+                .doesNotContain("prefix=\"bean\"")
+                .doesNotContain("java.sun.com/jsp/jstl");
     }
 
     @Test
-    void choosesTheLegacyJstlUriWhenThePageAlreadyUsesIt() {
+    void modernizesLegacyJstlUrisAndAddsJakartaFmt() {
         String source = """
                 <%@ taglib prefix="bean" uri="http://struts.apache.org/tags-bean" %>
                 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
@@ -78,7 +81,48 @@ class JspBeanMessageJstlRuleTest {
         String proposed = rule.propose(source, "order.jsp");
 
         assertThat(proposed)
-                .contains("<%@ taglib prefix=\"fmt\" uri=\"http://java.sun.com/jsp/jstl/fmt\" %>");
+                .contains("<%@ taglib prefix=\"fmt\" uri=\"jakarta.tags.fmt\" %>")
+                .contains("uri=\"jakarta.tags.core\"")
+                .doesNotContain("java.sun.com/jsp/jstl");
+    }
+
+    @Test
+    void modernizesLegacyJstlUrisWithoutMessageTags() {
+        String source = """
+                <%@ page contentType="text/html; charset=UTF-8" %>
+                <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+                <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+                <html>
+                <body>
+                <c:out value="${order.id}"/>
+                <fmt:message key="order.list.title"/>
+                </body>
+                </html>
+                """;
+
+        String proposed = rule.propose(source, "list.jsp");
+
+        assertThat(proposed)
+                .contains("uri=\"jakarta.tags.core\"")
+                .contains("uri=\"jakarta.tags.fmt\"")
+                .doesNotContain("java.sun.com/jsp/jstl")
+                .contains("<c:out value=\"${order.id}\"/>")
+                .contains("<fmt:message key=\"order.list.title\"/>");
+        assertThat(rule.ruleVersion()).isEqualTo("1.2.0");
+    }
+
+    @Test
+    void refusesUnknownLegacyJstlUrisAndRemainingUrisOnValidation() {
+        String source = """
+                <%@ taglib prefix="custom" uri="http://java.sun.com/jsp/jstl/custom" %>
+                <custom:value/>
+                """;
+
+        assertThatThrownBy(() -> rule.propose(source, "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.validate(
+                "<%@ taglib prefix=\"c\" uri=\"http://java.sun.com/jsp/jstl/core\" %>"))
+                .isInstanceOf(TransformationInvalidException.class);
     }
 
     @Test
@@ -95,6 +139,46 @@ class JspBeanMessageJstlRuleTest {
                 .contains("<fmt:message key=\"order.list.title\"/>")
                 .contains("prefix=\"bean\"")
                 .contains("${bean:resourceCode}");
+    }
+
+    @Test
+    void convertsBeanWriteAndReusesAnExistingCorePrefix() {
+        String source = """
+                <%@ taglib prefix="bean" uri="http://struts.apache.org/tags-bean" %>
+                <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+                <bean:write name="orderForm" property="customerName"/>
+                <bean:write name="order"/>
+                """;
+
+        String proposed = rule.propose(source, "order.jsp");
+
+        assertThat(proposed)
+                .contains("uri=\"jakarta.tags.core\"")
+                .contains("<c:out value=\"${orderForm.customerName}\"/>")
+                .contains("<c:out value=\"${order}\"/>")
+                .doesNotContain("<bean:write")
+                .doesNotContain("prefix=\"bean\"");
+        assertThat(proposed.split("jakarta.tags.core", -1)).hasSize(2);
+    }
+
+    @Test
+    void refusesBeanWriteFormsThatNeedManualReview() {
+        String taglib = "<%@ taglib prefix=\"bean\" uri=\"http://struts.apache.org/tags-bean\" %>\n";
+
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\" property=\"customerName\" scope=\"session\"/>\n",
+                "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\" property=\"customerName\" filter=\"false\"/>\n",
+                "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"${order}\" property=\"customerName\"/>\n", "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\"></bean:write>\n", "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
     }
 
     @Test

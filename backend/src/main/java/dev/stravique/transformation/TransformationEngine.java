@@ -19,7 +19,8 @@ public class TransformationEngine {
     public List<RuleDescriptor> rules() {
         return rules.stream()
                 .map(rule -> new RuleDescriptor(rule.ruleId(), rule.ruleVersion(),
-                        rule.itemType().name(), rule.target().name(), rule.language()))
+                        rule.itemType().name(), rule.target().name(), rule.language(),
+                        rule.fileNameHint()))
                 .sorted(java.util.Comparator.comparing(RuleDescriptor::ruleId))
                 .toList();
     }

@@ -45,8 +45,10 @@ class SeasarDiSpringRuleTest {
                 .doesNotContain("org.seasar.framework")
                 .doesNotContain("@Binding");
         assertThat(proposed).contains("@Component");
+        assertThat(proposed).doesNotContain("@Scope");
         assertThat(StaticJavaParser.parse(proposed)).isNotNull();
         assertThat(rule.ruleId()).isEqualTo("SEASAR-DI-SPRING-DI");
+        assertThat(rule.ruleVersion()).isEqualTo("1.1.0");
     }
 
     @Test
@@ -68,18 +70,63 @@ class SeasarDiSpringRuleTest {
     }
 
     @Test
-    void rejectsComponentScopesThatSpringCannotMapWithoutReview() {
+    void mapsNonSingletonInstancesToScope() {
         String source = """
                 package example;
 
                 import org.seasar.framework.container.annotation.tiger.Component;
 
-                @Component(instance = "prototype")
-                public class OrderService {
+                @Component(name = "draftService", instance = "prototype")
+                public class OrderDraftService {
                 }
                 """;
 
-        assertThatThrownBy(() -> rule.propose(source, "OrderService.java"))
+        String proposed = rule.propose(source, "OrderDraftService.java");
+
+        assertThat(proposed)
+                .contains("@Component(\"draftService\") @Scope(\"prototype\")")
+                .contains("import org.springframework.context.annotation.Scope;")
+                .doesNotContain("instance");
+        assertThat(StaticJavaParser.parse(proposed)).isNotNull();
+
+        String request = rule.propose("""
+                package example;
+
+                import org.seasar.framework.container.annotation.tiger.Component;
+
+                @Component(instance = "request")
+                public class RequestBean {
+                }
+                """, "RequestBean.java");
+        assertThat(request).contains("@Component @Scope(\"request\")");
+    }
+
+    @Test
+    void rejectsUnknownScopesAndScopeConflicts() {
+        String header = """
+                package example;
+
+                import org.seasar.framework.container.annotation.tiger.Component;
+
+                """;
+
+        assertThatThrownBy(() -> rule.propose(header
+                + "@Component(instance = \"custom\")\npublic class Bean {}\n", "Bean.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(header
+                + "@Scope(\"prototype\")\n@Component(instance = \"prototype\")\n"
+                + "public class Bean {}\n", "Bean.java"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose("""
+                package example;
+
+                import example.Scope;
+                import org.seasar.framework.container.annotation.tiger.Component;
+
+                @Component(instance = "prototype")
+                public class Bean {
+                }
+                """, "Bean.java"))
                 .isInstanceOf(TransformationUnsupportedException.class);
     }
 

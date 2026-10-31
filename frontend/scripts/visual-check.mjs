@@ -72,6 +72,8 @@ let transactionItemId = "";
 let controllerItemId = "";
 let messageItemId = "";
 let jspItemId = "";
+let listJspItemId = "";
+let webXmlItemId = "";
 if (migrationPlanId) {
   const migrationItems = await fetch(
     `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items?size=200`
@@ -229,6 +231,42 @@ if (migrationPlanId) {
     if (proposals.length === 0) {
       await fetch(
         `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${jspView.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const listJspView = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "JSP_VIEW" &&
+      item.targetKey === "KEEP_JSP" &&
+      item.title === "list.jsp"
+  );
+  if (listJspView) {
+    listJspItemId = listJspView.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${listJspView.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${listJspView.id}/transformation-proposals`,
+        { method: "POST" }
+      );
+    }
+  }
+  const webXml = migrationItems.content?.find(
+    (item) =>
+      item.itemType === "CONFIGURATION" &&
+      item.targetKey === "SPRING_BOOT_CONFIG" &&
+      item.title === "web.xml"
+  );
+  if (webXml) {
+    webXmlItemId = webXml.id;
+    const proposals = await fetch(
+      `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${webXml.id}/transformation-proposals`
+    ).then((response) => (response.ok ? response.json() : []));
+    if (proposals.length === 0) {
+      await fetch(
+        `${apiUrl}/projects/${project.id}/migration-plans/${migrationPlanId}/items/${webXml.id}/transformation-proposals`,
         { method: "POST" }
       );
     }
@@ -760,6 +798,173 @@ for (const language of languages) {
           });
           await page.keyboard.press("Escape");
           await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+        await searchInput.fill("");
+        await page.waitForTimeout(200);
+      }
+
+      if (name === "migration" && listJspItemId) {
+        const searchInput = page.locator(".migration-filters input").first();
+        await searchInput.fill("list.jsp");
+        await page.waitForTimeout(300);
+        const listJspRow = page
+          .locator(`[data-item-id="${listJspItemId}"] .migration-row-open`)
+          .first();
+        await listJspRow
+          .waitFor({ state: "visible", timeout: 5000 })
+          .catch(() => {});
+        if ((await listJspRow.count()) > 0) {
+          await listJspRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-jsp-jstl-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page
+            .locator(".migration-diff")
+            .first()
+            .evaluate((element) => {
+              element.scrollTop = element.scrollHeight;
+            });
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-jsp-jstl-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.locator(".migration-diff").first().evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+            element.scrollIntoView({ block: "end" });
+          });
+          await page.waitForTimeout(150);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-jsp-write-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+        await searchInput.fill("");
+        await page.waitForTimeout(200);
+      }
+
+      if (name === "migration" && webXmlItemId) {
+        const searchInput = page.locator(".migration-filters input").first();
+        await searchInput.fill("web.xml");
+        await page.waitForTimeout(300);
+        const webXmlRow = page
+          .locator(`[data-item-id="${webXmlItemId}"] .migration-row-open`)
+          .first();
+        await webXmlRow
+          .waitFor({ state: "visible", timeout: 5000 })
+          .catch(() => {});
+        if ((await webXmlRow.count()) > 0) {
+          await webXmlRow.click();
+          await page.locator(".modal-card").waitFor({ state: "visible" });
+          await page
+            .locator(".migration-diff")
+            .first()
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          const diffVisible = await page.locator(".migration-diff").count();
+          if (diffVisible === 0) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-webxml-inspector",
+              transformationDiff: 0
+            });
+          }
+          await page.waitForTimeout(250);
+          await page.screenshot({
+            path: path.join(
+              outputDirectory,
+              `${language}-${viewport.name}-migration-webxml-inspector.png`
+            ),
+            fullPage: false
+          });
+          await page.keyboard.press("Escape");
+          await page.locator(".modal-card").waitFor({ state: "hidden" });
+        }
+        await searchInput.fill("");
+        await page.waitForTimeout(200);
+      }
+
+      if (name === "migration" && validationItemId && controllerItemId) {
+        const searchInput = page.locator(".migration-filters input").first();
+        await searchInput.fill("OrderAction.java");
+        await page.waitForTimeout(300);
+        const validationCheck = page
+          .locator(`[data-item-id="${validationItemId}"] .migration-batch-check input`)
+          .first();
+        const controllerCheck = page
+          .locator(`[data-item-id="${controllerItemId}"] .migration-batch-check input`)
+          .first();
+        if ((await validationCheck.count()) > 0 && (await controllerCheck.count()) > 0) {
+          await validationCheck.check();
+          await controllerCheck.check();
+          await searchInput.fill("");
+          await page.waitForTimeout(300);
+          const batchBar = page.locator(".migration-batch-bar").first();
+          await batchBar.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+          if ((await batchBar.count()) > 0) {
+            await batchBar.locator("button").nth(0).click();
+            const previewModal = page.locator(".modal-card");
+            const previewVisible = await previewModal
+              .waitFor({ state: "visible", timeout: 10000 })
+              .then(() => true)
+              .catch(() => false);
+            if (!previewVisible) {
+              issues.push({
+                language,
+                viewport: viewport.name,
+                route: "migration-batch-preview",
+                batchPreview: 0
+              });
+            } else {
+              await page.locator(".migration-batch-items").waitFor({ state: "visible" });
+              await page.waitForTimeout(250);
+              await page.screenshot({
+                path: path.join(
+                  outputDirectory,
+                  `${language}-${viewport.name}-migration-batch-preview.png`
+                ),
+                fullPage: false
+              });
+              await page.keyboard.press("Escape");
+              await previewModal.waitFor({ state: "hidden" });
+              await batchBar.locator("button").nth(1).click();
+              await page.locator(".modal-card").waitFor({ state: "visible" });
+              await page.waitForTimeout(250);
+              await page.screenshot({
+                path: path.join(
+                  outputDirectory,
+                  `${language}-${viewport.name}-migration-batch-confirm.png`
+                ),
+                fullPage: false
+              });
+              await page.keyboard.press("Escape");
+              await page.locator(".modal-card").waitFor({ state: "hidden" });
+            }
+            if ((await batchBar.count()) > 0) {
+              await batchBar.locator("button").nth(2).click();
+            }
+          }
         }
         await searchInput.fill("");
         await page.waitForTimeout(200);

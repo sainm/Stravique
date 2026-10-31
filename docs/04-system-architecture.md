@@ -118,15 +118,16 @@ The first vetted target profile is `SPRING_BOOT_MVC`: Spring MVC controllers, Sp
 
 ## Transformation preview and guarded apply
 
-Phase 4 adds nine vetted rules: seven Java rules, one properties rule, and one JSP rule. The Java rules are `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI, `SASTRUTS-VALIDATION-BEAN` for plain SAStruts `@Required` to Jakarta `@NotNull`, `STRUTS-ACTIONFORM-MODEL` for simple ActionForm inheritance removal, `JAVAX-TO-JAKARTA` for supported namespace imports, `S2JDBC-QUERY-SPRING-JDBC` for a select query chain and parameterised write statements, `S2TX-SPRING-TRANSACTIONAL` for a bare Seasar2 `@TransactionAttribute`, and `STRUTS-CONTROLLER-SKELETON` for an explicit Struts mapping and forward. The first six use JavaParser source ranges; the controller skeleton rule creates a separate `CREATE_FILE` artifact. `MESSAGE-RESOURCE-SPRING-UTF8` parses a Java properties bundle and rewrites non-ASCII Unicode escapes in message values as UTF-8 text. `JSP-BEAN-MESSAGE-JSTL` parses JSP tags and rewrites self-closing `bean:message` tags as JSTL `fmt:message`. No rule pretty-prints or rewrites unrelated code.
+Phase 4 adds ten vetted rules: seven Java rules, one properties rule, one JSP rule, and one XML rule. The Java rules are `SEASAR-DI-SPRING-DI` for Seasar2 component/binding annotations to Spring DI, including prototype/request/session/application scopes, `SASTRUTS-VALIDATION-BEAN` for plain SAStruts `@Required` and integer length annotations to Jakarta `@NotNull`/`@Size`, `STRUTS-ACTIONFORM-MODEL` for simple ActionForm inheritance removal, `JAVAX-TO-JAKARTA` for supported namespace imports, `S2JDBC-QUERY-SPRING-JDBC` for a select query chain and parameterised write statements, `S2TX-SPRING-TRANSACTIONAL` for a bare Seasar2 `@TransactionAttribute` or its REQUIRED/REQUIRES_NEW propagation, and `STRUTS-CONTROLLER-SKELETON` for an explicit Struts mapping and forward. The first six use JavaParser source ranges; the controller skeleton rule creates a separate `CREATE_FILE` artifact. `MESSAGE-RESOURCE-SPRING-UTF8` parses a Java properties bundle and rewrites non-ASCII Unicode escapes in message values as UTF-8 text. `JSP-BEAN-MESSAGE-JSTL` parses JSP tags and rewrites self-closing `bean:message` as `fmt:message`, `bean:write` as `c:out`, and legacy JSTL taglib URIs to `jakarta.tags.*`. `WEBXML-JAKARTA-NAMESPACE` rewrites only a Java EE/J2EE `web.xml` root namespace, schema location, and version to Jakarta EE 6.0. No rule pretty-prints or rewrites unrelated code.
 
 Proposal generation is read-only:
 
 - It requires a current plan and a source hash equal to the scanned file.
 - It persists an artifact type, target path, unified diff, original/proposed hashes, rule version, and syntax-validation result.
-- It validates Java syntax for Java rules, properties syntax plus UTF-8 round-tripping for the message rule, and tag structure for the JSP rule.
+- It validates Java syntax for Java rules, properties syntax plus UTF-8 round-tripping for the message rule, tag structure for the JSP rule, and secure XML well-formedness plus root namespace/version for the web descriptor rule.
 - It supersedes earlier proposals for the same item.
 - When several rules match an item, the lowest rule identifier wins, so the same item is always handled by the same rule regardless of bean registration order.
+- A rule may declare a file-name hint so a file-specific rule such as the web descriptor rule is offered only for that file.
 
 Apply and restore are separate guarded operations:
 
@@ -142,7 +143,7 @@ Apply and restore are separate guarded operations:
 
 Automated validation is syntactic only. A proposal is never presented as semantically equivalent, compiled, or runtime-validated. The migration item's planning status is not upgraded by a transformation run.
 
-Component, validation, form-model, Jakarta-namespace, read-only data-access, transaction, action-controller, message-resource, and JSP-view items are eligible for their respective rules. Controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, transaction-manager configuration, configuration conversion, and reports explicitly remain manual.
+Component, validation, form-model, Jakarta-namespace, read-only data-access, transaction, action-controller, message-resource, JSP-view, and `web.xml` configuration items are eligible for their respective rules. Controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, transaction-manager configuration, other configuration conversion, and reports explicitly remain manual.
 
 ## Internationalization
 

@@ -5,6 +5,7 @@ public record RuleDescriptor(
         String ruleVersion,
         String itemType,
         String targetKey,
-        String language
+        String language,
+        String fileName
 ) {
 }

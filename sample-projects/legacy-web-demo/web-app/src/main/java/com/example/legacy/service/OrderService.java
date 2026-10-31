@@ -7,7 +7,7 @@ import org.seasar.framework.container.annotation.twig.Binding;
 
 import java.util.List;
 
-@Component(instance = "singleton")
+@Component(instance = "prototype")
 public class OrderService {
 
     @Binding

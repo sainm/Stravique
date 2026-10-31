@@ -4197,7 +4197,7 @@ textarea {
 
 .migration-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: stretch;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
@@ -4211,6 +4211,115 @@ textarea {
 .migration-row-excluded {
   background: var(--surface-subtle);
   opacity: 0.68;
+}
+
+.migration-batch-check {
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 18px;
+  border-right: 1px solid var(--line);
+}
+
+.migration-batch-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+
+.migration-row-no-batch {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.migration-batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.migration-batch-bar .migration-count {
+  margin-right: auto;
+}
+
+.migration-batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 16px 24px 4px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.migration-batch-items {
+  margin: 10px 24px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.migration-batch-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.migration-batch-item:last-child {
+  border-bottom: 0;
+}
+
+.migration-batch-item small {
+  display: block;
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+
+.migration-batch-item .inline-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.migration-batch-restore {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px 0;
+}
+
+.migration-batch-result > .migration-note {
+  margin: 8px 24px 0;
+}
+
+@media (max-width: 760px) {
+  .migration-batch-check {
+    padding: 10px 16px 0;
+    border-right: 0;
+  }
+
+  .migration-batch-bar {
+    padding: 12px 16px;
+  }
+
+  .migration-batch-summary {
+    padding: 14px 16px 4px;
+  }
+
+  .migration-batch-items {
+    margin: 10px 16px 0;
+  }
+
+  .migration-batch-restore {
+    padding: 14px 16px 0;
+  }
+
+  .migration-batch-result > .migration-note {
+    margin: 8px 16px 0;
+  }
 }
 
 .migration-row-open {

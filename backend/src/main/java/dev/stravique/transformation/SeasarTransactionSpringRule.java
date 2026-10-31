@@ -7,7 +7,11 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.MarkerAnnotationExpr;
+import com.github.javaparser.ast.expr.NormalAnnotationExpr;
+import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import dev.stravique.domain.FileType;
 import dev.stravique.domain.MigrationItem;
 import dev.stravique.domain.MigrationItemType;
@@ -17,27 +21,23 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
-/**
- * Rewrites a bare Seasar2 {@code @TransactionAttribute} as Spring's {@code @Transactional}.
- *
- * <p>Both annotations default to a required transaction when they carry no attributes, so the
- * replacement keeps the declared behaviour. A parameterized annotation is refused: Seasar's
- * {@code TransactionAttributeType} and Spring's {@code Propagation} do not name their values
- * the same way, and guessing that mapping would change the transaction boundary of a method
- * without any evidence for it. Configuring the transaction manager stays manual, so the
- * planner keeps items of this type in review.
- */
 @Component
 public class SeasarTransactionSpringRule implements TransformationRule {
 
     private static final String RULE_ID = "S2TX-SPRING-TRANSACTIONAL";
-    private static final String RULE_VERSION = "1.0.0";
+    private static final String RULE_VERSION = "1.1.0";
     private static final String SEASAR_ANNOTATION =
             "org.seasar.extension.tx.annotation.TransactionAttribute";
+    private static final String SEASAR_TYPE =
+            "org.seasar.extension.tx.TransactionAttributeType";
     private static final String SPRING_ANNOTATION =
             "org.springframework.transaction.annotation.Transactional";
+    private static final String SPRING_PROPAGATION =
+            "org.springframework.transaction.annotation.Propagation";
 
     @Override
     public String ruleId() {
@@ -75,30 +75,139 @@ public class SeasarTransactionSpringRule implements TransformationRule {
                 .orElseThrow(() -> new TransformationUnsupportedException(
                         "The source does not import the Seasar2 transaction annotation."));
         List<Edit> edits = new ArrayList<>();
-        boolean springImportPresent = unit.getImports().stream()
-                .anyMatch(candidate -> candidate.getNameAsString().equals(SPRING_ANNOTATION));
-        if (springImportPresent) {
-            edits.add(new Edit(removalRange(source, seasarImport), ""));
-        } else {
-            edits.add(new Edit(offsets(source, seasarImport.getName()), SPRING_ANNOTATION));
-        }
         boolean found = false;
+        boolean explicitPresent = false;
+        boolean propagationNeeded = false;
         for (AnnotationExpr annotation : unit.findAll(AnnotationExpr.class)) {
             if (!simpleName(annotation.getNameAsString()).equals("TransactionAttribute")) {
                 continue;
             }
-            if (!(annotation instanceof MarkerAnnotationExpr)) {
-                throw new TransformationUnsupportedException(
-                        "@TransactionAttribute attributes require manual review.");
-            }
             found = true;
-            edits.add(new Edit(offsets(source, annotation), "@Transactional"));
+            if (!(annotation instanceof MarkerAnnotationExpr)) {
+                explicitPresent = true;
+            }
+            if (hasAnnotation(annotation, "Transactional")) {
+                throw new TransformationUnsupportedException(
+                        "@TransactionAttribute next to an existing @Transactional requires manual review.");
+            }
+            String propagation = propagation(annotation);
+            if (propagation != null) {
+                propagationNeeded = true;
+                edits.add(new Edit(offsets(source, annotation),
+                        "@Transactional(propagation = Propagation." + propagation + ")"));
+            } else {
+                edits.add(new Edit(offsets(source, annotation), "@Transactional"));
+            }
         }
         if (!found) {
             throw new TransformationUnsupportedException(
                     "The source imports @TransactionAttribute but does not annotate a type or method.");
         }
+        Set<String> neededTargets = new LinkedHashSet<>();
+        neededTargets.add(SPRING_ANNOTATION);
+        if (propagationNeeded) {
+            neededTargets.add(SPRING_PROPAGATION);
+        }
+        Set<String> imported = new LinkedHashSet<>();
+        for (ImportDeclaration declaration : unit.getImports()) {
+            imported.add(declaration.getNameAsString());
+        }
+        for (String target : neededTargets) {
+            for (ImportDeclaration declaration : unit.getImports()) {
+                if (!declaration.getNameAsString().equals(target)
+                        && simpleName(declaration.getNameAsString())
+                        .equals(simpleName(target))) {
+                    throw new TransformationUnsupportedException(
+                            "A conflicting " + simpleName(target)
+                                    + " import requires manual review.");
+                }
+            }
+        }
+        List<String> missingTargets = neededTargets.stream()
+                .filter(target -> !imported.contains(target))
+                .toList();
+        Set<String> removableNames = new LinkedHashSet<>();
+        removableNames.add(SEASAR_ANNOTATION);
+        if (explicitPresent && imported.contains(SEASAR_TYPE)) {
+            removableNames.add(SEASAR_TYPE);
+        }
+        List<ImportDeclaration> removable = unit.getImports().stream()
+                .filter(declaration -> removableNames.contains(declaration.getNameAsString()))
+                .toList();
+        edits.addAll(importEdits(source, missingTargets, removable));
         return apply(source, edits);
+    }
+
+    private String propagation(AnnotationExpr annotation) {
+        if (annotation instanceof MarkerAnnotationExpr) {
+            return null;
+        }
+        Expression value;
+        if (annotation instanceof SingleMemberAnnotationExpr single) {
+            value = single.getMemberValue();
+        } else if (annotation instanceof NormalAnnotationExpr normal) {
+            if (normal.getPairs().isEmpty()) {
+                return null;
+            }
+            if (normal.getPairs().size() != 1
+                    || !normal.getPairs().get(0).getNameAsString().equals("value")) {
+                throw new TransformationUnsupportedException(
+                        "@TransactionAttribute attributes require manual review.");
+            }
+            value = normal.getPairs().get(0).getValue();
+        } else {
+            throw new TransformationUnsupportedException(
+                    "This @TransactionAttribute form requires manual review.");
+        }
+        if (!(value instanceof FieldAccessExpr access)
+                || !simpleName(access.getScope().toString()).equals("TransactionAttributeType")) {
+            throw new TransformationUnsupportedException(
+                    "Only TransactionAttributeType constants are supported.");
+        }
+        String propagation = access.getNameAsString();
+        if (propagation.equals("REQUIRED")) {
+            return null;
+        }
+        if (propagation.equals("REQUIRES_NEW")) {
+            return propagation;
+        }
+        throw new TransformationUnsupportedException(
+                "Transaction propagation " + propagation + " requires manual review.");
+    }
+
+    private List<Edit> importEdits(String source, List<String> missingTargets,
+                                   List<ImportDeclaration> removable) {
+        List<Edit> edits = new ArrayList<>();
+        String newline = source.contains("\r\n") ? "\r\n" : "\n";
+        if (missingTargets.isEmpty()) {
+            for (ImportDeclaration declaration : removable) {
+                edits.add(new Edit(removalRange(source, declaration), ""));
+            }
+            return edits;
+        }
+        String imports = String.join(newline, missingTargets.stream()
+                .map(target -> "import " + target + ";")
+                .toList());
+        if (!removable.isEmpty()) {
+            edits.add(new Edit(offsets(source, removable.get(0)), imports));
+            for (int index = 1; index < removable.size(); index++) {
+                edits.add(new Edit(removalRange(source, removable.get(index)), ""));
+            }
+            return edits;
+        }
+        throw new TransformationUnsupportedException(
+                "No source import is available to anchor the transaction imports.");
+    }
+
+    private boolean hasAnnotation(AnnotationExpr annotation, String simpleName) {
+        Node parent = annotation.getParentNode().orElse(null);
+        if (parent == null) {
+            return false;
+        }
+        return parent.getChildNodes().stream()
+                .filter(AnnotationExpr.class::isInstance)
+                .map(AnnotationExpr.class::cast)
+                .anyMatch(candidate -> simpleName(candidate.getNameAsString()).equals(simpleName));
     }
 
     private String apply(String source, List<Edit> edits) {
@@ -116,7 +225,8 @@ public class SeasarTransactionSpringRule implements TransformationRule {
         String result = source;
         for (int index = sorted.size() - 1; index >= 0; index--) {
             Edit edit = sorted.get(index);
-            result = result.substring(0, edit.start()) + edit.replacement() + result.substring(edit.end());
+            result = result.substring(0, edit.start()) + edit.replacement()
+                    + result.substring(edit.end());
         }
         return result;
     }

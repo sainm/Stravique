@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, and JSTL message tags for self-closing `bean:message` usage. It is deliberately narrow and safety-first.
+Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage, and a Jakarta EE `web.xml` descriptor. It is deliberately narrow and safety-first.
 
 The engine can:
 
@@ -13,7 +13,7 @@ The engine can:
 5. Create a new file without overwriting an existing one, and remove that generated file on restore when it is unchanged.
 6. Retain proposal and run records for audit.
 
-It cannot yet migrate Struts controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, XML, dicon, or JSP forms. Validation support is limited to plain `@Required`; other validation annotations remain manual. Unsupported items remain planning/review tasks; the interface says so instead of fabricating a transformation.
+It cannot yet migrate Struts controller method bodies, request binding, message APIs, message lifecycle, JSP form/error/custom tags, S2JDBC writes whose parameter types have no vetted SQL mapping, Spring Boot configuration conversion, dicon, other XML descriptors, or JSP forms. Validation support is limited to plain `@Required` and the integer length annotations; other validation annotations remain manual. Unsupported items remain planning/review tasks; the interface says so instead of fabricating a transformation.
 
 ## Vetted rules
 
@@ -28,8 +28,9 @@ It cannot yet migrate Struts controller method bodies, request binding, message 
 | `STRUTS-CONTROLLER-SKELETON` | `ACTION_CONTROLLER` | `SPRING_MVC` | Java |
 | `MESSAGE-RESOURCE-SPRING-UTF8` | `MESSAGE_RESOURCE` | `SPRING_MESSAGES` | Properties |
 | `JSP-BEAN-MESSAGE-JSTL` | `JSP_VIEW` | `KEEP_JSP` | JSP |
+| `WEBXML-JAKARTA-NAMESPACE` | `CONFIGURATION` | `SPRING_BOOT_CONFIG` | XML |
 
-The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts only a bare Seasar2 `@TransactionAttribute`, because both it and Spring's `@Transactional` require a transaction when no attributes are present; a parameterized annotation is refused rather than mapped onto a propagation name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives and rewrites only supported message tags. No rule pretty-prints or rewrites unrelated code.
+The annotation and import rules use the JavaParser AST to locate imports and annotations and replace only those source ranges. The data-access rule rewrites a select chain to `query` with a `BeanPropertyRowMapper`, and a write chain to `update` with the declared parameter types carried across as `java.sql.Types` values, because dropping them would leave a null parameter with no bindable type; a type outside the vetted table is refused rather than guessed. The transaction rule accepts a bare `@TransactionAttribute` and the explicitly vetted `REQUIRED`/`REQUIRES_NEW` propagation values; other propagation values are refused rather than mapped onto a name that may not mean the same thing. The controller skeleton rule parses the action source and generates a separate file. The message rule parses Java properties and rewrites only non-ASCII escapes in message values. The JSP rule parses tags and directives, rewrites supported message/view tags, and modernizes legacy JSTL taglib URIs. The web descriptor rule rewrites only the `web-app` namespace, schema location, and version on `web.xml`. No rule pretty-prints or rewrites unrelated code.
 
 ### Seasar2 DI → Spring DI
 
@@ -37,13 +38,15 @@ Supported edits:
 
 - `org.seasar.framework.container.annotation.tiger.Component` or `.twig.Component` import → `org.springframework.stereotype.Component`.
 - `@Component` and `@Component(instance = "singleton")` → `@Component`.
+- `@Component(instance = "prototype|request|session|application")` → `@Component @Scope("…")`, with the Spring `Scope` import added or reused.
 - `@Component(name = "...")` → `@Component("...")`.
 - `org.seasar.framework.container.annotation.tiger.Binding` or `.twig.Binding` import → `org.springframework.beans.factory.annotation.Autowired`.
 - Plain `@Binding` → `@Autowired`.
 
 Rejected for manual review:
 
-- Other `@Component` attributes or non-singleton scopes.
+- Other `@Component` attributes or an unsupported `instance` value.
+- An existing `@Scope` on the component, or a conflicting `Scope` import.
 - `@Binding` attributes.
 - Ambiguous or fully qualified annotation use without the expected import.
 - Files that cannot be parsed or whose ranges cannot be edited safely.
@@ -58,12 +61,18 @@ Supported edits:
 
 - `org.seasar.struts.annotation.Required` import → `jakarta.validation.constraints.NotNull`.
 - Plain `@Required` → `@NotNull`.
+- `@Length(min = …, max = …)` → `@Size(min = …, max = …)`.
+- `@MaxLength(n)` → `@Size(max = n)`; `@MinLength(n)` → `@Size(min = n)`.
+- The source imports are replaced by the required Jakarta imports, or removed when the target import already exists.
 
 Rejected for manual review:
 
 - `@Required` with attributes.
+- Length annotations with message or other attributes, non-decimal values, negative values, `min > max`, or more than one length annotation on the same declaration.
+- A length annotation next to an existing `@Size`, or `@Required` next to an existing `@NotNull`.
+- A conflicting `NotNull` or `Size` import from another namespace.
 - Other SAStruts validation annotations such as ranges, patterns, and dates.
-- Files without the expected import or annotation.
+- Files without a supported annotation.
 
 This rule transforms validation annotations only. A controller that also uses `@Execute`, message lifecycle APIs, or a custom action base type retains those items. It does not move validation into a Spring `BindingResult` flow; that remains a message/controller migration item.
 
@@ -91,22 +100,38 @@ Supported imports:
 
 Only import names change; annotations, types, and wildcards remain structurally intact. Other `javax.*` packages are left untouched. This rule is intended for a Spring Boot 3 target; dependency and runtime verification remain manual.
 
-### S2JDBC read query → Spring JdbcTemplate
+### S2JDBC query and write → Spring JdbcTemplate
 
 Supported edits:
 
 - One `JdbcManager` field → `JdbcTemplate`.
-- `jdbcManager.selectBySql(Entity.class, "SQL", args...).getResultList()` → `jdbcTemplate.query("SQL", new BeanPropertyRowMapper<>(Entity.class), args...)`.
-- Adds `JdbcTemplate` and `BeanPropertyRowMapper` imports as needed.
+- `selectBySql(Entity.class, "SQL", args...).getResultList()` → `query("SQL", new BeanPropertyRowMapper<>(Entity.class), args...)`.
+- `insertBySql`/`updateBySql`/`deleteBySql(...).execute(args...)` → `update("SQL", new Object[]{args...}, new int[]{Types...})`.
+- Parameter types are carried across as `java.sql.Types`; the vetted table includes String, int/Integer, long/Long, short/Short, byte/Byte, boolean/Boolean, double/Double, float/Float, BigDecimal, BigInteger, Timestamp, java.sql.Date, java.sql.Time, java.util.Date, LocalDate, LocalDateTime, LocalTime, and byte[]. Fully qualified names win over simple names, so `java.sql.Date` maps to DATE and `java.util.Date` maps to TIMESTAMP.
+- Adds `JdbcTemplate`, `BeanPropertyRowMapper`, and `java.sql.Types` imports as needed.
 
 Rejected for manual review:
 
-- Any other `JdbcManager` call, including updates and deletes.
-- Additional `JdbcManager` type usage, initialized fields, or multiple manager fields.
-- Non-literal SQL, non-class literal entity arguments, or a select without `getResultList()`.
+- Other `JdbcManager` calls, initialized or multiple manager fields, and non-literal SQL.
+- Non-class-literal parameter types, unmapped types, an unqualified `Date`, or a parameter count that does not match the declared types.
 - Transaction, pagination, and SQL semantic concerns beyond syntax.
 
-The rule intentionally leaves Seasar DI annotations for the separate DI rule. Applying it to a class with remaining Seasar injection still requires that DI migration; the proposal states the data-access-only scope.
+The rule intentionally leaves Seasar DI and transaction annotations for their separate rules. Applying it to a class with remaining Seasar injection or transaction configuration still requires those migrations; the proposal states the data-access-only scope.
+
+### Seasar2 transaction → Spring @Transactional
+
+Supported edits:
+
+- A bare `@TransactionAttribute` → `@Transactional`.
+- `@TransactionAttribute(TransactionAttributeType.REQUIRED)` → `@Transactional`.
+- `@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)` → `@Transactional(propagation = Propagation.REQUIRES_NEW)`, with the Spring `Propagation` import added or reused.
+
+Rejected for manual review:
+
+- Other propagation values.
+- Non-enum values or attributes other than `value`.
+- A Seasar annotation next to an existing `@Transactional`, or a conflicting `Transactional`/`Propagation` import.
+- Transaction-manager configuration.
 
 ### Struts message bundle → UTF-8 Spring messages
 
@@ -125,23 +150,27 @@ Rejected for manual review:
 
 This rule changes bundle encoding only. Configuring `spring.messages.basename`, migrating `MessageResources`/`ActionMessage` APIs, `BindingResult` flow, and JSP error/message-block tags remain separate items. Message values with `{0}` placeholders keep the same placeholder text; Spring must still be configured to use `MessageFormat` where needed.
 
-### Struts bean:message → JSTL fmt:message
+### Struts view tags and legacy JSTL → Jakarta JSTL
 
 Supported edits:
 
 - Self-closing `bean:message` tags with only `key` and optional `bundle` attributes → `fmt:message`.
-- A JSTL fmt taglib is reused when present; otherwise one is added after the page directive.
+- Self-closing `bean:write` tags with a literal `name` and optional literal `property` path → `c:out value="${name.property}"`.
+- Legacy `http://java.sun.com/jsp/jstl/core|fmt|functions|sql|xml` taglib URIs → `jakarta.tags.*`.
+- The fmt and core taglibs are reused when present; otherwise `jakarta.tags.fmt`/`jakarta.tags.core` directives are added after the page directive.
 - An unused bean taglib directive is removed when no other bean tags remain.
 - Tag structure is validated before proposal and before apply; unbalanced JSP tag structures are rejected.
 
 Rejected for manual review:
 
 - `bean:message` bodies, `arg0`-style parameters, and attributes other than `key`/`bundle`.
-- Pages without a Struts bean taglib or without a supported message tag.
-- A page where the `fmt` prefix is bound to another taglib.
+- `bean:write` bodies or attributes such as `scope`, `filter`, `format`, or `ignore`; non-literal names or property paths.
+- Pages without a Struts bean/view tag or a supported legacy JSTL taglib.
+- A legacy JSTL URI outside the vetted core/fmt/functions/sql/xml set.
+- A page where the required `fmt` or `c` prefix is bound to another taglib.
 - Unbalanced prefixed-tag structures.
 
-This rule changes message tags only. Struts form, error, and custom tags, `html:messages` blocks, model attributes, and controller binding remain manual. A page that conditionally balances tags through scriptlets is rejected rather than guessed at.
+This rule changes message/view tags and legacy JSTL taglib URIs only. Struts form, error, and custom tags, `html:messages` blocks, model attributes, and controller binding remain manual. A page that conditionally balances tags through scriptlets is rejected rather than guessed at.
 
 ### Struts action → Spring controller skeleton (create-only)
 
@@ -160,12 +189,29 @@ Rejected for manual review:
 
 The artifact type is `CREATE_FILE`, not `EDIT_FILE`. Routes come from persisted `STRUTS-CONFIG-ACTION-001` and non-redirect `STRUTS-CONFIG-FORWARD-001` findings in the plan's scan, so rescan after configuration changes. The legacy action is never modified, method bodies and request binding are not migrated, and dependencies or annotations beyond the skeleton are not inferred. Apply refuses if the target already exists; restore deletes the generated file only when its hash still matches the applied hash. A created proposal has no backup path.
 
+### Java EE web.xml → Jakarta EE 6.0 descriptor
+
+Supported edits:
+
+- A Java EE or J2EE `web-app` namespace → `https://jakarta.ee/xml/ns/jakartaee`.
+- The matching `web-app_2_3` … `web-app_4_0` schema file → `web-app_6_0.xsd`.
+- The root `version` attribute → `6.0`.
+- All other descriptor content is preserved.
+
+Rejected for manual review:
+
+- Files not named `web.xml`, non-`web-app` roots, already-Jakarta descriptors, unsupported versions, or single-quoted version attributes.
+- Malformed XML.
+- Spring Boot configuration conversion, filter/listener class migration, and schema validation remain separate manual work.
+
+The rule is matched by item type, target, and the `web.xml` file-name hint in the rule catalog. It makes no claim that the descriptor is valid against the Jakarta schema; only XML well-formedness and the resulting root namespace/version are checked.
+
 ## Safety model
 
 Proposal generation:
 
 - Requires a completed, current plan (a newer completed scan makes the plan stale).
-- Requires the current source SHA-256 to equal the scan record's hash.
+- Requires the current source SHA-256 to equal the scan record's hash, or the `appliedSha256` of the latest `APPLIED` run for the same project and path. Any other change is rejected; see [14-multi-item-workflow.md](14-multi-item-workflow.md).
 - Reads the file, builds the diff in memory, and writes only database rows.
 - Refuses a create proposal when the target path already exists or its parent is outside the project.
 - Supersedes earlier proposed versions for the same item.
@@ -199,7 +245,7 @@ Backup directory:
 
 ## Validation boundary
 
-The only automated validation is syntax parsing of the proposed artifact: Java parsing for Java rules, properties parsing plus UTF-8 round-tripping for the message rule, and prefixed-tag structure validation for the JSP rule. This is not semantic equivalence, compilation against the project's dependencies, full JSP compilation, or runtime verification. For the message rule, the decoded key/value map is also compared before a proposal is returned; for the JSP rule, only tag renames and directive changes are made, and conditional scriptlet structure is rejected. Every generated proposal remains an assisted change requiring review before its migration item can be considered complete.
+The only automated validation is syntax parsing of the proposed artifact: Java parsing for Java rules, properties parsing plus UTF-8 round-tripping for the message rule, prefixed-tag structure validation for the JSP rule, and secure XML well-formedness plus root namespace/version checks for the web descriptor rule. This is not semantic equivalence, compilation against the project's dependencies, full JSP compilation, schema validation, or runtime verification. For the message rule, the decoded key/value map is also compared before a proposal is returned; for the JSP rule, only tag renames, legacy JSTL URI updates, and directive changes are made, and conditional scriptlet structure is rejected. Every generated proposal remains an assisted change requiring review before its migration item can be considered complete.
 
 ## Data model
 
@@ -223,13 +269,13 @@ Migration item planning statuses remain unchanged by a transformation run.
 | `GET` | `/projects/{id}/migration-plans/{planId}/items/{itemId}/transformation-runs` | Execution history |
 | `POST` | `/projects/{id}/transformation-proposals/{proposalId}/apply` | Apply with `{ "confirmed": true }` |
 | `POST` | `/projects/{id}/transformation-runs/{runId}/restore` | Restore with `{ "confirmed": true }` |
-| `GET` | `/transformation-rules` | Vetted rule catalog |
+| `GET` | `/transformation-rules` | Vetted rule catalog, including language and optional file-name hint |
 
 Failure codes include unsupported item, stale plan, changed source, missing confirmation, already applied/superseded proposal, changed rule, missing proposal/run, unsafe backup path, existing create target, and invalid target path. A create proposal returns no backup path, and its run record stores a null backup path.
 
 ## Interface
 
-The interface reads the vetted rule catalog from `GET /transformation-rules` and enables the transformation area only when a rule matches the item type and target. The migration item inspector shows the transformation area only where a vetted rule exists. It presents:
+The interface reads the vetted rule catalog from `GET /transformation-rules` and enables the transformation area only when a rule matches the item type, target, and optional file-name hint. The migration item inspector shows the transformation area only where a vetted rule exists. It presents:
 
 - The rule ID and version.
 - The persisted diff.
@@ -256,10 +302,10 @@ Not implemented:
 - Struts controller method bodies, request binding, form handling, and JSP form conversion.
 - Message APIs, message lifecycle, `BindingResult` flow, and JSP error/message-block tags.
 - S2JDBC writes whose parameter types have no vetted SQL mapping, transactions, and non-literal queries.
-- Validation annotations other than plain `@Required`.
+- Validation annotations other than plain `@Required` and integer length annotations.
 - Namespace changes outside the supported `javax.*` package list.
-- XML, dicon, JSP custom tags, or TLD transformation.
+- Spring Boot configuration conversion, dicon, XML descriptors other than `web.xml`, JSP custom tags, or TLD transformation.
 - Compile or runtime validation.
 - Batch execution across a plan.
 
-Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently nine rules; unsupported items remain explicitly unsupported.
+Those require separate vetted rules with apply conditions, tests, and validation. The engine rule catalog is currently ten rules; unsupported items remain explicitly unsupported. The domain-by-domain close-out audit and its boundary evidence live in [10-delivery-plan.md](10-delivery-plan.md#phase-4-close-out-audit).

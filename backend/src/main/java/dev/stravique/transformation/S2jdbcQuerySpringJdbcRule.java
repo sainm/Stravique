@@ -31,7 +31,7 @@ import java.util.Set;
 public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
 
     private static final String RULE_ID = "S2JDBC-QUERY-SPRING-JDBC";
-    private static final String RULE_VERSION = "1.1.0";
+    private static final String RULE_VERSION = "1.3.0";
     private static final String S2_JDBC_MANAGER = "org.seasar.extension.jdbc.JdbcManager";
     private static final String SPRING_JDBC_TEMPLATE = "org.springframework.jdbc.core.JdbcTemplate";
     private static final String SPRING_ROW_MAPPER =
@@ -40,20 +40,43 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
             Set.of("insertBySql", "updateBySql", "deleteBySql");
     private static final Map<String, String> SQL_TYPES = Map.ofEntries(
             Map.entry("String", "VARCHAR"),
+            Map.entry("java.lang.String", "VARCHAR"),
             Map.entry("Integer", "INTEGER"),
+            Map.entry("java.lang.Integer", "INTEGER"),
             Map.entry("int", "INTEGER"),
             Map.entry("Long", "BIGINT"),
+            Map.entry("java.lang.Long", "BIGINT"),
             Map.entry("long", "BIGINT"),
             Map.entry("Short", "SMALLINT"),
+            Map.entry("java.lang.Short", "SMALLINT"),
             Map.entry("short", "SMALLINT"),
             Map.entry("Boolean", "BOOLEAN"),
+            Map.entry("java.lang.Boolean", "BOOLEAN"),
             Map.entry("boolean", "BOOLEAN"),
             Map.entry("Double", "DOUBLE"),
+            Map.entry("java.lang.Double", "DOUBLE"),
             Map.entry("double", "DOUBLE"),
             Map.entry("Float", "REAL"),
+            Map.entry("java.lang.Float", "REAL"),
             Map.entry("float", "REAL"),
+            Map.entry("Byte", "TINYINT"),
+            Map.entry("java.lang.Byte", "TINYINT"),
+            Map.entry("byte", "TINYINT"),
             Map.entry("BigDecimal", "DECIMAL"),
+            Map.entry("java.math.BigDecimal", "DECIMAL"),
+            Map.entry("BigInteger", "NUMERIC"),
+            Map.entry("java.math.BigInteger", "NUMERIC"),
             Map.entry("Timestamp", "TIMESTAMP"),
+            Map.entry("java.sql.Timestamp", "TIMESTAMP"),
+            Map.entry("java.sql.Date", "DATE"),
+            Map.entry("java.sql.Time", "TIME"),
+            Map.entry("java.util.Date", "TIMESTAMP"),
+            Map.entry("LocalDate", "DATE"),
+            Map.entry("java.time.LocalDate", "DATE"),
+            Map.entry("LocalDateTime", "TIMESTAMP"),
+            Map.entry("java.time.LocalDateTime", "TIMESTAMP"),
+            Map.entry("LocalTime", "TIME"),
+            Map.entry("java.time.LocalTime", "TIME"),
             Map.entry("byte[]", "VARBINARY")
     );
 
@@ -203,11 +226,14 @@ public class S2jdbcQuerySpringJdbcRule implements TransformationRule {
                 throw new TransformationUnsupportedException(
                         "The declared parameter types must be class literals.");
             }
-            String simple = simpleName(classExpr.getType().asString());
-            String sqlType = SQL_TYPES.get(simple);
+            String typeName = classExpr.getType().asString();
+            String sqlType = SQL_TYPES.get(typeName);
+            if (sqlType == null && !typeName.contains(".")) {
+                sqlType = SQL_TYPES.get(simpleName(typeName));
+            }
             if (sqlType == null) {
                 throw new TransformationUnsupportedException(
-                        "The parameter type " + simple + " has no vetted SQL type mapping.");
+                        "The parameter type " + typeName + " has no vetted SQL type mapping.");
             }
             sqlTypes.add(sqlType);
         }

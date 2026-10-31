@@ -28,9 +28,12 @@ import java.util.Set;
 public class SeasarDiSpringRule implements TransformationRule {
 
     private static final String RULE_ID = "SEASAR-DI-SPRING-DI";
-    private static final String RULE_VERSION = "1.0.0";
+    private static final String RULE_VERSION = "1.1.0";
     private static final String SPRING_COMPONENT = "org.springframework.stereotype.Component";
     private static final String SPRING_AUTOWIRED = "org.springframework.beans.factory.annotation.Autowired";
+    private static final String SPRING_SCOPE = "org.springframework.context.annotation.Scope";
+    private static final Set<String> SCOPES = Set.of(
+            "prototype", "request", "session", "application");
     private static final Set<String> SEASAR_COMPONENT_IMPORTS = new LinkedHashSet<>(List.of(
             "org.seasar.framework.container.annotation.tiger.Component",
             "org.seasar.framework.container.annotation.twig.Component"
@@ -79,6 +82,7 @@ public class SeasarDiSpringRule implements TransformationRule {
         }
         boolean hasComponentAnnotation = false;
         boolean hasBindingAnnotation = false;
+        boolean needsScope = false;
         for (AnnotationExpr annotation : unit.findAll(AnnotationExpr.class)) {
             String simpleName = simpleName(annotation.getNameAsString());
             if (simpleName.equals("Component")) {
@@ -87,7 +91,11 @@ public class SeasarDiSpringRule implements TransformationRule {
                             "@Component is not imported from a supported Seasar package.");
                 }
                 hasComponentAnnotation = true;
-                edits.add(new Edit(offsets(source, annotation), componentReplacement(annotation)));
+                ComponentReplacement replacement = componentReplacement(annotation);
+                if (replacement.scope() != null) {
+                    needsScope = true;
+                }
+                edits.add(new Edit(offsets(source, annotation), replacement.annotation()));
             } else if (simpleName.equals("Binding")) {
                 if (bindingImports.isEmpty()) {
                     throw new TransformationUnsupportedException(
@@ -111,7 +119,36 @@ public class SeasarDiSpringRule implements TransformationRule {
         for (String imported : bindingImports) {
             addImportEdit(unit, source, imported, SPRING_AUTOWIRED, edits);
         }
+        if (needsScope) {
+            addScopeImport(unit, source, edits);
+        }
         return apply(source, edits);
+    }
+
+    private void addScopeImport(CompilationUnit unit, String source, List<Edit> edits) {
+        boolean targetPresent = unit.getImports().stream()
+                .anyMatch(candidate -> candidate.getNameAsString().equals(SPRING_SCOPE));
+        if (targetPresent) {
+            return;
+        }
+        for (ImportDeclaration declaration : unit.getImports()) {
+            if (simpleName(declaration.getNameAsString()).equals("Scope")) {
+                throw new TransformationUnsupportedException(
+                        "A conflicting Scope import requires manual review.");
+            }
+        }
+        ImportDeclaration anchor = unit.getImports().stream()
+                .filter(candidate -> candidate.getNameAsString().equals(SPRING_COMPONENT))
+                .findFirst()
+                .orElseGet(() -> unit.getImports().stream()
+                        .filter(candidate -> SEASAR_COMPONENT_IMPORTS.contains(
+                                candidate.getNameAsString()))
+                        .findFirst()
+                        .orElseThrow(() -> new TransformationUnsupportedException(
+                                "No component import is available to anchor the Scope import.")));
+        int end = offsets(source, anchor)[1];
+        String newline = source.contains("\r\n") ? "\r\n" : "\n";
+        edits.add(new Edit(end, end, newline + "import " + SPRING_SCOPE + ";"));
     }
 
     private Set<String> imports(CompilationUnit unit, Set<String> supported) {
@@ -139,9 +176,13 @@ public class SeasarDiSpringRule implements TransformationRule {
         }
     }
 
-    private String componentReplacement(AnnotationExpr annotation) {
+    private ComponentReplacement componentReplacement(AnnotationExpr annotation) {
         if (annotation instanceof MarkerAnnotationExpr) {
-            return "@Component";
+            if (hasAnnotation(annotation, "Scope")) {
+                throw new TransformationUnsupportedException(
+                        "@Scope on the component requires manual review.");
+            }
+            return new ComponentReplacement("@Component", null);
         }
         if (!(annotation instanceof NormalAnnotationExpr normal)) {
             throw new TransformationUnsupportedException(
@@ -164,15 +205,37 @@ public class SeasarDiSpringRule implements TransformationRule {
                         "@Component attribute " + key + " requires manual review.");
             }
         }
-        if (instance != null && !instance.equals("singleton")) {
+        String scope = null;
+        if (instance != null && hasAnnotation(annotation, "Scope")) {
             throw new TransformationUnsupportedException(
-                    "@Component instance " + instance + " requires manual review.");
+                    "@Scope on the component requires manual review.");
         }
+        if (instance != null && !instance.equals("singleton")) {
+            if (!SCOPES.contains(instance)) {
+                throw new TransformationUnsupportedException(
+                        "@Component instance " + instance + " requires manual review.");
+            }
+            scope = instance;
+        }
+        String component = "@Component";
         if (name != null) {
             String escaped = name.replace("\\", "\\\\").replace("\"", "\\\"");
-            return "@Component(\"" + escaped + "\")";
+            component = "@Component(\"" + escaped + "\")";
         }
-        return "@Component";
+        String replacement = scope == null ? component
+                : component + " @Scope(\"" + scope + "\")";
+        return new ComponentReplacement(replacement, scope);
+    }
+
+    private boolean hasAnnotation(AnnotationExpr annotation, String simpleName) {
+        Node parent = annotation.getParentNode().orElse(null);
+        if (parent == null) {
+            return false;
+        }
+        return parent.getChildNodes().stream()
+                .filter(AnnotationExpr.class::isInstance)
+                .map(AnnotationExpr.class::cast)
+                .anyMatch(candidate -> simpleName(candidate.getNameAsString()).equals(simpleName));
     }
 
     private String apply(String source, List<Edit> edits) {
@@ -247,5 +310,8 @@ public class SeasarDiSpringRule implements TransformationRule {
         private Edit(int[] offsets, String replacement) {
             this(offsets[0], offsets[1], replacement);
         }
+    }
+
+    private record ComponentReplacement(String annotation, String scope) {
     }
 }

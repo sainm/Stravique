@@ -172,6 +172,34 @@ class S2jdbcQuerySpringJdbcRuleTest {
     }
 
     @Test
+    void mapsAdditionalVettedParameterTypes() {
+        String source = """
+                package example;
+
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                public class OrderDao {
+                    public JdbcManager jdbcManager;
+
+                    public void archive() {
+                        jdbcManager.updateBySql(
+                                "UPDATE orders SET created_on = ?, created_at = ?, seq = ?, tiny = ?",
+                                LocalDate.class, LocalDateTime.class, BigInteger.class, Byte.class)
+                                .execute(date, at, sequence, flag);
+                    }
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderDao.java");
+
+        assertThat(proposed)
+                .contains("new int[]{Types.DATE, Types.TIMESTAMP, Types.NUMERIC, Types.TINYINT}")
+                .doesNotContain("updateBySql");
+        assertThat(StaticJavaParser.parse(proposed)).isNotNull();
+        assertThat(rule.ruleVersion()).isEqualTo("1.3.0");
+    }
+
+    @Test
     void rejectsAWriteWhoseBoundParametersDoNotMatchTheDeclaredTypes() {
         String source = """
                 package example;
@@ -194,8 +222,29 @@ class S2jdbcQuerySpringJdbcRuleTest {
     }
 
     @Test
-    void rejectsAParameterTypeWithoutAVettedSqlType() {
+    void mapsQualifiedDateTypesAndRejectsTheAmbiguousSimpleName() {
         String source = """
+                package example;
+
+                import org.seasar.extension.jdbc.JdbcManager;
+
+                public class OrderDao {
+                    public JdbcManager jdbcManager;
+
+                    public void archive(java.util.Date cutoff, java.sql.Date day) {
+                        jdbcManager.updateBySql("DELETE FROM orders WHERE created < ? AND day = ?",
+                                java.util.Date.class, java.sql.Date.class).execute(cutoff, day);
+                    }
+                }
+                """;
+
+        String proposed = rule.propose(source, "OrderDao.java");
+
+        assertThat(proposed)
+                .contains("new int[]{Types.TIMESTAMP, Types.DATE}")
+                .doesNotContain("updateBySql");
+
+        String ambiguous = """
                 package example;
 
                 import org.seasar.extension.jdbc.JdbcManager;
@@ -205,14 +254,14 @@ class S2jdbcQuerySpringJdbcRuleTest {
 
                     public void archive(java.util.Date cutoff) {
                         jdbcManager.updateBySql("DELETE FROM orders WHERE created < ?",
-                                java.util.Date.class).execute(cutoff);
+                                Date.class).execute(cutoff);
                     }
                 }
                 """;
 
-        assertThatThrownBy(() -> rule.propose(source, "OrderDao.java"))
+        assertThatThrownBy(() -> rule.propose(ambiguous, "OrderDao.java"))
                 .isInstanceOf(TransformationUnsupportedException.class)
-                .hasMessageContaining("no vetted SQL type mapping");
+                .hasMessageContaining("Date");
     }
 
     @Test

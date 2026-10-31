@@ -16,4 +16,7 @@ public interface TransformationRunRepository extends JpaRepository<Transformatio
 
     Optional<TransformationRun> findFirstByProposalIdAndStatusOrderByCreatedAtDesc(
             UUID proposalId, TransformationRunStatus status);
+
+    Optional<TransformationRun> findFirstByProjectIdAndRelativePathAndStatusOrderByCreatedAtDesc(
+            UUID projectId, String relativePath, TransformationRunStatus status);
 }

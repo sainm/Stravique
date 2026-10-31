@@ -70,6 +70,10 @@ export default function MigrationInspector({
   const jspItem =
     detail.data?.item.itemType === "JSP_VIEW" &&
     detail.data?.item.targetKey === "KEEP_JSP";
+  const webXmlItem =
+    detail.data?.item.itemType === "CONFIGURATION" &&
+    detail.data?.item.targetKey === "SPRING_BOOT_CONFIG" &&
+    detail.data?.item.title === "web.xml";
   const fallbackRuleId = diItem
     ? "SEASAR-DI-SPRING-DI"
     : validationItem
@@ -84,9 +88,11 @@ export default function MigrationInspector({
               ? "MESSAGE-RESOURCE-SPRING-UTF8"
               : jspItem
                 ? "JSP-BEAN-MESSAGE-JSTL"
-                : controllerItem
-                  ? "STRUTS-CONTROLLER-SKELETON"
-                  : undefined;
+                : webXmlItem
+                  ? "WEBXML-JAKARTA-NAMESPACE"
+                  : controllerItem
+                    ? "STRUTS-CONTROLLER-SKELETON"
+                    : undefined;
   const ruleCatalog = useQuery({
     queryKey: ["transformation-rules"],
     queryFn: api.transformationRules,
@@ -95,7 +101,8 @@ export default function MigrationInspector({
   const catalogRule = ruleCatalog.data?.find(
     (rule) =>
       rule.itemType === detail.data?.item.itemType &&
-      rule.targetKey === detail.data?.item.targetKey
+      rule.targetKey === detail.data?.item.targetKey &&
+      (!rule.fileName || rule.fileName === detail.data?.item.title)
   );
   const activeRuleId = catalogRule?.ruleId ?? fallbackRuleId;
   const supported = ruleCatalog.data ? Boolean(catalogRule) : Boolean(fallbackRuleId);
@@ -290,8 +297,10 @@ export default function MigrationInspector({
                         ? t("migration.transformation.descriptionMessages")
                         : activeRuleId === "JSP-BEAN-MESSAGE-JSTL"
                           ? t("migration.transformation.descriptionJspTags")
-                          : activeRuleId === "JAVAX-TO-JAKARTA"
-                            ? t("migration.transformation.descriptionJakarta")
+                          : activeRuleId === "WEBXML-JAKARTA-NAMESPACE"
+                            ? t("migration.transformation.descriptionWebXml")
+                            : activeRuleId === "JAVAX-TO-JAKARTA"
+                              ? t("migration.transformation.descriptionJakarta")
                             : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
                               ? t("migration.transformation.descriptionForm")
                               : activeRuleId === "SASTRUTS-VALIDATION-BEAN"
@@ -331,8 +340,10 @@ export default function MigrationInspector({
                           ? t("migration.transformation.scopeMessages")
                           : activeRuleId === "JSP-BEAN-MESSAGE-JSTL"
                             ? t("migration.transformation.scopeJspTags")
-                            : activeRuleId === "JAVAX-TO-JAKARTA"
-                              ? t("migration.transformation.scopeJakarta")
+                            : activeRuleId === "WEBXML-JAKARTA-NAMESPACE"
+                              ? t("migration.transformation.scopeWebXml")
+                              : activeRuleId === "JAVAX-TO-JAKARTA"
+                                ? t("migration.transformation.scopeJakarta")
                               : activeRuleId === "STRUTS-ACTIONFORM-MODEL"
                                 ? t("migration.transformation.scopeForm")
                                   : activeRuleId === "SASTRUTS-VALIDATION-BEAN"

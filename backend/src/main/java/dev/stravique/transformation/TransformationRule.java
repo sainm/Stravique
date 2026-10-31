@@ -20,6 +20,10 @@ public interface TransformationRule {
         return "JAVA";
     }
 
+    default String fileNameHint() {
+        return null;
+    }
+
     default String proposedEncoding() {
         return null;
     }

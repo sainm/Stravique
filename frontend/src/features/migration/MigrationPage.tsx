@@ -6,13 +6,16 @@ import {
   Clock3,
   GitBranch,
   History,
+  Layers,
   ListChecks,
+  Play,
   RefreshCw,
+  RotateCcw,
   Route,
   ShieldAlert,
   Sparkles
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -26,7 +29,8 @@ import { formatDate, formatNumber } from "../../lib/format";
 import type {
   MigrationGraph,
   MigrationItem,
-  MigrationPlanSummary
+  MigrationPlanSummary,
+  TransformationBatch
 } from "../../lib/types";
 import MigrationGraphView from "./MigrationGraphView";
 import MigrationInspector from "./MigrationInspector";
@@ -63,6 +67,13 @@ export default function MigrationPage() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [targetProfile, setTargetProfile] = useState(TARGET_PROFILES[0]);
+  const [batchIds, setBatchIds] = useState<Set<string>>(() => new Set());
+  const [batchResult, setBatchResult] = useState<TransformationBatch | null>(null);
+  const [batchResultOpen, setBatchResultOpen] = useState(false);
+  const [batchApplyOpen, setBatchApplyOpen] = useState(false);
+  const [batchConfirm, setBatchConfirm] = useState(false);
+  const [batchRestoreConfirm, setBatchRestoreConfirm] = useState(false);
+  const [batchError, setBatchError] = useState<Error | null>(null);
 
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -84,6 +95,16 @@ export default function MigrationPage() {
   const view: View = VIEWS.includes(requestedView as View)
     ? (requestedView as View)
     : "plan";
+
+  useEffect(() => {
+    setBatchIds(new Set());
+    setBatchResult(null);
+    setBatchResultOpen(false);
+    setBatchApplyOpen(false);
+    setBatchConfirm(false);
+    setBatchRestoreConfirm(false);
+    setBatchError(null);
+  }, [selectedPlanId, view]);
 
   const planQuery = useQuery({
     queryKey: ["migration-plan", projectId, selectedPlanId],
@@ -191,6 +212,62 @@ export default function MigrationPage() {
     }
   });
 
+  const refreshAfterBatch = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["migration-plans", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-plan", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-items", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-phase-items", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-review-items", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-graph", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["migration-item", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-proposals", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-runs", projectId] })
+    ]);
+  };
+
+  const batchPreviewMutation = useMutation({
+    mutationFn: () =>
+      api.previewTransformationBatch(projectId, selectedPlanId, Array.from(batchIds)),
+    onSuccess: async (data) => {
+      setBatchResult(data);
+      setBatchResultOpen(true);
+      setBatchRestoreConfirm(false);
+      setBatchError(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["transformation-proposals", projectId]
+      });
+    },
+    onError: (error) => setBatchError(error as Error)
+  });
+
+  const batchApplyMutation = useMutation({
+    mutationFn: () =>
+      api.applyTransformationBatch(projectId, selectedPlanId, Array.from(batchIds)),
+    onSuccess: async (data) => {
+      setBatchResult(data);
+      setBatchApplyOpen(false);
+      setBatchResultOpen(true);
+      setBatchConfirm(false);
+      setBatchRestoreConfirm(false);
+      setBatchIds(new Set());
+      await refreshAfterBatch();
+    },
+    onError: (error) => setBatchError(error as Error)
+  });
+
+  const batchRestoreMutation = useMutation({
+    mutationFn: (runIds: string[]) =>
+      api.restoreTransformationBatch(projectId, selectedPlanId, runIds),
+    onSuccess: async (data) => {
+      setBatchResult(data);
+      setBatchResultOpen(true);
+      setBatchRestoreConfirm(false);
+      await refreshAfterBatch();
+    },
+    onError: (error) => setBatchError(error as Error)
+  });
+
   const latestCompleted = useMemo(
     () => scansQuery.data?.find((scan) => scan.status === "COMPLETED"),
     [scansQuery.data]
@@ -226,6 +303,30 @@ export default function MigrationPage() {
     setScopeFilter("");
     setPage(0);
   };
+
+  const toggleBatch = (itemId: string, selected: boolean) => {
+    setBatchIds((previous) => {
+      const next = new Set(previous);
+      if (selected) {
+        next.add(itemId);
+      } else {
+        next.delete(itemId);
+      }
+      return next;
+    });
+    setBatchError(null);
+  };
+
+  const clearBatch = () => {
+    setBatchIds(new Set());
+    setBatchError(null);
+  };
+
+  const appliedRunIds =
+    batchResult?.items
+      .filter((item) => item.run?.status === "APPLIED")
+      .map((item) => item.run?.id)
+      .filter((id): id is string => Boolean(id)) ?? [];
 
   const scopeError =
     scopeMutation.error instanceof Error
@@ -563,6 +664,63 @@ export default function MigrationPage() {
                     </button>
                   ) : null}
                 </div>
+                {batchIds.size > 0 ? (
+                  <div className="migration-batch-bar">
+                    <span className="migration-count">
+                      {t("migration.batch.selected", { count: batchIds.size })}
+                    </span>
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      disabled={batchPreviewMutation.isPending || batchApplyMutation.isPending}
+                      onClick={() => batchPreviewMutation.mutate()}
+                    >
+                      <Layers size={14} />
+                      {t("migration.batch.preview")}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-primary button-small"
+                      disabled={batchApplyMutation.isPending || batchPreviewMutation.isPending}
+                      onClick={() => {
+                        setBatchError(null);
+                        setBatchConfirm(false);
+                        setBatchApplyOpen(true);
+                      }}
+                    >
+                      <Play size={14} />
+                      {t("migration.batch.apply")}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-ghost button-small"
+                      onClick={clearBatch}
+                    >
+                      {t("migration.batch.clear")}
+                    </button>
+                  </div>
+                ) : null}
+                {batchError ? <p className="inline-error">{batchError.message}</p> : null}
+                {appliedRunIds.length > 0 ? (
+                  <div className="migration-batch-bar">
+                    <span className="migration-count">
+                      {t("migration.batch.appliedBatch", {
+                        count: appliedRunIds.length
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={() => {
+                        setBatchRestoreConfirm(false);
+                        setBatchResultOpen(true);
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                      {t("migration.batch.restore")}
+                    </button>
+                  </div>
+                ) : null}
                 {itemsQuery.isLoading ? <LoadingBlock /> : null}
                 {itemsQuery.error ? (
                   <ErrorPanel
@@ -584,10 +742,13 @@ export default function MigrationPage() {
                         key={item.id}
                         item={item}
                         pending={scopeMutation.isPending}
+                        batchEnabled
+                        selectedBatch={batchIds.has(item.id)}
                         onSelect={(itemId) => setSelectedItemId(itemId)}
                         onToggle={(itemId, included) =>
                           scopeMutation.mutate({ itemId, included })
                         }
+                        onToggleBatch={toggleBatch}
                       />
                     ))}
                   </div>
@@ -762,10 +923,13 @@ export default function MigrationPage() {
                         key={item.id}
                         item={item}
                         pending={scopeMutation.isPending}
+                        batchEnabled={false}
+                        selectedBatch={batchIds.has(item.id)}
                         onSelect={(itemId) => setSelectedItemId(itemId)}
                         onToggle={(itemId, included) =>
                           scopeMutation.mutate({ itemId, included })
                         }
+                        onToggleBatch={toggleBatch}
                       />
                     ))}
                   </div>
@@ -867,6 +1031,148 @@ export default function MigrationPage() {
           </div>
         </div>
       </Modal>
+      <Modal
+        open={batchApplyOpen}
+        title={t("migration.batch.confirmTitle")}
+        description={t("migration.batch.confirmDescription", {
+          count: batchIds.size
+        })}
+        onClose={() => {
+          setBatchApplyOpen(false);
+          setBatchConfirm(false);
+          setBatchError(null);
+        }}
+      >
+        <div className="migration-generate-body">
+          <label className="migration-confirm">
+            <input
+              type="checkbox"
+              checked={batchConfirm}
+              onChange={(event) => setBatchConfirm(event.target.checked)}
+            />
+            <span>{t("migration.batch.confirm")}</span>
+          </label>
+          {batchError ? <p className="inline-error">{batchError.message}</p> : null}
+          <div className="modal-actions">
+            <button
+              className="button button-ghost"
+              onClick={() => {
+                setBatchApplyOpen(false);
+                setBatchConfirm(false);
+              }}
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              className="button button-primary"
+              disabled={!batchConfirm || batchApplyMutation.isPending}
+              onClick={() => batchApplyMutation.mutate()}
+            >
+              <Play size={15} />
+              {batchApplyMutation.isPending
+                ? t("migration.batch.working")
+                : t("migration.batch.apply")}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={batchResultOpen}
+        title={t("migration.batch.resultTitle")}
+        onClose={() => {
+          setBatchResultOpen(false);
+          setBatchError(null);
+        }}
+      >
+        {batchResult ? (
+          <div className="migration-batch-result">
+            <div className="migration-batch-summary">
+              <span className="migration-chip">
+                {t(`migration.batch.statuses.${batchResult.status}`, {
+                  defaultValue: batchResult.status
+                })}
+              </span>
+              <span>
+                {t("migration.batch.requested")}: {batchResult.requested}
+              </span>
+              <span>
+                {t("migration.batch.applied")}: {batchResult.applied}
+              </span>
+              {batchResult.restored > 0 ? (
+                <span>
+                  {t("migration.batch.restored")}: {batchResult.restored}
+                </span>
+              ) : null}
+              {batchResult.restoredOnFailure > 0 ? (
+                <span>
+                  {t("migration.batch.rolledBack")}: {batchResult.restoredOnFailure}
+                </span>
+              ) : null}
+              {batchResult.failed > 0 ? (
+                <span>
+                  {t("migration.batch.failed")}: {batchResult.failed}
+                </span>
+              ) : null}
+            </div>
+            <p className="migration-note">{t("migration.batch.previewNote")}</p>
+            <div className="migration-batch-items">
+              {batchResult.items.map((item, index) => (
+                <div className="migration-batch-item" key={`${item.itemId ?? item.runId ?? index}`}>
+                  <div>
+                    <strong>{item.title || item.itemId || item.runId}</strong>
+                    <small>
+                      {item.proposal?.ruleId ?? item.run?.ruleId ?? item.errorCode ?? ""}
+                    </small>
+                  </div>
+                  <span className="migration-chip">
+                    {t(`migration.batch.statuses.${item.status}`, {
+                      defaultValue: item.status
+                    })}
+                  </span>
+                  {item.errorMessage ? (
+                    <p className="inline-error">{item.errorMessage}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            {appliedRunIds.length > 0 ? (
+              <div className="migration-batch-restore">
+                <label className="migration-confirm">
+                  <input
+                    type="checkbox"
+                    checked={batchRestoreConfirm}
+                    onChange={(event) => setBatchRestoreConfirm(event.target.checked)}
+                  />
+                  <span>{t("migration.batch.restoreConfirm")}</span>
+                </label>
+                <button
+                  className="button button-secondary"
+                  disabled={!batchRestoreConfirm || batchRestoreMutation.isPending}
+                  onClick={() => batchRestoreMutation.mutate(appliedRunIds)}
+                >
+                  <RotateCcw size={15} />
+                  {batchRestoreMutation.isPending
+                    ? t("migration.batch.restoreWorking")
+                    : t("migration.batch.restore")}
+                </button>
+              </div>
+            ) : null}
+            {batchError ? <p className="inline-error">{batchError.message}</p> : null}
+            <div className="modal-actions">
+              <button
+                className="button button-ghost"
+                onClick={() => {
+                  setBatchResultOpen(false);
+                  setBatchError(null);
+                }}
+              >
+                {t("migration.batch.close")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </>
   );
 }
@@ -892,20 +1198,39 @@ function Metric({
 function ItemRow({
   item,
   pending,
+  batchEnabled,
+  selectedBatch,
   onSelect,
-  onToggle
+  onToggle,
+  onToggleBatch
 }: {
   item: MigrationItem;
   pending: boolean;
+  batchEnabled: boolean;
+  selectedBatch: boolean;
   onSelect: (itemId: string) => void;
   onToggle: (itemId: string, included: boolean) => void;
+  onToggleBatch: (itemId: string, selected: boolean) => void;
 }) {
   const { t } = useTranslation();
   return (
     <article
-      className={`migration-row ${item.included ? "" : "migration-row-excluded"}`}
+      className={`migration-row ${item.included ? "" : "migration-row-excluded"} ${
+        batchEnabled ? "" : "migration-row-no-batch"
+      }`}
       data-item-id={item.id}
     >
+      {batchEnabled ? (
+        <label className="migration-batch-check">
+          <input
+            type="checkbox"
+            checked={selectedBatch}
+            disabled={!item.included}
+            onChange={(event) => onToggleBatch(item.id, event.target.checked)}
+            aria-label={t("migration.batch.selectLabel", { title: item.title })}
+          />
+        </label>
+      ) : null}
       <button className="migration-row-open" onClick={() => onSelect(item.id)}>
         <span className="migration-row-identity">
           <span className="migration-row-title">

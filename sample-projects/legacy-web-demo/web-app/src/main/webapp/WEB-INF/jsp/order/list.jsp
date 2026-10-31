@@ -2,6 +2,7 @@
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="html" uri="http://struts.apache.org/tags-html" %>
+<%@ taglib prefix="bean" uri="http://struts.apache.org/tags-bean" %>
 <%@ taglib prefix="sq" uri="http://example.com/tags/legacy-ui" %>
 <!DOCTYPE html>
 <html>
@@ -23,7 +24,7 @@
     <c:forEach items="${orderForm.orders}" var="order">
         <tr>
             <td><c:out value="${order.id}"/></td>
-            <td><c:out value="${order.customerName}"/></td>
+            <td><bean:write name="order" property="customerName"/></td>
         </tr>
     </c:forEach>
 </table>

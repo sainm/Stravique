@@ -24,6 +24,7 @@ import type {
   RuntimeInfo,
   Scan,
   Technology,
+  TransformationBatch,
   TransformationProposal,
   TransformationRule,
   TransformationRun
@@ -284,5 +285,20 @@ export const api = {
     request<TransformationRun>(
       `/projects/${projectId}/transformation-runs/${runId}/restore`,
       { method: "POST", body: JSON.stringify({ confirmed }) }
+    ),
+  previewTransformationBatch: (projectId: string, planId: string, itemIds: string[]) =>
+    request<TransformationBatch>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-batches/preview`,
+      { method: "POST", body: JSON.stringify({ itemIds }) }
+    ),
+  applyTransformationBatch: (projectId: string, planId: string, itemIds: string[]) =>
+    request<TransformationBatch>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-batches/apply`,
+      { method: "POST", body: JSON.stringify({ itemIds, confirmed: true }) }
+    ),
+  restoreTransformationBatch: (projectId: string, planId: string, runIds: string[]) =>
+    request<TransformationBatch>(
+      `/projects/${projectId}/migration-plans/${planId}/transformation-batches/restore`,
+      { method: "POST", body: JSON.stringify({ runIds, confirmed: true }) }
     )
 };
