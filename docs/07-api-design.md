@@ -134,7 +134,7 @@ The backup ledger is project-scoped and never returns backup paths. `restorable`
 | `GET` | `/projects/{id}/reports` | Available reports and row counts |
 | `GET` | `/projects/{id}/reports/{type}.{format}` | Persisted-data export |
 
-Formats: `csv`, `json`, `markdown`.
+Formats: `csv`, `json`, `markdown`. Every CSV cell is quoted and embedded quotes are doubled; a value whose first character is `=`, `+`, `-`, `@`, a tab, or a carriage return is prefixed with an apostrophe so a spreadsheet shows it as text instead of evaluating it as a formula. Consumers that need the raw value strip one leading apostrophe from such cells.
 
 Report types: `files`, `structure`, `technology`, `frameworks`, `relations`, `configuration`, `parse-errors`, `reviews`.
 

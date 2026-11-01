@@ -313,11 +313,26 @@ export default function MigrationPage() {
   const scopeMutation = useMutation({
     mutationFn: (input: { itemId: string; included: boolean }) =>
       api.updateMigrationScope(projectId, selectedPlanId, input.itemId, input.included),
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (!variables.included) {
+        setBatchIds((previous) => {
+          const next = new Set(previous);
+          next.delete(variables.itemId);
+          return next;
+        });
+        setPlanRunSelection((previous) => {
+          const next = new Set(previous);
+          next.delete(variables.itemId);
+          return next;
+        });
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["migration-plan", projectId] }),
         queryClient.invalidateQueries({ queryKey: ["migration-plans", projectId] }),
         queryClient.invalidateQueries({ queryKey: ["migration-items", projectId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["transformation-coverage", projectId]
+        }),
         queryClient.invalidateQueries({
           queryKey: ["migration-phase-items", projectId]
         }),
@@ -372,7 +387,10 @@ export default function MigrationPage() {
       queryClient.invalidateQueries({ queryKey: ["migration-item", projectId] }),
       queryClient.invalidateQueries({ queryKey: ["transformation-proposals", projectId] }),
       queryClient.invalidateQueries({ queryKey: ["transformation-runs", projectId] }),
-      queryClient.invalidateQueries({ queryKey: ["transformation-backups", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["transformation-backups", projectId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["transformation-coverage", projectId]
+      })
     ]);
   };
 
@@ -400,7 +418,10 @@ export default function MigrationPage() {
       setBatchResultOpen(true);
       setBatchConfirm(false);
       setBatchRestoreConfirm(false);
-      setBatchIds(new Set());
+      setBatchError(null);
+      if (data.status === "APPLIED") {
+        setBatchIds(new Set());
+      }
       await refreshAfterBatch();
     },
     onError: (error) => setBatchError(error as Error)
@@ -413,6 +434,7 @@ export default function MigrationPage() {
       setBatchResult(data);
       setBatchResultOpen(true);
       setBatchRestoreConfirm(false);
+      setBatchError(null);
       await refreshAfterBatch();
     },
     onError: (error) => setBatchError(error as Error)
@@ -2091,7 +2113,7 @@ function ItemRow({
           <input
             type="checkbox"
             checked={selectedBatch}
-            disabled={!item.included}
+            disabled={!item.included && !selectedBatch}
             onChange={(event) => onToggleBatch(item.id, event.target.checked)}
             aria-label={t("migration.batch.selectLabel", { title: item.title })}
           />

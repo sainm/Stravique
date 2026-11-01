@@ -39,6 +39,8 @@ import java.util.UUID;
 @Service
 public class ReportService {
 
+    private static final String FORMULA_TRIGGERS = "=+-@\t\r";
+
     private static final List<String> FORMATS = List.of("csv", "json", "markdown");
     private static final Set<Certainty> REVIEW_STATES = Set.of(
             Certainty.REVIEW_REQUIRED, Certainty.UNRESOLVED, Certainty.PARSE_FAILED
@@ -330,7 +332,7 @@ public class ReportService {
     private String csv(List<LinkedHashMap<String, Object>> rows, ReportType type) {
         List<String> headers = columns(type);
         StringBuilder output = new StringBuilder();
-        output.append(String.join(",", headers.stream().map(this::csvValue).toList())).append('\n');
+        output.append(String.join(",", headers.stream().map(ReportService::csvValue).toList())).append('\n');
         for (Map<String, Object> row : rows) {
             output.append(String.join(",", headers.stream()
                     .map(header -> csvValue(value(row.get(header)))).toList())).append('\n');
@@ -367,8 +369,12 @@ public class ReportService {
         return output.toString();
     }
 
-    private String csvValue(String value) {
-        String escaped = value.replace("\"", "\"\"");
+    static String csvValue(String value) {
+        String guarded = value;
+        if (!value.isEmpty() && FORMULA_TRIGGERS.indexOf(value.charAt(0)) >= 0) {
+            guarded = "'" + value;
+        }
+        String escaped = guarded.replace("\"", "\"\"");
         return "\"" + escaped + "\"";
     }
 
