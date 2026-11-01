@@ -110,6 +110,7 @@ Use MockMvc for successful and failure paths:
 - Migration dependency graph conversion and prerequisite-before-dependent layers.
 - Plan comparison grouping order, field value localization, and base-version options/defaulting.
 - Report URL generation.
+- Migration page batch selection: excluding an item drops it from the batch and refetches the plan-wide coverage, using a rendered page with a stubbed API rather than isolated helpers.
 - Navigation and responsive class contracts.
 
 ## Visual verification
