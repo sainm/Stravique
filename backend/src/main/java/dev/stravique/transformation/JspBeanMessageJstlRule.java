@@ -17,7 +17,7 @@ import java.util.Map;
 public class JspBeanMessageJstlRule implements TransformationRule {
 
     private static final String RULE_ID = "JSP-BEAN-MESSAGE-JSTL";
-    private static final String RULE_VERSION = "1.3.0";
+    private static final String RULE_VERSION = "1.4.0";
     private static final String LEGACY_JSTL_PREFIX = "http://java.sun.com/jsp/jstl/";
     private static final String JAKARTA_FMT_URI = "jakarta.tags.fmt";
     private static final String JAKARTA_CORE_URI = "jakarta.tags.core";
@@ -216,9 +216,11 @@ public class JspBeanMessageJstlRule implements TransformationRule {
                     "Only self-closing bean:write tags are supported.");
         }
         for (String attribute : write.attributes().keySet()) {
-            if (!attribute.equals("name") && !attribute.equals("property")) {
+            if (!attribute.equals("name") && !attribute.equals("property")
+                    && !attribute.equals("scope") && !attribute.equals("filter")) {
                 throw new TransformationUnsupportedException(
-                        "bean:write attributes other than name and property are not supported.");
+                        "bean:write attributes other than name, property, scope, and filter"
+                                + " are not supported.");
             }
         }
         String name = write.attributes().getOrDefault("name", "");
@@ -227,17 +229,40 @@ public class JspBeanMessageJstlRule implements TransformationRule {
                     "bean:write requires a literal name attribute.");
         }
         String property = write.attributes().get("property");
-        String value;
+        String path;
         if (property == null) {
-            value = name;
+            path = name;
         } else {
             if (!isPropertyPath(property)) {
                 throw new TransformationUnsupportedException(
                         "bean:write requires a literal property path.");
             }
-            value = name + "." + property;
+            path = name + "." + property;
         }
-        return "<" + corePrefix + ":out value=\"${" + value + "}\"/>";
+        String scope = write.attributes().get("scope");
+        String scopePrefix = "";
+        if (scope != null) {
+            scopePrefix = switch (scope) {
+                case "page" -> "pageScope.";
+                case "request" -> "requestScope.";
+                case "session" -> "sessionScope.";
+                case "application" -> "applicationScope.";
+                default -> throw new TransformationUnsupportedException(
+                        "bean:write scope must be page, request, session, or application.");
+            };
+        }
+        String filter = write.attributes().get("filter");
+        boolean escapeXml = true;
+        if (filter != null) {
+            if (filter.equals("false")) {
+                escapeXml = false;
+            } else if (!filter.equals("true")) {
+                throw new TransformationUnsupportedException(
+                        "bean:write filter must be true or false.");
+            }
+        }
+        return "<" + corePrefix + ":out value=\"${" + scopePrefix + path + "}\""
+                + (escapeXml ? "" : " escapeXml=\"false\"") + "/>";
     }
 
     private List<String> messageArguments(JspMarkup.Tag message) {

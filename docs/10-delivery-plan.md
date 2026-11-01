@@ -327,6 +327,16 @@ Gate: a cross-scan source is accepted when the carried scope remains closed; a n
 
 Gate: literal arguments become ordered `fmt:param` elements, unsupported argument forms are refused, the generated JSP tag structure stays balanced, the page restores byte-exactly, and all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
 
+## Phase 25 JSP bean:write scope and filter
+
+- `JSP-BEAN-MESSAGE-JSTL` moves to `1.4.0`.
+- A literal `scope` of `page`, `request`, `session`, or `application` maps to the matching EL scope object (`pageScope`, `requestScope`, `sessionScope`, `applicationScope`); an absent scope keeps the default EL lookup order, while explicit unknown or unsupported values, including `any`, are refused.
+- `filter="false"` becomes `escapeXml="false"`; an absent filter or `filter="true"` keeps default escaping.
+- Unknown or non-literal scopes, non-boolean filters, `ignore`, `format`, and other attributes remain refused.
+- The JSP integration flow adds a session-scoped, unescaped write, applies the conversion, verifies the EL value and `escapeXml`, and restores the page byte-exactly.
+
+Gate: scope and filter map exactly to EL objects and `escapeXml`, unsupported forms are refused, tag structure stays balanced, the page restores byte-exactly, and all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
 ## Phase 4 close-out audit
 
 This table is the delivery checklist for the remaining domains. A domain is either **Done** with a vetted rule/version, or **Boundary** with the evidence that is missing and the condition that would justify a future rule. A boundary is not presented as supported in the product.
@@ -341,7 +351,7 @@ This table is the delivery checklist for the remaining domains. A domain is eith
 | S2 transaction | `JAVA-S2JDBC-TX-001`; `S2TX-SPRING-TRANSACTIONAL` v1.2.0 | Done | Bare plus all six propagation values shared with Spring; unknown constants and values outside that shared set remain refused |
 | Action controllers | `STRUTS-CONFIG-ACTION-001`/`FORWARD-001`; `STRUTS-CONTROLLER-SKELETON` v1.0.0 | Done | Create-only skeleton; method bodies and request binding remain boundary |
 | Message bundles | `MESSAGE_PRODUCTION`/`MESSAGE_DISPLAY`; `MESSAGE-RESOURCE-SPRING-UTF8` v1.0.0 | Done | UTF-8 escape normalization; message API/lifecycle remains boundary |
-| JSP view tags | `JSP-*`; `JSP-BEAN-MESSAGE-JSTL` v1.3.0 | Done | Self-closing bean:message/bean:write, contiguous literal message arguments, and legacy JSTL URIs; form/error/custom tags remain boundary |
+| JSP view tags | `JSP-*`; `JSP-BEAN-MESSAGE-JSTL` v1.4.0 | Done | Self-closing bean:message/bean:write, contiguous literal message arguments, write scope/filter, and legacy JSTL URIs; form/error/custom tags remain boundary |
 | Web descriptor | `web.xml` findings; `WEBXML-JAKARTA-NAMESPACE` v1.2.0 | Done | Namespace/schema/version plus vetted servlet/filter/listener/exception-type class names; Spring Boot config conversion, complete filter/listener behavior migration, and descriptors other than `web.xml` remain boundary |
 | Message APIs / lifecycle | `JAVA-STR1-MESSAGE-001`; `MESSAGE_FLOW` item | Boundary | Needs a `MessageSource` dependency, locale source, and a `BindingResult` that do not exist in the legacy action; not mechanical |
 | JSP error and message blocks | `JSP-MESSAGE-DISPLAY-001`, `JSP-STRUTS-MESSAGE-DISPLAY-001` | Boundary | Requires a `<form:form>` model attribute and binding context; a tag-level rewrite can fail at runtime |

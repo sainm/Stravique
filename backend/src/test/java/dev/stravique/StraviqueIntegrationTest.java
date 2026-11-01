@@ -573,6 +573,10 @@ class StraviqueIntegrationTest {
                 + "<bean:message key=\"order.count\" arg0=\"3\" arg1=\"items\"/>\n");
         Path listJspFile = tempProject.resolve(
                 "web-app/src/main/webapp/WEB-INF/jsp/order/list.jsp");
+        Files.writeString(listJspFile, new String(Files.readAllBytes(listJspFile),
+                StandardCharsets.UTF_8)
+                + "<bean:write name=\"order\" property=\"customerName\""
+                + " scope=\"session\" filter=\"false\"/>\n");
         Path webXmlFile = tempProject.resolve(
                 "web-app/src/main/webapp/WEB-INF/web.xml");
         Path strutsConfigFile = tempProject.resolve(
@@ -1053,6 +1057,8 @@ class StraviqueIntegrationTest {
                 .contains("jakarta.tags.fmt")
                 .doesNotContain("java.sun.com/jsp/jstl")
                 .contains("<c:out value=\"${order.customerName}\"/>")
+                .contains("<c:out value=\"${sessionScope.order.customerName}\""
+                        + " escapeXml=\"false\"/>")
                 .doesNotContain("<bean:write")
                 .doesNotContain("prefix=\"bean\"")
                 .contains("<html:errors/>")
@@ -2969,7 +2975,7 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$[?(@.ruleId == 'JSP-BEAN-MESSAGE-JSTL'"
                         + " && @.language == 'JSP')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'JSP-BEAN-MESSAGE-JSTL'"
-                        + " && @.ruleVersion == '1.3.0')]").isNotEmpty())
+                        + " && @.ruleVersion == '1.4.0')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE'"
                         + " && @.ruleVersion == '1.2.0')]").isNotEmpty())

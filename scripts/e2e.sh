@@ -377,7 +377,7 @@ else
   dicon_rule_present=0
 fi
 check "dicon configuration rule is cataloged" "1" "${dicon_rule_present}"
-jsp_rule_count="$(printf '%s' "${rule_catalog}" | python3 -c 'import sys,json;print(sum(1 for r in json.load(sys.stdin) if r.get("ruleId")=="JSP-BEAN-MESSAGE-JSTL" and r.get("ruleVersion")=="1.3.0" and r.get("language")=="JSP"))')"
+jsp_rule_count="$(printf '%s' "${rule_catalog}" | python3 -c 'import sys,json;print(sum(1 for r in json.load(sys.stdin) if r.get("ruleId")=="JSP-BEAN-MESSAGE-JSTL" and r.get("ruleVersion")=="1.4.0" and r.get("language")=="JSP"))')"
 if [[ "${jsp_rule_count}" -eq 1 ]]; then
   jsp_rule_present=1
 else

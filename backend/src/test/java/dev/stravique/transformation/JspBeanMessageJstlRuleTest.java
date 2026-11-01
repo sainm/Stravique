@@ -108,7 +108,7 @@ class JspBeanMessageJstlRuleTest {
                 .doesNotContain("java.sun.com/jsp/jstl")
                 .contains("<c:out value=\"${order.id}\"/>")
                 .contains("<fmt:message key=\"order.list.title\"/>");
-        assertThat(rule.ruleVersion()).isEqualTo("1.3.0");
+        assertThat(rule.ruleVersion()).isEqualTo("1.4.0");
     }
 
     @Test
@@ -162,15 +162,56 @@ class JspBeanMessageJstlRuleTest {
     }
 
     @Test
+    void convertsBeanWriteScopeAndFilter() {
+        String taglib = "<%@ taglib prefix=\"bean\" uri=\"http://struts.apache.org/tags-bean\" %>\n";
+        String source = taglib
+                + "<bean:write name=\"order\" property=\"customerName\""
+                + " scope=\"session\" filter=\"false\"/>\n"
+                + "<bean:write name=\"order\" scope=\"page\"/>\n"
+                + "<bean:write name=\"order\" property=\"total\""
+                + " scope=\"application\" filter=\"true\"/>\n"
+                + "<bean:write name=\"order\" property=\"note\"/>\n";
+
+        String proposed = rule.propose(source, "order.jsp");
+
+        assertThat(proposed)
+                .contains("<c:out value=\"${sessionScope.order.customerName}\""
+                        + " escapeXml=\"false\"/>")
+                .contains("<c:out value=\"${pageScope.order}\"/>")
+                .contains("<c:out value=\"${applicationScope.order.total}\"/>")
+                .contains("<c:out value=\"${order.note}\"/>")
+                .contains("<%@ taglib prefix=\"c\" uri=\"jakarta.tags.core\" %>")
+                .doesNotContain("<bean:write")
+                .doesNotContain("prefix=\"bean\"");
+        rule.validate(proposed);
+    }
+
+    @Test
     void refusesBeanWriteFormsThatNeedManualReview() {
         String taglib = "<%@ taglib prefix=\"bean\" uri=\"http://struts.apache.org/tags-bean\" %>\n";
 
         assertThatThrownBy(() -> rule.propose(taglib
-                + "<bean:write name=\"order\" property=\"customerName\" scope=\"session\"/>\n",
+                + "<bean:write name=\"order\" property=\"customerName\" scope=\"flash\"/>\n",
                 "order.jsp"))
                 .isInstanceOf(TransformationUnsupportedException.class);
         assertThatThrownBy(() -> rule.propose(taglib
-                + "<bean:write name=\"order\" property=\"customerName\" filter=\"false\"/>\n",
+                + "<bean:write name=\"order\" property=\"customerName\" scope=\"any\"/>\n",
+                "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\" property=\"customerName\" scope=\"${scope}\"/>\n",
+                "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\" property=\"customerName\" filter=\"yes\"/>\n",
+                "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\" property=\"customerName\" ignore=\"true\"/>\n",
+                "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:write name=\"order\" property=\"customerName\" format=\"x\"/>\n",
                 "order.jsp"))
                 .isInstanceOf(TransformationUnsupportedException.class);
         assertThatThrownBy(() -> rule.propose(taglib

@@ -159,6 +159,8 @@ Supported edits:
 - Self-closing `bean:message` tags with only `key` and optional `bundle` attributes → `fmt:message`.
 - Contiguous literal `arg0`..`arg3` attributes on `bean:message` → nested `<fmt:param value="..."/>` elements; the key and bundle are preserved.
 - Self-closing `bean:write` tags with a literal `name` and optional literal `property` path → `c:out value="${name.property}"`.
+- A literal `scope` of `page`, `request`, `session`, or `application` selects the matching EL scope object (for example `${sessionScope.order.customerName}`); an absent scope keeps the default search order, while an explicit unknown or unsupported scope is refused.
+- `filter="false"` adds `escapeXml="false"`; an absent filter or `filter="true"` keeps the default escaping.
 - Legacy `http://java.sun.com/jsp/jstl/core|fmt|functions|sql|xml` taglib URIs → `jakarta.tags.*`.
 - The fmt and core taglibs are reused when present; otherwise `jakarta.tags.fmt`/`jakarta.tags.core` directives are added after the page directive.
 - An unused bean taglib directive is removed when no other bean tags remain.
@@ -167,7 +169,7 @@ Supported edits:
 Rejected for manual review:
 
 - `bean:message` bodies, argument gaps, non-literal or EL/script arguments, unsafe argument text, and attributes other than `key`/`bundle`/`arg0`..`arg3`.
-- `bean:write` bodies or attributes such as `scope`, `filter`, `format`, or `ignore`; non-literal names or property paths.
+- `bean:write` bodies or attributes such as `ignore` or `format`; non-literal names or property paths, unknown scopes, and non-boolean filters.
 - Pages without a Struts bean/view tag or a supported legacy JSTL taglib.
 - A legacy JSTL URI outside the vetted core/fmt/functions/sql/xml set.
 - A page where the required `fmt` or `c` prefix is bound to another taglib.
