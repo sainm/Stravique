@@ -3135,6 +3135,92 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void scansAndPlansASyntheticProjectAtScale() throws Exception {
+        Path scaleProject = Path.of(System.getProperty("user.dir"), "build", "scale-fixture");
+        int javaFiles = 1200;
+        deleteRecursively(scaleProject);
+        Files.createDirectories(scaleProject);
+        Files.writeString(scaleProject.resolve("pom.xml"), """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example.gen</groupId>
+                  <artifactId>scale</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+        for (int index = 0; index < javaFiles; index++) {
+            Path directory = scaleProject.resolve(
+                    "src/main/java/com/example/gen/pkg" + (index % 40));
+            Files.createDirectories(directory);
+            Files.writeString(directory.resolve("Service" + index + ".java"), """
+                    package com.example.gen.pkg%d;
+
+                    import org.seasar.extension.jdbc.JdbcManager;
+                    import org.seasar.framework.container.annotation.twig.Component;
+
+                    @Component
+                    public class Service%d {
+
+                        public JdbcManager jdbcManager;
+
+                        public Object find%d() {
+                            return jdbcManager.selectBySql(Object.class,
+                                    "SELECT * FROM table_%d").getResultList();
+                        }
+                    }
+                    """.formatted(index % 40, index, index, index));
+        }
+        long startedAt = System.nanoTime();
+        try {
+            PlanSetup setup = createPlanSetup(scaleProject, "Scale Fixture");
+            long elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L;
+            assertThat(elapsedSeconds).isLessThan(120);
+
+            String files = mockMvc.perform(get("/api/v1/projects/{id}/files", setup.projectId())
+                            .param("size", "1"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(objectMapper.readTree(files).get("totalElements").asInt())
+                    .isEqualTo(javaFiles + 1);
+            String planBody = mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}",
+                            setup.projectId(), setup.planId()))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(objectMapper.readTree(planBody).at("/summary/itemCount").asInt())
+                    .isGreaterThan(javaFiles);
+
+            mockMvc.perform(get("/api/v1/projects/{id}/tree", setup.projectId()))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/projects/{id}/relations/graph", setup.projectId()))
+                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/graph",
+                            setup.projectId(), setup.planId()))
+                    .andExpect(status().isOk());
+        } finally {
+            deleteRecursively(scaleProject);
+        }
+    }
+
+    @Test
+    void keepsOnlyTheRetainedNumberOfPlanVersions() throws Exception {
+        PlanSetup setup = createPlanSetup(SAMPLE, "Plan Retention");
+        for (int index = 0; index < 20; index++) {
+            mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", setup.projectId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"targetProfile\":\"SPRING_BOOT_MVC\"}"))
+                    .andExpect(status().isCreated());
+        }
+        Integer stored = jdbcTemplate.queryForObject(
+                "select count(*) from migration_plan where project_id = ?", Integer.class,
+                java.util.UUID.fromString(setup.projectId()));
+        assertThat(stored).isEqualTo(20);
+        Integer oldestSeq = jdbcTemplate.queryForObject(
+                "select min(plan_sequence) from migration_plan where project_id = ?", Integer.class,
+                java.util.UUID.fromString(setup.projectId()));
+        assertThat(oldestSeq).isEqualTo(2);
+    }
+
+    @Test
     void appliesConfigurationOnlyAnalysisScope() throws Exception {
         String projectResponse = mockMvc.perform(post("/api/v1/projects")
                         .contentType(MediaType.APPLICATION_JSON)

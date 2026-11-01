@@ -12,6 +12,8 @@ public interface TransformationProposalRepository extends JpaRepository<Transfor
 
     List<TransformationProposal> findByPlanIdOrderByCreatedAtAsc(UUID planId);
 
+    boolean existsByPlanId(UUID planId);
+
     List<TransformationProposal> findByPlanIdAndItemIdOrderByCreatedAtDesc(UUID planId, UUID itemId);
 
     List<TransformationProposal> findByPlanIdAndItemIdAndStatus(

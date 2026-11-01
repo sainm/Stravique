@@ -1,6 +1,7 @@
 package dev.stravique.application;
 
 import dev.stravique.api.ApiException;
+import dev.stravique.config.StraviqueProperties;
 import dev.stravique.api.dto.FindingDto;
 import dev.stravique.api.dto.MigrationDependencyDto;
 import dev.stravique.api.dto.MigrationGraphDto;
@@ -40,6 +41,7 @@ import dev.stravique.infrastructure.MigrationPlanRepository;
 import dev.stravique.infrastructure.ProjectFileRepository;
 import dev.stravique.infrastructure.ScanRunRepository;
 import dev.stravique.infrastructure.TechnologyUsageRepository;
+import dev.stravique.infrastructure.TransformationProposalRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -89,6 +91,8 @@ public class MigrationPlanService {
     private final MigrationItemRepository itemRepository;
     private final MigrationDependencyRepository dependencyRepository;
     private final MigrationItemFindingRepository itemFindingRepository;
+    private final TransformationProposalRepository proposalRepository;
+    private final StraviqueProperties properties;
     private final MigrationPlanner planner;
     private final AuditService auditService;
     private final TransactionTemplate transactionTemplate;
@@ -104,6 +108,8 @@ public class MigrationPlanService {
                                 MigrationItemRepository itemRepository,
                                 MigrationDependencyRepository dependencyRepository,
                                 MigrationItemFindingRepository itemFindingRepository,
+                                TransformationProposalRepository proposalRepository,
+                                StraviqueProperties properties,
                                 MigrationPlanner planner,
                                 AuditService auditService,
                                 PlatformTransactionManager transactionManager) {
@@ -117,6 +123,8 @@ public class MigrationPlanService {
         this.itemRepository = itemRepository;
         this.dependencyRepository = dependencyRepository;
         this.itemFindingRepository = itemFindingRepository;
+        this.proposalRepository = proposalRepository;
+        this.properties = properties;
         this.planner = planner;
         this.auditService = auditService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -221,7 +229,22 @@ public class MigrationPlanService {
         planRepository.save(plan);
         auditService.record(projectId, "MIGRATION_PLAN_GENERATED", "MIGRATION_PLAN",
                 plan.getId().toString(), Integer.toString(sequence));
+        trimPlans(projectId);
         return planDto(plan);
+    }
+
+    private void trimPlans(UUID projectId) {
+        int retention = properties.getMigration().getPlanRetention();
+        if (retention <= 0) {
+            return;
+        }
+        List<MigrationPlan> plans = planRepository.findByProjectIdOrderBySequenceDesc(projectId);
+        for (MigrationPlan candidate : plans.subList(Math.min(retention, plans.size()), plans.size())) {
+            if (proposalRepository.existsByPlanId(candidate.getId())) {
+                continue;
+            }
+            planRepository.delete(candidate);
+        }
     }
 
     @Transactional(readOnly = true)

@@ -120,8 +120,17 @@ public class TransformationService {
         }
     }
 
-    @Transactional
     public TransformationProposalDto propose(UUID projectId, UUID planId, UUID itemId) {
+        ReentrantLock lock = locks.computeIfAbsent(projectId, ignored -> new ReentrantLock());
+        lock.lock();
+        try {
+            return transactionTemplate.execute(status -> doPropose(projectId, planId, itemId));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private TransformationProposalDto doPropose(UUID projectId, UUID planId, UUID itemId) {
         Prepared prepared = prepare(projectId, planId, itemId);
         MigrationItem item = prepared.item();
         ProjectFile file = prepared.file();

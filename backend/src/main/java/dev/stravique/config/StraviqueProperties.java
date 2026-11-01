@@ -13,6 +13,7 @@ public class StraviqueProperties {
     private final Scan scan = new Scan();
     private final Cors cors = new Cors();
     private final Transformation transformation = new Transformation();
+    private final Migration migration = new Migration();
 
     public String getAnalyzerVersion() {
         return analyzerVersion;
@@ -40,6 +41,23 @@ public class StraviqueProperties {
 
     public Transformation getTransformation() {
         return transformation;
+    }
+
+    public Migration getMigration() {
+        return migration;
+    }
+
+    public static class Migration {
+
+        private int planRetention = 20;
+
+        public int getPlanRetention() {
+            return planRetention;
+        }
+
+        public void setPlanRetention(int planRetention) {
+            this.planRetention = planRetention;
+        }
     }
 
     public static class Transformation {
