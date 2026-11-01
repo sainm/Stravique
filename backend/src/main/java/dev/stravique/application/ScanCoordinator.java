@@ -10,7 +10,10 @@ import dev.stravique.infrastructure.AnalysisProjectRepository;
 import dev.stravique.infrastructure.ScanRunRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,22 +38,26 @@ public class ScanCoordinator {
     private final ExecutorService scanExecutor;
     private final StraviqueProperties properties;
     private final Map<UUID, AtomicBoolean> controls = new ConcurrentHashMap<>();
+    private final TransactionTemplate transactionTemplate;
 
     public ScanCoordinator(ScanRunRepository scanRepository, AnalysisProjectRepository projectRepository,
                            ScanWorker scanWorker, AuditService auditService, ExecutorService scanExecutor,
-                           StraviqueProperties properties) {
+                           StraviqueProperties properties,
+                           PlatformTransactionManager transactionManager) {
         this.scanRepository = scanRepository;
         this.projectRepository = projectRepository;
         this.scanWorker = scanWorker;
         this.auditService = auditService;
         this.scanExecutor = scanExecutor;
         this.properties = properties;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public synchronized ScanDto start(UUID projectId) {
         AnalysisProject project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PROJECT_NOT_FOUND",
                         "error.project.notFound"));
+        transactionTemplate.executeWithoutResult(status -> closeOrphanedCancelRequest(projectId));
         if (scanRepository.existsByProjectIdAndStatusIn(projectId, ACTIVE_STATUSES)) {
             throw new ApiException(HttpStatus.CONFLICT, "SCAN_ALREADY_ACTIVE",
                     "error.project.concurrentScan");
@@ -79,29 +86,57 @@ public class ScanCoordinator {
     }
 
     public synchronized ScanDto cancel(UUID scanId) {
+        return transactionTemplate.execute(status -> cancelInTransaction(scanId));
+    }
+
+    private ScanDto cancelInTransaction(UUID scanId) {
         ScanRun scan = requireScan(scanId);
         if (TERMINAL_STATUSES.contains(scan.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SCAN_NOT_CANCELABLE",
                     "error.scan.notCancelable");
         }
-        scan.requestCancel();
-        scan = scanRepository.save(scan);
-        auditService.record(scan.getProjectId(), "SCAN_CANCEL_REQUESTED", "SCAN",
-                scanId.toString(), null);
+        int requested = scanRepository.transitionStatus(scanId, ScanStatus.CANCEL_REQUESTED,
+                List.of(ScanStatus.QUEUED, ScanStatus.RUNNING));
+        if (requested == 0 && TERMINAL_STATUSES.contains(requireScan(scanId).getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SCAN_NOT_CANCELABLE",
+                    "error.scan.notCancelable");
+        }
+        if (requested > 0) {
+            auditService.record(scan.getProjectId(), "SCAN_CANCEL_REQUESTED", "SCAN",
+                    scanId.toString(), null);
+        }
         AtomicBoolean control = controls.get(scanId);
         if (control != null) {
             control.set(true);
-        } else if (scan.getStatus() == ScanStatus.CANCEL_REQUESTED) {
-            scan.cancel();
-            scan = scanRepository.save(scan);
-            auditService.record(scan.getProjectId(), "SCAN_CANCELLED", "SCAN",
-                    scanId.toString(), "not-running");
+        } else {
+            int cancelled = scanRepository.finishFrom(scanId, ScanStatus.CANCEL_REQUESTED,
+                    ScanStatus.CANCELLED, Instant.now());
+            if (cancelled > 0) {
+                auditService.record(scan.getProjectId(), "SCAN_CANCELLED", "SCAN",
+                        scanId.toString(), "not-running");
+            }
         }
-        return ScanDto.from(scan);
+        return ScanDto.from(requireScan(scanId));
     }
 
     public boolean hasActiveScan(UUID projectId) {
         return scanRepository.existsByProjectIdAndStatusIn(projectId, ACTIVE_STATUSES);
+    }
+
+    private void closeOrphanedCancelRequest(UUID projectId) {
+        scanRepository.findFirstByProjectIdAndStatusInOrderBySequenceDesc(projectId,
+                        List.of(ScanStatus.CANCEL_REQUESTED))
+                .ifPresent(scan -> {
+                    if (controls.containsKey(scan.getId())) {
+                        return;
+                    }
+                    int cancelled = scanRepository.finishFrom(scan.getId(),
+                            ScanStatus.CANCEL_REQUESTED, ScanStatus.CANCELLED, Instant.now());
+                    if (cancelled > 0) {
+                        auditService.record(projectId, "SCAN_CANCELLED", "SCAN",
+                                scan.getId().toString(), "orphaned");
+                    }
+                });
     }
 
     private ScanRun requireScan(UUID scanId) {

@@ -70,7 +70,7 @@ Dependencies point inward. Inventory parsers emit findings and never mutate proj
 9. Persist counts and finish as `COMPLETED`, `FAILED`, or `CANCELLED`.
 10. Invalidate query caches in the UI through polling.
 
-Cancellation is cooperative. A cancel request moves a running scan to `CANCEL_REQUESTED`; the worker persists `CANCELLED` at the next bounded checkpoint.
+Cancellation is cooperative. A cancel request moves a running scan to `CANCEL_REQUESTED`; the worker persists `CANCELLED` at the next bounded checkpoint. Every status write is conditional on the state it replaces, so a scan that reached a terminal state before the request arrived keeps that state, and a `CANCEL_REQUESTED` row whose worker already finished is closed as `CANCELLED` when the next scan is requested instead of blocking the project.
 
 ## File access policy
 

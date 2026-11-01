@@ -3082,6 +3082,59 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void refusesToCancelACompletedScan() throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Completed Scan Cancel",
+                                "sourcePath", SAMPLE.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String scanId = objectMapper.readTree(scanResponse).get("id").asText();
+        awaitScan(scanId);
+
+        mockMvc.perform(post("/api/v1/scans/{id}/cancel", scanId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SCAN_NOT_CANCELABLE"));
+        String status = jdbcTemplate.queryForObject("select status from scan_run where id = ?",
+                String.class, java.util.UUID.fromString(scanId));
+        assertThat(status).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void releasesAProjectLeftInCancelRequestedByAFinishedWorker() throws Exception {
+        String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Orphaned Cancel Request",
+                                "sourcePath", SAMPLE.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+        String scanResponse = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String scanId = objectMapper.readTree(scanResponse).get("id").asText();
+        awaitScan(scanId);
+
+        jdbcTemplate.update("update scan_run set status = 'CANCEL_REQUESTED', finished_at = null"
+                + " where id = ?", java.util.UUID.fromString(scanId));
+        String nextScan = mockMvc.perform(post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String nextScanId = objectMapper.readTree(nextScan).get("id").asText();
+        assertThat(nextScanId).isNotEqualTo(scanId);
+        String status = jdbcTemplate.queryForObject("select status from scan_run where id = ?",
+                String.class, java.util.UUID.fromString(scanId));
+        assertThat(status).isEqualTo("CANCELLED");
+        awaitScan(nextScanId);
+    }
+
+    @Test
     void appliesConfigurationOnlyAnalysisScope() throws Exception {
         String projectResponse = mockMvc.perform(post("/api/v1/projects")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -32,7 +32,7 @@ QUEUED -> RUNNING -> COMPLETED
 QUEUED ----------------------------> CANCELLED
 ```
 
-Terminal states cannot return to running. Every retry creates a new `scan_run`.
+Terminal states cannot return to running, and a cancel request never overwrites one: the transition only matches `QUEUED` or `RUNNING`. An orphaned `CANCEL_REQUESTED` row is closed as `CANCELLED` before a new scan is accepted. Every retry creates a new `scan_run`.
 
 ## File state
 
