@@ -45,7 +45,29 @@ const state = vi.hoisted(() => {
     dependencyCount: 0,
     dependentCount: 0
   }));
-  return { plan, items, updateScope: vi.fn(), coverage: vi.fn() };
+  const proposal = {
+    id: "proposal-1",
+    projectId: "project-1",
+    planId: "plan-1",
+    itemId: "item-1",
+    ruleId: "SEASAR-DI-SPRING-DI",
+    ruleVersion: "1.1.0",
+    artifactType: "EDIT_FILE",
+    relativePath: "src/item-1.java",
+    diff: "--- a/src/item-1.java\n+++ b/src/item-1.java",
+    validationStatus: "PARSED",
+    status: "PROPOSED",
+    createdAt: "2026-01-01T00:00:00Z"
+  };
+  return {
+    plan,
+    items,
+    proposal,
+    updateScope: vi.fn(),
+    coverage: vi.fn(),
+    backups: vi.fn(),
+    applyTransformation: vi.fn()
+  };
 });
 
 vi.mock("../lib/api", () => ({
@@ -77,16 +99,20 @@ vi.mock("../lib/api", () => ({
       truncated: false
     }),
     transformationCoverage: state.coverage,
-    transformationBackups: async () => ({
-      total: 0,
-      restorable: 0,
-      prunable: 0,
-      bytes: 0,
-      items: []
-    }),
+    transformationRules: async () => [
+      {
+        ruleId: "SEASAR-DI-SPRING-DI",
+        ruleVersion: "1.1.0",
+        itemType: "COMPONENT_BEAN",
+        targetKey: "SPRING_DI",
+        language: "JAVA",
+        fileName: null
+      }
+    ],
+    transformationProposals: async () => [state.proposal],
+    applyTransformation: state.applyTransformation,
+    transformationBackups: state.backups,
     transformationPlanRuns: async () => [],
-    transformationRules: async () => [],
-    transformationProposals: async () => [],
     transformationRuns: async () => [],
     updateMigrationScope: state.updateScope
   }
@@ -112,6 +138,19 @@ describe("MigrationPage batch selection", () => {
   beforeEach(() => {
     state.updateScope.mockReset();
     state.updateScope.mockResolvedValue({});
+    state.backups.mockReset();
+    state.backups.mockResolvedValue({
+      total: 0,
+      restorable: 0,
+      prunable: 0,
+      bytes: 0,
+      items: []
+    });
+    state.applyTransformation.mockReset();
+    state.applyTransformation.mockResolvedValue({
+      ...state.proposal,
+      status: "APPLIED"
+    });
     state.coverage.mockReset();
     state.coverage.mockResolvedValue({
       items: [],
@@ -151,6 +190,29 @@ describe("MigrationPage batch selection", () => {
       )
     );
     await waitFor(() => expect(screen.getByText("1 selected")).toBeInTheDocument());
+  });
+
+  it("refetches the backup ledger after applying a proposal", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findAllByRole("checkbox", { name: /select .* for batch/i });
+    await user.click(screen.getAllByRole("button", { name: /item-1\.java/i })[0]);
+    const apply = await screen.findByRole("button", { name: /apply transformation/i });
+    await waitFor(() => expect(state.backups).toHaveBeenCalled());
+    const before = state.backups.mock.calls.length;
+
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /i understand this writes the source file/i
+      })
+    );
+    await user.click(apply);
+
+    await waitFor(() => expect(state.applyTransformation).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(state.backups.mock.calls.length).toBeGreaterThan(before)
+    );
   });
 
   it("refetches the coverage after a scope change", async () => {

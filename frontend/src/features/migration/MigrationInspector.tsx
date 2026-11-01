@@ -164,7 +164,8 @@ export default function MigrationInspector({
       }),
       queryClient.invalidateQueries({
         queryKey: ["transformation-runs", projectId, planId, itemId]
-      })
+      }),
+      queryClient.invalidateQueries({ queryKey: ["transformation-backups", projectId] })
     ]);
   };
 

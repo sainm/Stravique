@@ -228,6 +228,12 @@ export default function MigrationPage() {
     }
   }, [planRunDetailQuery.data]);
 
+  useEffect(() => {
+    if (planRunDetailQuery.error) {
+      setPlanRunError(planRunDetailQuery.error as Error);
+    }
+  }, [planRunDetailQuery.error]);
+
   const refreshAfterPlanRun = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["migration-plan", projectId] }),
