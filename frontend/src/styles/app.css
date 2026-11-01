@@ -3992,6 +3992,17 @@ textarea {
   font-size: 11px;
 }
 
+.migration-carry-scope {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.migration-carry-scope select {
+  width: 100%;
+}
+
 .migration-summary-actions {
   display: flex;
   align-items: center;
@@ -4032,6 +4043,18 @@ textarea {
   background: var(--surface);
   color: var(--ink);
   font: inherit;
+}
+
+.migration-comparison-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.migration-comparison-export > span {
+  color: var(--ink-faint);
+  font-size: 12px;
 }
 
 .migration-comparison-title-head {

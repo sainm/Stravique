@@ -461,6 +461,10 @@
     "generateDescription": "计划仅基于持久化扫描证据。每次生成都会创建新版本，既有计划不会被覆盖。",
     "targetProfile": "目标配置",
     "targetProfileHint": "第三阶段支持 Spring Boot MVC 配置：Spring JDBC 数据访问，保留 JSP 视图。",
+    "carryScope": "继承纳入范围",
+    "carryScopeSource": "范围来源",
+    "carryScopeOption": "第 {{number}} 版 · 扫描 {{scan}}",
+    "carryScopeHint": "已排除条目保持排除，新条目默认纳入；跨扫描来源会按新依赖图校验，冲突时拒绝继承。",
     "profiles": {
       "SPRING_BOOT_MVC": "Spring Boot MVC"
     },
@@ -560,6 +564,12 @@
       "phaseValue": "阶段 {{number}}",
       "baseLabel": "对比基线",
       "planOption": "第 {{number}} 版",
+      "export": "导出",
+      "formats": {
+        "csv": "CSV",
+        "markdown": "Markdown",
+        "json": "JSON"
+      },
       "openItem": "打开条目",
       "removedNote": "不在当前计划中",
       "noBasePlans": "没有其他计划版本可对比。",
@@ -738,7 +748,7 @@
       "descriptionJakarta": "经过验证的命名空间规则把受支持的 javax import 改写为 Jakarta（面向 Spring Boot 3）。只改 import 并做语法校验；依赖与运行时验证仍需人工完成。",
       "descriptionData": "经过验证的数据访问规则把受支持的 JdbcManager selectBySql/getResultList 链改写为 Spring JdbcTemplate 与 BeanPropertyRowMapper，并把 insertBySql/updateBySql/deleteBySql 链改写为 JdbcTemplate update，同时把声明的参数类型带成 java.sql.Types，包括 byte、BigInteger、java.time 值以及带完整包名的 java.sql.Date/java.util.Date。只做语法校验；事务与 SQL 语义仍需人工确认。",
       "descriptionMessages": "经过验证的消息规则把消息值中的非 ASCII Unicode 转义改写为 Spring MessageSource 默认编码的 UTF-8 文本。键、占位符与注释保持不变；消息 API 与 JSP 标签仍作为独立条目。",
-      "descriptionJspTags": "经过验证的 JSP 规则把自闭合的 Struts bean:message 改写为 fmt:message、bean:write 改写为 c:out，并把旧 java.sun.com JSTL taglib URI 现代化为 jakarta.tags.*；按需补充或复用 fmt/core taglib，移除未使用的 bean taglib，并校验标签结构。表单、错误与自定义标签仍需人工处理。",
+      "descriptionJspTags": "经过验证的 JSP 规则把自闭合的 Struts bean:message 改写为 fmt:message，并将连续的 arg0..arg3 字面量参数转换为嵌套 fmt:param；bean:write 改写为 c:out，同时把旧 java.sun.com JSTL taglib URI 现代化为 jakarta.tags.*。按需补充或复用 fmt/core taglib，移除未使用的 bean taglib，并校验标签结构。参数缺号、非字面量或 EL/脚本参数、不安全属性文本、表单、错误与自定义标签仍需人工处理。",
       "descriptionWebXml": "经过验证的 Web 描述符规则把 Java EE web-app 的命名空间、schema 位置与版本更新为 Jakarta EE 6.0，并把 servlet-class、filter-class、listener-class、exception-type 中已审定的 javax 类名改写为 jakarta。遇到未映射的 javax 类名会整体拒绝；保留 web.xml 其余内容并校验 XML 结构；Spring Boot 配置转换与完整的过滤器或监听器迁移仍作为独立条目。",
       "descriptionMessageConfig": "经过验证的配置规则根据显式 Struts message-resources 参数，把 spring.messages.basename 添加到 application.yml 或 application.properties。绝不覆盖已有键，也不修改 struts-config.xml；必须恰好存在一个 application 配置目标。",
       "descriptionDicon": "经过验证的 dicon 规则为显式组件生成 Spring @Configuration 文件：沿同一模块内的相对 include 链按声明顺序合并组件，只迁移根 dicon，被其他 dicon include 的条目会被拒绝。支持映射到 public 字段或 setter 的简单组件引用属性、按唯一 public 构造函数校验的组件引用构造参数、按字段/setter/构造参数类型校验的 String/boolean/int/long/double 字面量、已存在的 public 无参 initMethod、prototype/request/session/application 作用域，以及 <property> 内或 <arg> 内的单个匿名 <component>；属性嵌套以“父组件名+属性名”命名，构造参数嵌套以“父组件名+Arg+参数序号”命名，均生成独立 @Bean。类型不匹配、转义、越界或不支持的值、具名/带作用域/autoBinding 的嵌套组件、非法嵌套参数形式、AOP、歧义构造、include 循环、缺失或跨模块 include、重复组件或 bean 名与非法 include 元素会被拒绝。每个类必须是项目内的 public 类，dicon 本身不会被修改。",

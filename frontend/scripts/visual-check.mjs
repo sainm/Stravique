@@ -1081,6 +1081,17 @@ for (const language of languages) {
               });
             }
           }
+          const exportLinks = await page
+            .locator(".migration-comparison-export a")
+            .count();
+          if (exportLinks !== 3) {
+            issues.push({
+              language,
+              viewport: viewport.name,
+              route: "migration-plan-comparison",
+              exportLinks
+            });
+          }
           await page.waitForTimeout(250);
           await page.screenshot({
             path: path.join(
@@ -1098,6 +1109,63 @@ for (const language of languages) {
             route: "migration-plan-comparison",
             compareButton: false
           });
+        }
+      }
+
+      if (name === "migration") {
+        const generateButton = page
+          .locator('[data-role="generate-plan"]')
+          .first();
+        if ((await generateButton.count()) > 0) {
+          await generateButton.click();
+          const generateModal = page.locator(".modal-card");
+          await generateModal
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          await page
+            .locator(".migration-generate-body")
+            .waitFor({ state: "visible", timeout: 5000 })
+            .catch(() => {});
+          await page
+            .locator(".migration-carry-scope")
+            .waitFor({ state: "visible", timeout: 3000 })
+            .catch(() => {});
+          const carryCheck = page
+            .locator(".migration-carry-scope input[type=checkbox]")
+            .first();
+          if ((await carryCheck.count()) > 0) {
+            await carryCheck.check();
+            const carrySelect = page
+              .locator(".migration-carry-scope select")
+              .first();
+            const carryOptions = await carrySelect.locator("option").count();
+            if (!(await carrySelect.isEnabled())) {
+              issues.push({
+                language,
+                viewport: viewport.name,
+                route: "migration-generate-scope",
+                carrySelectEnabled: false
+              });
+            }
+            if (carryOptions === 0) {
+              issues.push({
+                language,
+                viewport: viewport.name,
+                route: "migration-generate-scope",
+                carryOptions
+              });
+            }
+            await page.waitForTimeout(200);
+            await page.screenshot({
+              path: path.join(
+                outputDirectory,
+                `${language}-${viewport.name}-migration-generate-scope.png`
+              ),
+              fullPage: false
+            });
+          }
+          await page.keyboard.press("Escape");
+          await generateModal.waitFor({ state: "hidden" });
         }
       }
 

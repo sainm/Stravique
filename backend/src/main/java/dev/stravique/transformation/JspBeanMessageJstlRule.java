@@ -17,7 +17,7 @@ import java.util.Map;
 public class JspBeanMessageJstlRule implements TransformationRule {
 
     private static final String RULE_ID = "JSP-BEAN-MESSAGE-JSTL";
-    private static final String RULE_VERSION = "1.2.0";
+    private static final String RULE_VERSION = "1.3.0";
     private static final String LEGACY_JSTL_PREFIX = "http://java.sun.com/jsp/jstl/";
     private static final String JAKARTA_FMT_URI = "jakarta.tags.fmt";
     private static final String JAKARTA_CORE_URI = "jakarta.tags.core";
@@ -98,15 +98,19 @@ public class JspBeanMessageJstlRule implements TransformationRule {
                         "Only self-closing bean:message tags are supported.");
             }
             for (String attribute : message.attributes().keySet()) {
-                if (!attribute.equals("key") && !attribute.equals("bundle")) {
+                if (!attribute.equals("key") && !attribute.equals("bundle")
+                        && !attribute.equals("arg0") && !attribute.equals("arg1")
+                        && !attribute.equals("arg2") && !attribute.equals("arg3")) {
                     throw new TransformationUnsupportedException(
-                            "bean:message attributes other than key and bundle are not supported.");
+                            "bean:message attributes other than key, bundle, and arg0..arg3"
+                                    + " are not supported.");
                 }
             }
             if (message.attributes().getOrDefault("key", "").isBlank()) {
                 throw new TransformationUnsupportedException(
                         "bean:message requires a literal key attribute.");
             }
+            messageArguments(message);
         }
         boolean reuseFmt = hasFmtTaglib(document);
         String fmtPrefix = fmtPrefix(document);
@@ -131,8 +135,31 @@ public class JspBeanMessageJstlRule implements TransformationRule {
                     JSTL_URIS.get(taglib.uri())));
         }
         for (JspMarkup.Tag message : messages) {
-            edits.add(new Edit(message.nameStart(), message.nameEnd(),
-                    fmtPrefix + ":message"));
+            List<String> arguments = messageArguments(message);
+            if (arguments.isEmpty()) {
+                edits.add(new Edit(message.nameStart(), message.nameEnd(),
+                        fmtPrefix + ":message"));
+                continue;
+            }
+            String key = message.attributes().get("key");
+            literalMessageAttribute(key, "key");
+            String bundle = message.attributes().get("bundle");
+            if (bundle != null) {
+                literalMessageAttribute(bundle, "bundle");
+            }
+            StringBuilder replacement = new StringBuilder("<")
+                    .append(fmtPrefix).append(":message key=\"").append(key).append('"');
+            if (bundle != null) {
+                replacement.append(" bundle=\"").append(bundle).append('"');
+            }
+            replacement.append('>');
+            for (String argument : arguments) {
+                replacement.append('<').append(fmtPrefix).append(":param value=\"")
+                        .append(argument).append("\"/>");
+            }
+            replacement.append("</").append(fmtPrefix).append(":message>");
+            edits.add(new Edit(message.tagStart(), message.tagEnd() + 1,
+                    replacement.toString()));
         }
         for (JspMarkup.Tag write : writes) {
             edits.add(new Edit(write.tagStart(), write.tagEnd() + 1,
@@ -211,6 +238,42 @@ public class JspBeanMessageJstlRule implements TransformationRule {
             value = name + "." + property;
         }
         return "<" + corePrefix + ":out value=\"${" + value + "}\"/>";
+    }
+
+    private List<String> messageArguments(JspMarkup.Tag message) {
+        int last = -1;
+        for (int index = 0; index < 4; index++) {
+            if (message.attributes().containsKey("arg" + index)) {
+                last = index;
+            }
+        }
+        List<String> arguments = new ArrayList<>();
+        for (int index = 0; index <= last; index++) {
+            String value = message.attributes().get("arg" + index);
+            if (value == null) {
+                throw new TransformationUnsupportedException(
+                        "bean:message argument positions must be contiguous from arg0.");
+            }
+            if (value.chars().anyMatch(Character::isISOControl)
+                    || value.contains("\"") || value.contains("&")
+                    || value.contains("<") || value.contains(">")
+                    || value.contains("${") || value.contains("#{")) {
+                throw new TransformationUnsupportedException(
+                        "bean:message arguments must be plain literal text.");
+            }
+            arguments.add(value);
+        }
+        return arguments;
+    }
+
+    private void literalMessageAttribute(String value, String name) {
+        if (value == null || value.chars().anyMatch(Character::isISOControl)
+                || value.contains("\"") || value.contains("&")
+                || value.contains("<") || value.contains(">")
+                || value.contains("${") || value.contains("#{")) {
+            throw new TransformationUnsupportedException(
+                    "bean:message " + name + " must be plain literal text.");
+        }
     }
 
     private boolean isIdentifier(String value) {

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage, a Jakarta EE `web.xml` descriptor and supported class names, and an additive Struts message-resources config bridge. It is deliberately narrow and safety-first.
+Phase 4 introduces narrow, vetted transformation paths: evidence-linked Seasar2 dependency-injection annotations to Spring DI, plain SAStruts validation annotations to Jakarta Bean Validation, simple Struts form models to plain Spring models, supported `javax.*` imports to Jakarta, an S2JDBC select chain and parameterised writes to Spring JDBC, a create-only Spring controller skeleton from explicit Struts action mappings, UTF-8 normalization of Struts message bundles, JSTL message tags for self-closing `bean:message` usage and literal arguments, a Jakarta EE `web.xml` descriptor and supported class names, and an additive Struts message-resources config bridge. It is deliberately narrow and safety-first.
 
 The engine can:
 
@@ -157,6 +157,7 @@ This rule changes bundle encoding only. Configuring `spring.messages.basename`, 
 Supported edits:
 
 - Self-closing `bean:message` tags with only `key` and optional `bundle` attributes → `fmt:message`.
+- Contiguous literal `arg0`..`arg3` attributes on `bean:message` → nested `<fmt:param value="..."/>` elements; the key and bundle are preserved.
 - Self-closing `bean:write` tags with a literal `name` and optional literal `property` path → `c:out value="${name.property}"`.
 - Legacy `http://java.sun.com/jsp/jstl/core|fmt|functions|sql|xml` taglib URIs → `jakarta.tags.*`.
 - The fmt and core taglibs are reused when present; otherwise `jakarta.tags.fmt`/`jakarta.tags.core` directives are added after the page directive.
@@ -165,7 +166,7 @@ Supported edits:
 
 Rejected for manual review:
 
-- `bean:message` bodies, `arg0`-style parameters, and attributes other than `key`/`bundle`.
+- `bean:message` bodies, argument gaps, non-literal or EL/script arguments, unsafe argument text, and attributes other than `key`/`bundle`/`arg0`..`arg3`.
 - `bean:write` bodies or attributes such as `scope`, `filter`, `format`, or `ignore`; non-literal names or property paths.
 - Pages without a Struts bean/view tag or a supported legacy JSTL taglib.
 - A legacy JSTL URI outside the vetted core/fmt/functions/sql/xml set.
@@ -292,7 +293,7 @@ Backup directory:
 
 ## Validation boundary
 
-The only automated validation is syntax parsing of the proposed artifact: Java parsing for Java rules, properties parsing plus UTF-8 round-tripping for the message rule, prefixed-tag structure validation for the JSP rule, and secure XML well-formedness plus root namespace/version and remaining-class-name checks for the web descriptor rule. This is not semantic equivalence, compilation against the project's dependencies, full JSP compilation, schema validation, or runtime verification. For the message rule, the decoded key/value map is also compared before a proposal is returned; for the JSP rule, only tag renames, legacy JSTL URI updates, and directive changes are made, and conditional scriptlet structure is rejected. Every generated proposal remains an assisted change requiring review before its migration item can be considered complete.
+The only automated validation is syntax parsing of the proposed artifact: Java parsing for Java rules, properties parsing plus UTF-8 round-tripping for the message rule, prefixed-tag structure validation for the JSP rule, and secure XML well-formedness plus root namespace/version and remaining-class-name checks for the web descriptor rule. This is not semantic equivalence, compilation against the project's dependencies, full JSP compilation, schema validation, or runtime verification. For the message rule, the decoded key/value map is also compared before a proposal is returned; for the JSP rule, only tag renames, literal argument expansion, legacy JSTL URI updates, and directive changes are made, and conditional scriptlet structure is rejected. Every generated proposal remains an assisted change requiring review before its migration item can be considered complete.
 
 ## Data model
 

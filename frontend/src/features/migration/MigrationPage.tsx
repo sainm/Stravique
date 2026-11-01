@@ -72,6 +72,8 @@ export default function MigrationPage() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [targetProfile, setTargetProfile] = useState(TARGET_PROFILES[0]);
+  const [carryScope, setCarryScope] = useState(false);
+  const [carryPlanId, setCarryPlanId] = useState("");
   const [batchIds, setBatchIds] = useState<Set<string>>(() => new Set());
   const [batchResult, setBatchResult] = useState<TransformationBatch | null>(null);
   const [batchResultOpen, setBatchResultOpen] = useState(false);
@@ -106,14 +108,34 @@ export default function MigrationPage() {
     queryKey: ["scans", projectId],
     queryFn: () => api.scans(projectId)
   });
+  const latestCompleted = useMemo(
+    () => scansQuery.data?.find((scan) => scan.status === "COMPLETED"),
+    [scansQuery.data]
+  );
   const plansQuery = useQuery({
     queryKey: ["migration-plans", projectId],
     queryFn: () => api.migrationPlans(projectId)
+  });
+  const planOptionsQuery = useQuery({
+    queryKey: ["migration-plan-options", projectId],
+    queryFn: () => api.migrationPlanOptions(projectId),
+    enabled: generateOpen && Boolean(projectId)
   });
 
   const plans = plansQuery.data || [];
   const requestedPlanId = searchParams.get("plan") || "";
   const selectedPlanId = requestedPlanId || plans[0]?.id || "";
+  const carryScopeOptions = useMemo(
+    () => planOptionsQuery.data || plans,
+    [planOptionsQuery.data, plans]
+  );
+  const carrySourceId = carryScopeOptions.some(
+    (plan) => plan.id === carryPlanId
+  )
+    ? carryPlanId
+    : carryScopeOptions.some((plan) => plan.id === selectedPlanId)
+      ? selectedPlanId
+      : carryScopeOptions[0]?.id || "";
   const requestedView = searchParams.get("view") || "plan";
   const view: View = VIEWS.includes(requestedView as View)
     ? (requestedView as View)
@@ -311,7 +333,10 @@ export default function MigrationPage() {
   const generateMutation = useMutation({
     mutationFn: () =>
       api.generateMigrationPlan(projectId, {
-        targetProfile
+        targetProfile,
+        ...(carryScope && carrySourceId
+          ? { carryOverScopeFrom: carrySourceId }
+          : {})
       }),
     onSuccess: async (data) => {
       const next = new URLSearchParams(searchParams);
@@ -319,6 +344,8 @@ export default function MigrationPage() {
       next.set("view", "plan");
       setSearchParams(next, { replace: true });
       setGenerateOpen(false);
+      setCarryScope(false);
+      setCarryPlanId("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["migration-plans", projectId] }),
         queryClient.invalidateQueries({ queryKey: ["migration-plan", projectId] }),
@@ -487,11 +514,6 @@ export default function MigrationPage() {
     onError: (error) => setBackupPruneError(error as Error)
   });
 
-  const latestCompleted = useMemo(
-    () => scansQuery.data?.find((scan) => scan.status === "COMPLETED"),
-    [scansQuery.data]
-  );
-
   const updateParams = (updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(updates)) {
@@ -603,6 +625,7 @@ export default function MigrationPage() {
             ) : null}
             <button
               className="button button-primary"
+              data-role="generate-plan"
               onClick={() => setGenerateOpen(true)}
               disabled={!hasCompletedScan || generateMutation.isPending}
             >
@@ -764,6 +787,7 @@ export default function MigrationPage() {
               </div>
               <button
                 className="button button-small button-secondary"
+                data-role="generate-plan"
                 onClick={() => setGenerateOpen(true)}
               >
                 {t("migration.regenerate")}
@@ -1500,6 +1524,8 @@ export default function MigrationPage() {
         onClose={() => {
           setGenerateOpen(false);
           generateMutation.reset();
+          setCarryScope(false);
+          setCarryPlanId("");
         }}
       >
         <div className="migration-generate-body">
@@ -1518,6 +1544,37 @@ export default function MigrationPage() {
             </select>
           </label>
           <p className="migration-note">{t("migration.targetProfileHint")}</p>
+          {carryScopeOptions.length > 0 ? (
+            <div className="migration-carry-scope">
+              <label className="migration-confirm">
+                <input
+                  type="checkbox"
+                  checked={carryScope}
+                  onChange={(event) => setCarryScope(event.target.checked)}
+                />
+                <span>{t("migration.carryScope")}</span>
+              </label>
+              <label className="field">
+                <span>{t("migration.carryScopeSource")}</span>
+                <select
+                  value={carrySourceId}
+                  onChange={(event) => setCarryPlanId(event.target.value)}
+                  disabled={!carryScope}
+                  aria-label={t("migration.carryScopeSource")}
+                >
+                  {carryScopeOptions.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {t("migration.carryScopeOption", {
+                        number: plan.sequence,
+                        scan: plan.sourceScanSequence
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="migration-note">{t("migration.carryScopeHint")}</p>
+            </div>
+          ) : null}
           <p className="migration-note">
             {latestCompleted
               ? t("migration.usesScan", { number: latestCompleted.sequence })

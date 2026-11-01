@@ -159,6 +159,7 @@ public class MigrationPlanService {
         var relations = relationRepository.findByScanIdOrderByEvidencePathAscLineStartAsc(scan.getId());
         var technologies = technologyRepository.findByScanIdOrderByCategoryAscNameAsc(scan.getId());
         MigrationPlanner.Draft draft = planner.plan(files, findings, relations, technologies);
+        Map<String, Boolean> carriedScope = carriedScope(projectId, request);
         int sequence = planRepository.findFirstByProjectIdOrderBySequenceDesc(projectId)
                 .map(plan -> plan.getSequence() + 1).orElse(1);
         MigrationPlan plan = planRepository.save(MigrationPlan.create(projectId, scan.getId(), sequence,
@@ -170,7 +171,17 @@ public class MigrationPlanService {
                     itemDraft.primaryFileId(), itemDraft.primaryFindingId(), itemDraft.priority(),
                     itemDraft.automation(), itemDraft.risk(), itemDraft.status(),
                     itemDraft.reasonCode());
+            Boolean carried = carriedScope.get(itemDraft.key());
+            if (carried != null) {
+                item.setIncluded(carried);
+            }
             items.put(itemDraft.key(), item);
+        }
+        long scopeConflicts = scopeConflicts(draft.dependencies(), items);
+        if (scopeConflicts > 0) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "MIGRATION_PLAN_CARRY_OVER_SCOPE_CONFLICT",
+                    "error.migration.carryOverScopeConflict", scopeConflicts);
         }
         List<MigrationItem> itemList = new ArrayList<>(items.values());
         itemRepository.saveAll(itemList);
@@ -261,9 +272,38 @@ public class MigrationPlanService {
                 items);
     }
 
+    private Map<String, Boolean> carriedScope(UUID projectId, MigrationPlanRequest request) {
+        if (request == null || request.carryOverScopeFrom() == null) {
+            return Map.of();
+        }
+        MigrationPlan source = planRepository
+                .findByIdAndProjectId(request.carryOverScopeFrom(), projectId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "MIGRATION_PLAN_NOT_FOUND", "error.migration.planNotFound"));
+        Map<String, Boolean> scope = new HashMap<>();
+        for (MigrationItem item : itemRepository
+                .findByPlanIdOrderByPhaseAscPriorityAscTitleAscIdAsc(source.getId())) {
+            scope.put(item.getItemKey(), item.isIncluded());
+        }
+        return scope;
+    }
+
+    private long scopeConflicts(List<MigrationPlanner.DependencyDraft> dependencies,
+                                Map<String, MigrationItem> items) {
+        long conflicts = 0;
+        for (MigrationPlanner.DependencyDraft dependency : dependencies) {
+            MigrationItem dependent = items.get(dependency.fromKey());
+            MigrationItem prerequisite = items.get(dependency.toKey());
+            if (dependent != null && prerequisite != null
+                    && dependent.isIncluded() && !prerequisite.isIncluded()) {
+                conflicts++;
+            }
+        }
+        return conflicts;
+    }
+
     private MigrationPlan resolveComparisonBase(UUID projectId, MigrationPlan plan,
-                                                UUID basePlanId) {
-        if (basePlanId == null) {
+                                                UUID basePlanId) {        if (basePlanId == null) {
             return planRepository.findByProjectIdAndSequence(projectId, plan.getSequence() - 1)
                     .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
                             "MIGRATION_PLAN_COMPARISON_UNAVAILABLE",

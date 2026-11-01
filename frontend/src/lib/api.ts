@@ -232,9 +232,21 @@ export const api = {
       `/projects/${projectId}/migration-plans/${planId}/comparison`,
       { query: basePlanId ? { basePlanId } : undefined }
     ),
+  comparisonExportUrl: (
+    projectId: string,
+    planId: string,
+    basePlanId: string,
+    format: string,
+    lang?: string
+  ) =>
+    `${API_BASE}/projects/${projectId}/migration-plans/${planId}/comparison/export${queryString({ basePlanId, format, lang })}`,
   generateMigrationPlan: (
     projectId: string,
-    input: { targetProfile?: string; scanId?: string }
+    input: {
+      targetProfile?: string;
+      scanId?: string;
+      carryOverScopeFrom?: string;
+    }
   ) =>
     request<MigrationPlan>(`/projects/${projectId}/migration-plans`, {
       method: "POST",

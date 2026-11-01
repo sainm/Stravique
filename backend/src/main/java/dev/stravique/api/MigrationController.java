@@ -9,9 +9,17 @@ import dev.stravique.api.dto.MigrationPlanRequest;
 import dev.stravique.api.dto.MigrationPlanSummaryDto;
 import dev.stravique.api.dto.MigrationScopeRequest;
 import dev.stravique.api.dto.PageResponse;
+import dev.stravique.application.MigrationPlanComparisonExportService;
 import dev.stravique.application.MigrationPlanService;
+import dev.stravique.application.ReportService;
+import dev.stravique.config.RequestLocaleSupport;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,9 +39,15 @@ import java.util.UUID;
 public class MigrationController {
 
     private final MigrationPlanService planService;
+    private final MigrationPlanComparisonExportService exportService;
+    private final RequestLocaleSupport localeSupport;
 
-    public MigrationController(MigrationPlanService planService) {
+    public MigrationController(MigrationPlanService planService,
+                               MigrationPlanComparisonExportService exportService,
+                               RequestLocaleSupport localeSupport) {
         this.planService = planService;
+        this.exportService = exportService;
+        this.localeSupport = localeSupport;
     }
 
     @GetMapping
@@ -64,6 +79,25 @@ public class MigrationController {
             @PathVariable UUID planId,
             @RequestParam(required = false) UUID basePlanId) {
         return planService.comparison(projectId, planId, basePlanId);
+    }
+
+    @GetMapping("/{planId}/comparison/export")
+    public ResponseEntity<byte[]> comparisonExport(
+            @PathVariable UUID projectId,
+            @PathVariable UUID planId,
+            @RequestParam String format,
+            @RequestParam(required = false) UUID basePlanId,
+            @RequestParam(required = false) String lang,
+            HttpServletRequest request) {
+        ReportService.ReportDownload download = exportService.export(projectId, planId,
+                basePlanId, format, localeSupport.resolve(lang, request));
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(download.filename(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(download.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(download.content());
     }
 
     @GetMapping("/{planId}/items")

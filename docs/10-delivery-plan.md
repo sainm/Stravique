@@ -289,6 +289,44 @@ Gate: anonymous constructor-argument components generate compilable separate bea
 
 Gate: any other plan version can be selected and re-queries the comparison; a changed or added row opens the current item inspector; a removed row is explicitly marked absent; the same-plan, missing-previous, unknown-base, and cross-project guards still hold; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
 
+## Phase 21 plan regeneration scope carry-over
+
+- `POST /projects/{id}/migration-plans` accepts optional `carryOverScopeFrom`.
+- The source must belong to the project and to the same scan; matching `itemKey` values inherit the included flag, and keys that exist only in the new plan stay included.
+- An unknown or other-project source returns `404 MIGRATION_PLAN_NOT_FOUND`; a source from a different scan returns `409 MIGRATION_PLAN_CARRY_OVER_SCAN_MISMATCH`.
+- The generate dialog exposes an off-by-default carry-over checkbox and a source selector limited to plans from the current scan; all labels are localized and the controls wrap on narrow viewports.
+
+Gate: a regenerated plan keeps excluded items excluded while new items stay included; the source plan can be an earlier plan of the same scan; unknown/other-project and cross-scan sources are refused; the default regeneration path still includes every item; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
+## Phase 22 plan comparison export
+
+- `GET /projects/{id}/migration-plans/{planId}/comparison/export` downloads the comparison as CSV, Markdown, or JSON and accepts the same `basePlanId` guards as the comparison endpoint.
+- CSV uses stable English column names, quotes every value, encodes change fields as `FIELD:before->after`, and starts with a UTF-8 BOM.
+- Markdown localizes its title, plan lines, summary, column headers, and empty state through `lang`/`Accept-Language`; JSON is the comparison response.
+- Every format contains only added, removed, and changed rows; Markdown and JSON also expose the plan/base identities and summary so unchanged counts stay visible, while CSV keeps the stable row columns. An unsupported format returns `400 MIGRATION_PLAN_COMPARISON_FORMAT_INVALID`.
+- The comparison dialog exposes CSV, Markdown, and JSON download links for the currently selected base.
+
+Gate: CSV, Markdown, and JSON downloads match the current comparison and base; CSV headers and BOM are stable; Markdown localizes in all three languages; JSON stays isomorphic to the API; invalid formats are refused; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
+## Phase 23 cross-scan scope carry-over and conflict guard
+
+- `carryOverScopeFrom` accepts any plan in the project, not only a plan generated from the same scan.
+- Carried inclusion flags are applied by `itemKey`; new keys stay included.
+- The carried scope is validated against the newly generated dependency graph: an included item that depends on an excluded prerequisite makes generation fail with `409 MIGRATION_PLAN_CARRY_OVER_SCOPE_CONFLICT`, and no plan, item, or dependency is persisted.
+- Unknown and other-project sources still return `404 MIGRATION_PLAN_NOT_FOUND`.
+- The generate dialog lists every plan with its plan and scan sequence and explains that cross-scan sources are validated.
+
+Gate: a cross-scan source is accepted when the carried scope remains closed; a newly introduced binding that violates the scope is refused with the conflict code; the failed request leaves no partial plan; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
+## Phase 24 JSP message arguments
+
+- `JSP-BEAN-MESSAGE-JSTL` moves to `1.3.0`.
+- Contiguous literal `arg0`..`arg3` attributes on a self-closing `bean:message` are rewritten as nested `<fmt:param value="..."/>` elements; `key` and `bundle` are preserved and the fmt prefix is reused when present.
+- Argument gaps, non-literal or EL/script values, quotes, angle brackets, ampersands, control characters, and attributes beyond `key`/`bundle`/`arg0`..`arg3` are refused.
+- The JSP integration flow adds a message with two arguments, applies the conversion, verifies both params, and restores the page byte-exactly.
+
+Gate: literal arguments become ordered `fmt:param` elements, unsupported argument forms are refused, the generated JSP tag structure stays balanced, the page restores byte-exactly, and all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
 ## Phase 4 close-out audit
 
 This table is the delivery checklist for the remaining domains. A domain is either **Done** with a vetted rule/version, or **Boundary** with the evidence that is missing and the condition that would justify a future rule. A boundary is not presented as supported in the product.
@@ -303,7 +341,7 @@ This table is the delivery checklist for the remaining domains. A domain is eith
 | S2 transaction | `JAVA-S2JDBC-TX-001`; `S2TX-SPRING-TRANSACTIONAL` v1.2.0 | Done | Bare plus all six propagation values shared with Spring; unknown constants and values outside that shared set remain refused |
 | Action controllers | `STRUTS-CONFIG-ACTION-001`/`FORWARD-001`; `STRUTS-CONTROLLER-SKELETON` v1.0.0 | Done | Create-only skeleton; method bodies and request binding remain boundary |
 | Message bundles | `MESSAGE_PRODUCTION`/`MESSAGE_DISPLAY`; `MESSAGE-RESOURCE-SPRING-UTF8` v1.0.0 | Done | UTF-8 escape normalization; message API/lifecycle remains boundary |
-| JSP view tags | `JSP-*`; `JSP-BEAN-MESSAGE-JSTL` v1.2.0 | Done | Self-closing bean:message/bean:write and legacy JSTL URIs; form/error/custom tags remain boundary |
+| JSP view tags | `JSP-*`; `JSP-BEAN-MESSAGE-JSTL` v1.3.0 | Done | Self-closing bean:message/bean:write, contiguous literal message arguments, and legacy JSTL URIs; form/error/custom tags remain boundary |
 | Web descriptor | `web.xml` findings; `WEBXML-JAKARTA-NAMESPACE` v1.2.0 | Done | Namespace/schema/version plus vetted servlet/filter/listener/exception-type class names; Spring Boot config conversion, complete filter/listener behavior migration, and descriptors other than `web.xml` remain boundary |
 | Message APIs / lifecycle | `JAVA-STR1-MESSAGE-001`; `MESSAGE_FLOW` item | Boundary | Needs a `MessageSource` dependency, locale source, and a `BindingResult` that do not exist in the legacy action; not mechanical |
 | JSP error and message blocks | `JSP-MESSAGE-DISPLAY-001`, `JSP-STRUTS-MESSAGE-DISPLAY-001` | Boundary | Requires a `<form:form>` model attribute and binding context; a tag-level rewrite can fail at runtime |

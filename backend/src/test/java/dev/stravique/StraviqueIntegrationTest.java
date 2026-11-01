@@ -568,6 +568,9 @@ class StraviqueIntegrationTest {
                 "web-app/src/main/resources/messages.properties");
         Path jspFile = tempProject.resolve(
                 "web-app/src/main/webapp/WEB-INF/jsp/order/edit.jsp");
+        Files.writeString(jspFile, new String(Files.readAllBytes(jspFile),
+                StandardCharsets.UTF_8)
+                + "<bean:message key=\"order.count\" arg0=\"3\" arg1=\"items\"/>\n");
         Path listJspFile = tempProject.resolve(
                 "web-app/src/main/webapp/WEB-INF/jsp/order/list.jsp");
         Path webXmlFile = tempProject.resolve(
@@ -1010,8 +1013,12 @@ class StraviqueIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         assertThat(new String(Files.readAllBytes(jspFile), StandardCharsets.UTF_8))
                 .contains("<fmt:message key=\"order.list.title\"/>")
+                .contains("<fmt:message key=\"order.count\">"
+                        + "<fmt:param value=\"3\"/><fmt:param value=\"items\"/>"
+                        + "</fmt:message>")
                 .contains("jakarta.tags.fmt")
                 .doesNotContain("<bean:message")
+                .doesNotContain("arg0=")
                 .doesNotContain("prefix=\"bean\"");
         mockMvc.perform(post("/api/v1/projects/{id}/transformation-runs/{run}/restore",
                         projectId, objectMapper.readTree(jspRunResponse).get("id").asText())
@@ -2540,6 +2547,61 @@ class StraviqueIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.basePlan.id").value(setup.planId()))
                 .andExpect(jsonPath("$.summary.changed").value(1));
+
+        byte[] csvBytes = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison/export",
+                        setup.projectId(), secondPlanId)
+                        .param("format", "csv")
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(csvBytes[0]).isEqualTo((byte) 0xEF);
+        assertThat(csvBytes[1]).isEqualTo((byte) 0xBB);
+        assertThat(csvBytes[2]).isEqualTo((byte) 0xBF);
+        String csv = new String(csvBytes, StandardCharsets.UTF_8);
+        assertThat(csv)
+                .startsWith("\uFEFF\"status\",\"itemKey\",\"itemId\",\"itemType\","
+                        + "\"targetKey\",\"title\",\"primaryFilePath\",\"phase\","
+                        + "\"automationLevel\",\"riskLevel\",\"itemStatus\",\"included\","
+                        + "\"changes\"")
+                .contains("\"CHANGED\"")
+                .contains("INCLUDED:false->true");
+        String markdown = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison/export",
+                        setup.projectId(), secondPlanId)
+                        .param("format", "markdown")
+                        .param("lang", "zh-CN")
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(markdown)
+                .contains("# 迁移计划版本对比")
+                .contains("当前计划 #2")
+                .contains("基线计划 #1")
+                .contains("新增 0，移除 0，变化 1，未变 ")
+                .contains("| 状态 | 条目键 |")
+                .contains("| 纳入范围 |")
+                .contains("INCLUDED:false->true");
+        String exportedJson = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison/export",
+                        setup.projectId(), secondPlanId)
+                        .param("format", "json")
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode exportedComparison = objectMapper.readTree(exportedJson);
+        assertThat(exportedComparison.at("/plan/id").asText()).isEqualTo(secondPlanId);
+        assertThat(exportedComparison.at("/summary/changed").asInt()).isEqualTo(1);
+        assertThat(exportedComparison.at("/items/0/itemId").asText())
+                .isEqualTo(currentItemId);
+        mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison/export",
+                        setup.projectId(), secondPlanId)
+                        .param("format", "xml")
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(
+                        "MIGRATION_PLAN_COMPARISON_FORMAT_INVALID"));
         mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
                         setup.projectId(), secondPlanId)
                         .param("basePlanId", secondPlanId))
@@ -2621,6 +2683,190 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_NOT_FOUND"));
         deleteRecursively(tempProject);
         deleteRecursively(otherProject);
+    }
+
+    @Test
+    void carriesScopeIntoARegeneratedPlanOnTheSameScan() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-scope-carry-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Scope Carry Copy");
+        JsonNode scopeItem = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("included").asBoolean()
+                    && item.get("dependentCount").asInt() == 0) {
+                scopeItem = item;
+                break;
+            }
+        }
+        assertThat(scopeItem).isNotNull();
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        setup.projectId(), setup.planId(), scopeItem.get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":false}"))
+                .andExpect(status().isOk());
+
+        String carriedBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans", setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetProfile", "SPRING_BOOT_MVC",
+                                "carryOverScopeFrom", setup.planId()))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.summary.sequence").value(2))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode carriedPlan = objectMapper.readTree(carriedBody).get("summary");
+        String carriedPlanId = carriedPlan.get("id").asText();
+        assertThat(carriedPlan.get("includedCount").asInt())
+                .isEqualTo(carriedPlan.get("itemCount").asInt() - 1);
+        JsonNode carriedItem = itemByKey(setup.projectId(), carriedPlanId,
+                scopeItem.get("itemKey").asText());
+        assertThat(carriedItem).isNotNull();
+        assertThat(carriedItem.get("included").asBoolean()).isFalse();
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/comparison",
+                        setup.projectId(), carriedPlanId)
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.changed").value(0))
+                .andExpect(jsonPath("$.summary.unchanged").value(
+                        carriedPlan.get("itemCount").asInt()));
+        String emptyMarkdown = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/comparison/export",
+                        setup.projectId(), carriedPlanId)
+                        .param("format", "markdown")
+                        .param("lang", "zh-CN")
+                        .param("basePlanId", setup.planId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(emptyMarkdown)
+                .contains("# 迁移计划版本对比")
+                .contains("变化 0")
+                .contains("这两个计划之间没有条目差异。");
+
+        String plainPlanId = createPlan(setup.projectId());
+        JsonNode plainItem = itemByKey(setup.projectId(), plainPlanId,
+                scopeItem.get("itemKey").asText());
+        assertThat(plainItem).isNotNull();
+        assertThat(plainItem.get("included").asBoolean()).isTrue();
+
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetProfile", "SPRING_BOOT_MVC",
+                                "carryOverScopeFrom", java.util.UUID.randomUUID().toString()))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_NOT_FOUND"));
+
+        Path otherProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-scope-carry-other").toAbsolutePath().normalize();
+        deleteRecursively(otherProject);
+        copyRecursively(SAMPLE, otherProject);
+        PlanSetup other = createPlanSetup(otherProject, "Plan Scope Carry Other");
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetProfile", "SPRING_BOOT_MVC",
+                                "carryOverScopeFrom", other.planId()))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MIGRATION_PLAN_NOT_FOUND"));
+
+        rescanProject(setup.projectId());
+        String crossScanBody = mockMvc.perform(post(
+                        "/api/v1/projects/{id}/migration-plans", setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetProfile", "SPRING_BOOT_MVC",
+                                "carryOverScopeFrom", setup.planId()))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.summary.sequence").value(4))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode crossScanPlan = objectMapper.readTree(crossScanBody).get("summary");
+        assertThat(crossScanPlan.get("includedCount").asInt())
+                .isEqualTo(crossScanPlan.get("itemCount").asInt() - 1);
+        JsonNode crossScanItem = itemByKey(setup.projectId(),
+                crossScanPlan.get("id").asText(), scopeItem.get("itemKey").asText());
+        assertThat(crossScanItem).isNotNull();
+        assertThat(crossScanItem.get("included").asBoolean()).isFalse();
+        deleteRecursively(tempProject);
+        deleteRecursively(otherProject);
+    }
+
+    @Test
+    void refusesCarriedScopeThatConflictsWithNewDependencies() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build",
+                "plan-scope-conflict-fixture").toAbsolutePath().normalize();
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Files.createDirectories(tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/coupled"));
+        Files.writeString(tempProject.resolve(
+                        "web-app/src/main/java/com/example/legacy/coupled/CoupledChild.java"), """
+                package com.example.legacy.coupled;
+                import org.seasar.framework.container.annotation.twig.Component;
+                @Component
+                public class CoupledChild {
+                }
+                """);
+        PlanSetup setup = createPlanSetup(tempProject, "Plan Scope Conflict Copy");
+        JsonNode child = null;
+        for (JsonNode item : setup.items()) {
+            if (item.get("title").asText().equals("CoupledChild.java")) {
+                child = item;
+            }
+        }
+        assertThat(child).isNotNull();
+        assertThat(child.get("included").asBoolean()).isTrue();
+        mockMvc.perform(patch("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}",
+                        setup.projectId(), setup.planId(), child.get("id").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"included\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.included").value(false));
+        Files.writeString(tempProject.resolve(
+                        "web-app/src/main/java/com/example/legacy/coupled/CoupledParent.java"), """
+                package com.example.legacy.coupled;
+                import org.seasar.framework.container.annotation.twig.Binding;
+                import org.seasar.framework.container.annotation.twig.Component;
+                @Component
+                public class CoupledParent {
+                    @Binding
+                    public CoupledChild child;
+                }
+                """);
+        rescanProject(setup.projectId());
+        mockMvc.perform(post("/api/v1/projects/{id}/migration-plans", setup.projectId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetProfile", "SPRING_BOOT_MVC",
+                                "carryOverScopeFrom", setup.planId()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        "MIGRATION_PLAN_CARRY_OVER_SCOPE_CONFLICT"));
+        String plainPlanId = createPlan(setup.projectId());
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}",
+                        setup.projectId(), plainPlanId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.sequence").value(2));
+        JsonNode plainChild = itemByKey(setup.projectId(), plainPlanId,
+                child.get("itemKey").asText());
+        assertThat(plainChild).isNotNull();
+        assertThat(plainChild.get("included").asBoolean()).isTrue();
+        deleteRecursively(tempProject);
+    }
+
+    private JsonNode itemByKey(String projectId, String planId, String itemKey) throws Exception {
+        String body = mockMvc.perform(get(
+                        "/api/v1/projects/{id}/migration-plans/{plan}/items", projectId, planId)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        for (JsonNode item : objectMapper.readTree(body).get("content")) {
+            if (item.get("itemKey").asText().equals(itemKey)) {
+                return item;
+            }
+        }
+        return null;
     }
 
     private void rescanProject(String projectId) throws Exception {
@@ -2723,7 +2969,7 @@ class StraviqueIntegrationTest {
                 .andExpect(jsonPath("$[?(@.ruleId == 'JSP-BEAN-MESSAGE-JSTL'"
                         + " && @.language == 'JSP')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'JSP-BEAN-MESSAGE-JSTL'"
-                        + " && @.ruleVersion == '1.2.0')]").isNotEmpty())
+                        + " && @.ruleVersion == '1.3.0')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE')]").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.ruleId == 'WEBXML-JAKARTA-NAMESPACE'"
                         + " && @.ruleVersion == '1.2.0')]").isNotEmpty())

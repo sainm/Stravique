@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record MigrationPlanRequest(
         UUID scanId,
-        String targetProfile
+        String targetProfile,
+        UUID carryOverScopeFrom
 ) {
 }

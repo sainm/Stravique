@@ -81,10 +81,13 @@ The graph response carries `relationCount`, the true total under the current fil
 | `PATCH` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Include or exclude an item |
 | `GET` | `/projects/{id}/migration-plans/{planId}/graph` | Dependency graph from persisted relations |
 | `GET` | `/projects/{id}/migration-plans/{planId}/comparison?basePlanId=...` | Read-only version comparison by item key; defaults to the previous sequence |
+| `GET` | `/projects/{id}/migration-plans/{planId}/comparison/export?format=...` | Download the comparison as CSV, Markdown, or JSON; Markdown accepts `lang` |
 
-Plan generation accepts optional `scanId` and `targetProfile`. With no `scanId`, the latest `COMPLETED` scan is used. The only supported target profile is `SPRING_BOOT_MVC`.
+Plan generation accepts optional `scanId`, `targetProfile`, and `carryOverScopeFrom`. With no `scanId`, the latest `COMPLETED` scan is used. The only supported target profile is `SPRING_BOOT_MVC`. A `carryOverScopeFrom` plan must belong to the project; matching `itemKey` values inherit the included flag, while keys that only exist in the new plan stay included. The carried scope is checked against the newly generated dependency graph: if an included item depends on an excluded prerequisite, generation returns `409 MIGRATION_PLAN_CARRY_OVER_SCOPE_CONFLICT` and persists nothing. An unknown or other-project source returns `404 MIGRATION_PLAN_NOT_FOUND`.
 
 Plan comparison matches items by stable `itemKey` and reports added, removed, changed, and unchanged counts. Changed rows carry before/after values for included scope, status, phase, risk, automation, title, and primary file path. Added and changed rows include the current plan's `itemId`; removed rows have none. Without `basePlanId` the previous per-project sequence is used; a missing previous version returns `409 MIGRATION_PLAN_COMPARISON_UNAVAILABLE`, the same plan returns `409 MIGRATION_PLAN_COMPARISON_SELF`, and an unknown or other-project base returns `404 MIGRATION_PLAN_NOT_FOUND`. The endpoint is read-only and writes no item, plan, or file.
+
+The comparison export writes only added, removed, and changed rows, with the same base guards. CSV uses stable English column names, quotes every value, and starts with a UTF-8 BOM; JSON is the comparison response; Markdown localizes its title, plan lines, summary, and column labels through `lang`/`Accept-Language`. An unsupported format returns `400 MIGRATION_PLAN_COMPARISON_FORMAT_INVALID`, and the response carries an attachment filename derived from both sequences.
 
 Plans are immutable analysis snapshots; each `POST` creates a new per-project sequence. Excluding an item that another included item depends on is rejected with `MIGRATION_DEPENDENCY_CONFLICT` and the count of included dependents. Re-including an item whose prerequisite is excluded is rejected with `MIGRATION_PREREQUISITE_EXCLUDED`. Excluded items remain visible for traceability.
 

@@ -327,6 +327,48 @@ check "plan comparison returns the current item id" "${comparison_current_item}"
 check "plan comparison defaults to the previous plan" "1" "${comparison_previous}"
 comparison_self="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${second_plan_id}/comparison?basePlanId=${second_plan_id}" | json_field code)"
 check "plan comparison rejects the same plan" "MIGRATION_PLAN_COMPARISON_SELF" "${comparison_self}"
+carried_plan_json="$(curl -s -X POST "${base_url}/projects/${project_id}/migration-plans" \
+  -H 'Content-Type: application/json' \
+  -d '{"targetProfile":"SPRING_BOOT_MVC","carryOverScopeFrom":"'"${plan_id}"'"}')"
+carried_plan_id="$(printf '%s' "${carried_plan_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("id",""))')"
+carried_items_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${carried_plan_id}/items?size=200")"
+carried_item_included="$(printf '%s' "${carried_items_json}" | python3 -c 'import sys,json;d=json.load(sys.stdin);target=sys.argv[1];print(next((str(i.get("included")) for i in d.get("content",[]) if i.get("itemKey")==target),"missing"))' "${comparison_item_key}")"
+carried_comparison_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${carried_plan_id}/comparison?basePlanId=${plan_id}")"
+carried_changed="$(printf '%s' "${carried_comparison_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("changed",-1))')"
+carried_unchanged="$(printf '%s' "${carried_comparison_json}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("summary",{}).get("unchanged",-1))')"
+if [[ "${carried_item_included}" == "False" && "${carried_changed}" -eq 0 && "${carried_unchanged}" -eq "${second_plan_item_count}" ]]; then
+  carried_scope_ok=1
+else
+  carried_scope_ok=0
+fi
+check "plan regeneration carries the inclusion scope" "1" "${carried_scope_ok}"
+comparison_header='"status","itemKey","itemId","itemType","targetKey","title","primaryFilePath","phase","automationLevel","riskLevel","itemStatus","included","changes"'
+comparison_csv="${work_dir}/comparison.csv"
+curl -s "${base_url}/projects/${project_id}/migration-plans/${second_plan_id}/comparison/export?format=csv&basePlanId=${plan_id}" -o "${comparison_csv}"
+check "comparison CSV exposes stable columns" "${comparison_header}" "$(first_line "${comparison_csv}")"
+if grep -q 'INCLUDED:false->true' "${comparison_csv}"; then
+  comparison_csv_change=1
+else
+  comparison_csv_change=0
+fi
+check "comparison CSV contains the scope change" "1" "${comparison_csv_change}"
+comparison_md="${work_dir}/comparison.md"
+curl -s "${base_url}/projects/${project_id}/migration-plans/${second_plan_id}/comparison/export?format=markdown&lang=zh-CN&basePlanId=${plan_id}" -o "${comparison_md}"
+check "comparison Markdown title is localized" "# 迁移计划版本对比" "$(first_line "${comparison_md}")"
+if grep -q '变化 1' "${comparison_md}"; then
+  comparison_md_summary=1
+else
+  comparison_md_summary=0
+fi
+check "comparison Markdown carries the summary" "1" "${comparison_md_summary}"
+comparison_empty_md="${work_dir}/comparison-empty.md"
+curl -s "${base_url}/projects/${project_id}/migration-plans/${carried_plan_id}/comparison/export?format=markdown&lang=zh-CN&basePlanId=${plan_id}" -o "${comparison_empty_md}"
+if grep -q '这两个计划之间没有条目差异。' "${comparison_empty_md}"; then
+  comparison_empty_state=1
+else
+  comparison_empty_state=0
+fi
+check "comparison Markdown explains an empty diff" "1" "${comparison_empty_state}"
 rule_catalog="$(curl -s "${base_url}/transformation-rules")"
 dicon_rule_count="$(printf '%s' "${rule_catalog}" | python3 -c 'import sys,json;print(sum(1 for r in json.load(sys.stdin) if r.get("ruleId")=="DICON-COMPONENT-SPRING-CONFIG" and r.get("ruleVersion")=="1.6.0" and r.get("fileName")==".dicon"))')"
 if [[ "${dicon_rule_count}" -eq 1 ]]; then
@@ -335,6 +377,13 @@ else
   dicon_rule_present=0
 fi
 check "dicon configuration rule is cataloged" "1" "${dicon_rule_present}"
+jsp_rule_count="$(printf '%s' "${rule_catalog}" | python3 -c 'import sys,json;print(sum(1 for r in json.load(sys.stdin) if r.get("ruleId")=="JSP-BEAN-MESSAGE-JSTL" and r.get("ruleVersion")=="1.3.0" and r.get("language")=="JSP"))')"
+if [[ "${jsp_rule_count}" -eq 1 ]]; then
+  jsp_rule_present=1
+else
+  jsp_rule_present=0
+fi
+check "jsp message rule is cataloged" "1" "${jsp_rule_present}"
 plan_runs_json="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/transformation-plan-runs")"
 plan_runs_count="$(printf '%s' "${plan_runs_json}" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')"
 check "plan run history starts empty" "0" "${plan_runs_count}"

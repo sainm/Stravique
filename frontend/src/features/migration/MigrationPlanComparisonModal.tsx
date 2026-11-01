@@ -111,6 +111,25 @@ export default function MigrationPlanComparisonModal({
               {t("migration.compare.noBasePlans")}
             </p>
           )}
+          <div className="migration-comparison-export">
+            <span>{t("migration.compare.export")}</span>
+            {(["csv", "markdown", "json"] as const).map((format) => (
+              <a
+                key={format}
+                className="migration-chip"
+                href={api.comparisonExportUrl(
+                  projectId,
+                  plan.id,
+                  comparison.basePlan.id,
+                  format,
+                  i18n.language
+                )}
+                download
+              >
+                {t(`migration.compare.formats.${format}`)}
+              </a>
+            ))}
+          </div>
           <div className="migration-comparison-metrics">
             {(["added", "removed", "changed", "unchanged"] as const).map((key) => (
               <div

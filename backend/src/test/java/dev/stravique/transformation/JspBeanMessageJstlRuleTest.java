@@ -108,7 +108,7 @@ class JspBeanMessageJstlRuleTest {
                 .doesNotContain("java.sun.com/jsp/jstl")
                 .contains("<c:out value=\"${order.id}\"/>")
                 .contains("<fmt:message key=\"order.list.title\"/>");
-        assertThat(rule.ruleVersion()).isEqualTo("1.2.0");
+        assertThat(rule.ruleVersion()).isEqualTo("1.3.0");
     }
 
     @Test
@@ -182,11 +182,50 @@ class JspBeanMessageJstlRuleTest {
     }
 
     @Test
+    void convertsContiguousLiteralMessageArguments() {
+        String source = """
+                <%@ taglib prefix="bean" uri="http://struts.apache.org/tags-bean" %>
+                <bean:message key="order.count" bundle="order" arg0="3" arg1="items"/>
+                """;
+
+        String proposed = rule.propose(source, "order.jsp");
+
+        assertThat(proposed)
+                .contains("<fmt:message key=\"order.count\" bundle=\"order\">"
+                        + "<fmt:param value=\"3\"/><fmt:param value=\"items\"/>"
+                        + "</fmt:message>")
+                .contains("<%@ taglib prefix=\"fmt\" uri=\"jakarta.tags.fmt\" %>")
+                .doesNotContain("<bean:message")
+                .doesNotContain("arg0=")
+                .doesNotContain("prefix=\"bean\"");
+        rule.validate(proposed);
+
+        String reused = """
+                <%@ taglib prefix="bean" uri="http://struts.apache.org/tags-bean" %>
+                <%@ taglib prefix="jstl" uri="http://java.sun.com/jsp/jstl/fmt" %>
+                <bean:message key="order.count" arg0="1"/>
+                """;
+        assertThat(rule.propose(reused, "order.jsp"))
+                .contains("<jstl:message key=\"order.count\">"
+                        + "<jstl:param value=\"1\"/></jstl:message>")
+                .contains("prefix=\"jstl\" uri=\"jakarta.tags.fmt\"");
+    }
+
+    @Test
     void refusesUnsupportedMessageAttributesAndBodies() {
         String taglib = "<%@ taglib prefix=\"bean\" uri=\"http://struts.apache.org/tags-bean\" %>\n";
 
         assertThatThrownBy(() -> rule.propose(taglib
-                + "<bean:message key=\"x\" arg0=\"y\"/>\n", "order.jsp"))
+                + "<bean:message key=\"x\" arg1=\"y\"/>\n", "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:message key=\"x\" arg0=\"${y}\"/>\n", "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:message key=\"x\" arg0='a\"b'/>\n", "order.jsp"))
+                .isInstanceOf(TransformationUnsupportedException.class);
+        assertThatThrownBy(() -> rule.propose(taglib
+                + "<bean:message key=\"x\" arg4=\"y\"/>\n", "order.jsp"))
                 .isInstanceOf(TransformationUnsupportedException.class);
         assertThatThrownBy(() -> rule.propose(taglib
                 + "<bean:message key=\"x\"></bean:message>\n", "order.jsp"))
