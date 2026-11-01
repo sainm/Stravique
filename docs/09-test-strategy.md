@@ -11,7 +11,7 @@
 - Secure XML/configuration parsing.
 - JSP tag and form evidence.
 - POM/Gradle declarations.
-- File hash diff classification.
+- File hash diff classification, including an unreadable file that is recorded as skipped rather than failing the scan.
 - Report serialization and CSV escaping.
 - Localized Markdown titles and column labels with stable CSV and JSON field names.
 - Report message coverage derived from the report declarations, so a new type or column cannot ship without labels or leave orphaned keys.

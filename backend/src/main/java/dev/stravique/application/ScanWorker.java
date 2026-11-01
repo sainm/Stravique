@@ -51,6 +51,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -151,6 +152,7 @@ public class ScanWorker {
             int skipped = 0;
             int frameworkFindings = 0;
             int reviewCount = 0;
+            int vanished = 0;
             boolean cancelled = false;
 
             for (TreeWalker.DiscoveredFile discovered : walk.files()) {
@@ -160,10 +162,19 @@ public class ScanWorker {
                 }
                 ModuleDiscovery.ModuleSnapshot module = layout.moduleFor(discovered.relativePath());
                 ProjectModule moduleEntity = moduleEntities.get(normalizeModule(module.relativePath()));
-                String sha256 = sha256(discovered.absolutePath());
+                String sha256;
+                try {
+                    sha256 = sha256(discovered.absolutePath());
+                } catch (Exception exception) {
+                    if (!Files.exists(discovered.absolutePath())) {
+                        vanished++;
+                        continue;
+                    }
+                    sha256 = null;
+                }
                 ProjectFile previous = previousFiles.get(discovered.relativePath());
                 FileChangeType changeType = previous == null ? FileChangeType.ADDED
-                        : previous.getSha256().equals(sha256) ? FileChangeType.UNCHANGED
+                        : Objects.equals(previous.getSha256(), sha256) ? FileChangeType.UNCHANGED
                         : FileChangeType.MODIFIED;
                 ProjectFile file = ProjectFile.discovered(
                         scan.getId(),
@@ -182,6 +193,14 @@ public class ScanWorker {
                         module, overrides));
                 seenPaths.add(discovered.relativePath());
 
+                if (sha256 == null) {
+                    file.setScanStatus(FileScanStatus.SKIPPED);
+                    file.setParseStatus(ParseStatus.NOT_APPLICABLE);
+                    file.setParseError("The file could not be read during the scan.");
+                    fileRepository.save(file);
+                    skipped++;
+                    continue;
+                }
                 if (discovered.tooLarge()) {
                     file.setScanStatus(FileScanStatus.SKIPPED);
                     file.setParseStatus(ParseStatus.NOT_APPLICABLE);
@@ -199,7 +218,22 @@ public class ScanWorker {
                     continue;
                 }
 
-                TextDecoder.DecodedSource decoded = textDecoder.decode(discovered.absolutePath());
+                TextDecoder.DecodedSource decoded;
+                try {
+                    decoded = textDecoder.decode(discovered.absolutePath());
+                } catch (IOException exception) {
+                    if (!Files.exists(discovered.absolutePath())) {
+                        seenPaths.remove(discovered.relativePath());
+                        vanished++;
+                        continue;
+                    }
+                    file.setScanStatus(FileScanStatus.SKIPPED);
+                    file.setParseStatus(ParseStatus.NOT_APPLICABLE);
+                    file.setParseError("The file could not be read during the scan.");
+                    fileRepository.save(file);
+                    skipped++;
+                    continue;
+                }
                 file.setEncoding(decoded.encoding());
                 if (decoded.hasGeneratedMarker()) {
                     file.setScanStatus(FileScanStatus.SKIPPED);
@@ -281,10 +315,14 @@ public class ScanWorker {
                     root, project.getId(), scan.getId(), relationFiles,
                     properties.getAnalyzerVersion());
             relationRepository.saveAll(relations);
-            int totalFiles = walk.files().size() + deletedFiles.size();
+            int totalFiles = seenPaths.size() + deletedFiles.size();
             scan.updateCounts(totalFiles, layout.modules().size(), analyzed, parseFailures, skipped,
                     frameworkFindings + diagnostics.size(), reviewCount, ledger.keys().size(),
                     deletedFiles.size());
+            if (vanished > 0) {
+                log.info("Scan {} skipped {} file(s) that disappeared before they could be read.",
+                        scan.getId(), vanished);
+            }
             if (cancelled || cancelRequested.get()) {
                 scan.cancel();
             } else {

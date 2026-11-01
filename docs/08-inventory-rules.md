@@ -21,7 +21,7 @@ Analysis scope is applied after discovery:
 - `SOURCE_ONLY` analyzes Java, test, JSP, HTML, JavaScript, CSS, and SQL while inventorying other files as skipped.
 - `CONFIGURATION_ONLY` analyzes XML, properties, YAML, dicon, TLD, POM, and Gradle while inventorying other files as skipped.
 
-Scope-skipped files remain visible in the file inventory and explicitly state why analysis was not performed.
+Scope-skipped files remain visible in the file inventory and explicitly state why analysis was not performed. A file that still exists but cannot be read is recorded the same way, with the reason stated, instead of failing the scan; a file that disappears between the walk and the read is left out of the inventory and its previous snapshot is reported as deleted.
 
 ## Directory roles
 

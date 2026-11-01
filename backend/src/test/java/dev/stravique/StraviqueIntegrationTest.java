@@ -3047,6 +3047,41 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void keepsTheScanAliveWhenAFileCannotBeRead() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build", "unreadable-fixture");
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        Path unreadable = tempProject.resolve(
+                "web-app/src/main/java/com/example/legacy/action/OrderAction.java");
+        java.util.Set<java.nio.file.attribute.PosixFilePermission> original =
+                Files.getPosixFilePermissions(unreadable);
+        Files.setPosixFilePermissions(unreadable, java.util.Set.of());
+        try {
+            org.junit.jupiter.api.Assumptions.assumeTrue(!Files.isReadable(unreadable),
+                    "The environment can still read a file with no permissions.");
+            PlanSetup setup = createPlanSetup(tempProject, "Unreadable File Copy");
+            String files = mockMvc.perform(get("/api/v1/projects/{id}/files", setup.projectId())
+                            .param("query", "OrderAction")
+                            .param("size", "20"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            JsonNode orderAction = null;
+            for (JsonNode row : objectMapper.readTree(files).get("content")) {
+                if (row.get("relativePath").asText().endsWith("action/OrderAction.java")) {
+                    orderAction = row;
+                }
+            }
+            assertThat(orderAction).isNotNull();
+            assertThat(orderAction.get("scanStatus").asText()).isEqualTo("SKIPPED");
+            assertThat(orderAction.get("parseError").asText())
+                    .isEqualTo("The file could not be read during the scan.");
+        } finally {
+            Files.setPosixFilePermissions(unreadable, original);
+            deleteRecursively(tempProject);
+        }
+    }
+
+    @Test
     void appliesConfigurationOnlyAnalysisScope() throws Exception {
         String projectResponse = mockMvc.perform(post("/api/v1/projects")
                         .contentType(MediaType.APPLICATION_JSON)
