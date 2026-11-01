@@ -3202,6 +3202,27 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void reportDescriptorsMatchTheExportedRows() throws Exception {
+        PlanSetup setup = createPlanSetup(SAMPLE, "Report Counts");
+        String body = mockMvc.perform(get("/api/v1/projects/{id}/reports", setup.projectId()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode descriptors = objectMapper.readTree(body);
+        assertThat(descriptors.size()).isEqualTo(8);
+        for (JsonNode descriptor : descriptors) {
+            String type = descriptor.get("type").asText();
+            int declared = descriptor.get("rowCount").asInt();
+            String json = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/reports/{type}.json", setup.projectId(), type))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(objectMapper.readTree(json).size())
+                    .as("row count declared for %s", type)
+                    .isEqualTo(declared);
+        }
+    }
+
+    @Test
     void keepsOnlyTheRetainedNumberOfPlanVersions() throws Exception {
         PlanSetup setup = createPlanSetup(SAMPLE, "Plan Retention");
         for (int index = 0; index < 20; index++) {

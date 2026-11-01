@@ -39,6 +39,7 @@ public interface AnalysisRelationRepository extends JpaRepository<AnalysisRelati
             group by relation.certainty
             """)
     List<Object[]> countByCertainty(@Param("scanId") UUID scanId);
+    long countByScanId(UUID scanId);
 
     @Query("""
             select relation.sourceFileId, relation.targetFileId

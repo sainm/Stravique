@@ -87,9 +87,12 @@ public class ReportService {
                     .map(type -> new ReportDescriptorDto(null, type.name(), 0, FORMATS))
                     .toList();
         }
+        Set<String> frameworkKeys = new LinkedHashSet<>();
+        technologyRepository.findByScanIdOrderByCategoryAscNameAsc(scan.getId())
+                .forEach(item -> frameworkKeys.add(item.getTechnologyKey()));
         return Arrays.stream(ReportType.values())
                 .map(type -> new ReportDescriptorDto(scan.getId(), type.name(),
-                        reportRows(type, scan).size(), FORMATS))
+                        countRows(type, scan, frameworkKeys), FORMATS))
                 .toList();
     }
 
@@ -129,13 +132,34 @@ public class ReportService {
             case CONFIGURATION -> findingRows(findingRepository
                     .findByScanIdAndAnalysisKindOrderByFilePathAscLineStartAsc(
                             scan.getId(), AnalysisKind.CONFIGURATION));
-            case PARSE_ERRORS -> findingRepository.findByScanIdOrderByFilePathAscLineStartAsc(scan.getId())
-                    .stream().filter(finding -> finding.getCertainty() == Certainty.PARSE_FAILED
-                            || finding.getAnalysisKind() == AnalysisKind.PARSE_ERROR)
-                    .map(this::findingRow).toList();
-            case REVIEWS -> findingRepository.findByScanIdOrderByFilePathAscLineStartAsc(scan.getId())
-                    .stream().filter(finding -> REVIEW_STATES.contains(finding.getCertainty()))
-                    .map(this::findingRow).toList();
+            case PARSE_ERRORS -> findingRepository
+                    .findByIdentityOrKindOrdered(scan.getId(), Certainty.PARSE_FAILED,
+                            AnalysisKind.PARSE_ERROR)
+                    .stream().map(this::findingRow).toList();
+            case REVIEWS -> findingRepository
+                    .findByScanIdAndCertaintyInOrderByFilePathAscLineStartAsc(
+                            scan.getId(), REVIEW_STATES)
+                    .stream().map(this::findingRow).toList();
+        };
+    }
+
+    private long countRows(ReportType type, ScanRun scan, Set<String> frameworkKeys) {
+        return switch (type) {
+            case FILES -> fileRepository.countByScanId(scan.getId());
+            case STRUCTURE -> moduleRepository.countByScanId(scan.getId());
+            case TECHNOLOGY -> technologyRepository.countByScanId(scan.getId());
+            case FRAMEWORKS -> frameworkKeys.isEmpty() ? 0
+                    : findingRepository.countByScanIdAndAnalysisKindInAndObjectKeyIn(
+                            scan.getId(),
+                            List.of(AnalysisKind.FRAMEWORK_API, AnalysisKind.CONFIGURATION),
+                            frameworkKeys);
+            case RELATIONS -> relationRepository.countByScanId(scan.getId());
+            case CONFIGURATION -> findingRepository.countByScanIdAndAnalysisKind(
+                    scan.getId(), AnalysisKind.CONFIGURATION);
+            case PARSE_ERRORS -> findingRepository.countByCertaintyOrKind(scan.getId(),
+                    Certainty.PARSE_FAILED, AnalysisKind.PARSE_ERROR);
+            case REVIEWS -> findingRepository.countByScanIdAndCertaintyIn(scan.getId(),
+                    REVIEW_STATES);
         };
     }
 

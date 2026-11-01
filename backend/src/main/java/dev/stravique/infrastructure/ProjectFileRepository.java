@@ -26,4 +26,5 @@ public interface ProjectFileRepository extends JpaRepository<ProjectFile, UUID>,
     Page<ProjectFile> findByScanIdAndScanStatus(UUID scanId, FileScanStatus scanStatus, Pageable pageable);
 
     long countByScanIdAndScanStatus(UUID scanId, FileScanStatus scanStatus);
+    long countByScanId(UUID scanId);
 }

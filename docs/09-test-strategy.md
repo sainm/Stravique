@@ -13,6 +13,7 @@
 - POM/Gradle declarations.
 - File hash diff classification, including an unreadable file that is recorded as skipped rather than failing the scan.
 - Report serialization and CSV escaping, including a value that a spreadsheet would evaluate as a formula and a value that only contains the trigger character.
+- Every report descriptor's declared row count equals the number of rows its JSON export returns, so a count query that drifts from its export fails the suite.
 - Localized Markdown titles and column labels with stable CSV and JSON field names.
 - Report message coverage derived from the report declarations, so a new type or column cannot ship without labels or leave orphaned keys.
 - Technology certainty aggregation.
