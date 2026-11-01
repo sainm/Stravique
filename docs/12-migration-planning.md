@@ -138,6 +138,7 @@ Base path: `/api/v1`.
 | `GET` | `/projects/{id}/migration-plans` | Plan history, newest first, with staleness |
 | `POST` | `/projects/{id}/migration-plans` | Generate a plan from a completed scan |
 | `GET` | `/projects/{id}/migration-plans/{planId}` | Plan summary and phase counts |
+| `GET` | `/projects/{id}/migration-plans/{planId}/export?format=...` | Complete plan export |
 | `GET` | `/projects/{id}/migration-plans/{planId}/items` | Filtered, paged items |
 | `GET` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Item with evidence and dependency detail |
 | `PATCH` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Include or exclude an item |
@@ -158,6 +159,17 @@ Graph limits:
 The comparison is read-only. A missing previous version, the same plan as base, an unknown base, and a base plan from another project are refused instead of inferring a comparison. The Migration dialog defaults to the previous sequence but lets the user choose any other project plan as the base; changed or added rows open the current plan's item inspector, and removed rows are marked as not present in the current plan.
 
 The comparison can be downloaded as CSV, Markdown, or JSON. All formats contain only added, removed, and changed rows; CSV keeps stable English columns and a UTF-8 BOM, while Markdown and JSON also carry the plan/base identities and summary. Markdown localizes its title, summary, and headers, and invalid formats are refused.
+
+## Complete plan export
+
+The complete plan report contains all persisted items, phase counts, and dependency evidence; it is not limited to a comparison delta.
+
+- JSON returns the full `MigrationPlanExportDto`.
+- CSV contains one row per item with stable English columns, primary file and finding identifiers, item status/risk/automation/scope, and dependency evidence text.
+- CSV starts with a UTF-8 BOM.
+- Markdown localizes its title, metadata, summary, phase, item, and dependency headings and columns through `lang` / `Accept-Language`.
+- The report is read-only and records `MIGRATION_PLAN_EXPORTED` in the audit log.
+- Unsupported formats return `400 MIGRATION_PLAN_EXPORT_FORMAT_INVALID`.
 
 ## Scope carry-over on regeneration
 

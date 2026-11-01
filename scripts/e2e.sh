@@ -255,6 +255,27 @@ else
   plan_has_items=0
 fi
 check "migration plan derives items from persisted evidence" "1" "${plan_has_items}"
+curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/export?format=json" \
+  -o "${reports}/migration-plan.json"
+curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/export?format=csv" \
+  -o "${reports}/migration-plan.csv"
+curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/export?format=markdown&lang=zh-CN" \
+  -o "${reports}/migration-plan.zh.md"
+plan_export_items="$(python3 -c 'import sys,json;print(len(json.load(open(sys.argv[1])).get("items",[])))' "${reports}/migration-plan.json")"
+check "migration plan JSON exports every item" "${plan_item_count}" "${plan_export_items}"
+check "migration plan CSV has a UTF-8 BOM" "efbbbf" "$(bom_hex "${reports}/migration-plan.csv")"
+plan_csv_header="$(first_line "${reports}/migration-plan.csv")"
+case "${plan_csv_header}" in
+  '"planId","planSequence",'*) plan_csv_complete=1 ;;
+  *) plan_csv_complete=0 ;;
+esac
+check "migration plan CSV exposes stable planning columns" "1" "${plan_csv_complete}"
+if grep -q '迁移计划' "${reports}/migration-plan.zh.md"; then
+  plan_markdown_localized=1
+else
+  plan_markdown_localized=0
+fi
+check "migration plan Markdown follows the requested language" "1" "${plan_markdown_localized}"
 migration_items="$(curl -s "${base_url}/projects/${project_id}/migration-plans/${plan_id}/items?size=200")"
 migration_types="$(printf '%s' "${migration_items}" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(",".join(sorted({i["itemType"] for i in d.get("content",[])})))')"
 migration_has_action=0

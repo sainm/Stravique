@@ -337,6 +337,7 @@ const routes = [
   ["relations", `/projects/${project.id}/relations`],
   ["relations-map", `/projects/${project.id}/relations?view=map`],
   ["migration", `/projects/${project.id}/migration${migrationQuery}`],
+  ["migration-export", `/projects/${project.id}/migration${migrationQuery}`],
   ["migration-dependencies", migrationView("dependencies")],
   ["migration-review", migrationView("review")],
   ["reports", `/projects/${project.id}/reports`],
@@ -396,6 +397,7 @@ for (const language of languages) {
               "relations",
               "relations-map",
               "migration",
+              "migration-export",
               "settings"
             ].includes(name)
           );
@@ -492,6 +494,19 @@ for (const language of languages) {
             viewport: viewport.name,
             route: name,
             migrationRows: 0
+          });
+        }
+      }
+      if (name === "migration-export" && migrationPlanId) {
+        await page.locator(".plan-export-menu > summary").click();
+        const exportLinks = page.locator(".plan-export-menu-popover a");
+        const exportLinkCount = await exportLinks.count();
+        if (exportLinkCount !== 3) {
+          issues.push({
+            language,
+            viewport: viewport.name,
+            route: name,
+            exportLinks: exportLinkCount
           });
         }
       }
@@ -1029,7 +1044,7 @@ for (const language of languages) {
 
       if (name === "migration" && comparisonReady) {
         const compareButton = page
-          .locator(".migration-summary-actions .button")
+          .locator('[data-role="compare-plan"]')
           .first();
         await compareButton
           .waitFor({ state: "visible", timeout: 5000 })

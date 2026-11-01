@@ -141,6 +141,7 @@ Persisted screenshots are verification artifacts, not product data.
 - Confirms localized API errors in Chinese and Japanese.
 - Confirms an unscanned report still emits a complete header row.
 - Confirms the relations report contains the same persisted relationship count shown by analysis APIs.
+- Confirms complete migration-plan JSON/CSV/Markdown exports and localized Markdown content.
 - Generates a migration plan over HTTP, asserts evidence-derived item types and dependency edges, and confirms the scope guard rejects excluding a required prerequisite.
 
 It exists because MockMvc substitutes the servlet request. Locale resolution and response bytes are only trustworthy when observed through a real container.

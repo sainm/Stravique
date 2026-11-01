@@ -76,6 +76,15 @@ vi.mock("../lib/api", () => ({
     scans: async () => [],
     migrationPlans: async () => [state.plan],
     migrationPlanOptions: async () => [state.plan],
+    migrationPlanExportUrl: (
+      projectId: string,
+      planId: string,
+      format: string,
+      lang?: string
+    ) =>
+      `/api/v1/projects/${projectId}/migration-plans/${planId}/export?format=${format}${
+        lang ? `&lang=${lang}` : ""
+      }`,
     migrationPlan: async () => ({ summary: state.plan }),
     migrationItems: async () => ({
       content: state.items,

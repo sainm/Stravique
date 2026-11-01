@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ChevronRight,
   Clock3,
+  Download,
   GitBranch,
   GitCompare,
   History,
@@ -726,10 +727,37 @@ export default function MigrationPage() {
                   <span className="migration-plan-number">
                     {t("migration.planNumber", { number: summary.sequence })}
                   </span>
+                  <details className="plan-export-menu" data-role="export-plan">
+                    <summary className="button button-ghost button-small">
+                      <Download size={14} />
+                      {t("migration.exportPlan")}
+                    </summary>
+                    <div className="plan-export-menu-popover">
+                      <span>{t("migration.exportPlanHint")}</span>
+                      {(["csv", "markdown", "json"] as const).map((format) => (
+                        <a
+                          key={format}
+                          href={api.migrationPlanExportUrl(
+                            projectId,
+                            summary.id,
+                            format,
+                            i18n.language
+                          )}
+                          download
+                        >
+                          {t("migration.exportFormat", {
+                            format:
+                              t(`migration.compare.formats.${format}`)
+                          })}
+                        </a>
+                      ))}
+                    </div>
+                  </details>
                   {summary.sequence > 1 ? (
                     <button
                       type="button"
                       className="button button-secondary button-small"
+                      data-role="compare-plan"
                       onClick={() => setComparisonOpen(true)}
                     >
                       <GitCompare size={14} />

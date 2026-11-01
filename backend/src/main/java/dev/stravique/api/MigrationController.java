@@ -10,6 +10,7 @@ import dev.stravique.api.dto.MigrationPlanSummaryDto;
 import dev.stravique.api.dto.MigrationScopeRequest;
 import dev.stravique.api.dto.PageResponse;
 import dev.stravique.application.MigrationPlanComparisonExportService;
+import dev.stravique.application.MigrationPlanExportService;
 import dev.stravique.application.MigrationPlanService;
 import dev.stravique.application.ReportService;
 import dev.stravique.config.RequestLocaleSupport;
@@ -40,13 +41,16 @@ public class MigrationController {
 
     private final MigrationPlanService planService;
     private final MigrationPlanComparisonExportService exportService;
+    private final MigrationPlanExportService planExportService;
     private final RequestLocaleSupport localeSupport;
 
     public MigrationController(MigrationPlanService planService,
                                MigrationPlanComparisonExportService exportService,
+                               MigrationPlanExportService planExportService,
                                RequestLocaleSupport localeSupport) {
         this.planService = planService;
         this.exportService = exportService;
+        this.planExportService = planExportService;
         this.localeSupport = localeSupport;
     }
 
@@ -79,6 +83,24 @@ public class MigrationController {
             @PathVariable UUID planId,
             @RequestParam(required = false) UUID basePlanId) {
         return planService.comparison(projectId, planId, basePlanId);
+    }
+
+    @GetMapping("/{planId}/export")
+    public ResponseEntity<byte[]> planExport(
+            @PathVariable UUID projectId,
+            @PathVariable UUID planId,
+            @RequestParam String format,
+            @RequestParam(required = false) String lang,
+            HttpServletRequest request) {
+        ReportService.ReportDownload download = planExportService.export(
+                projectId, planId, format, localeSupport.resolve(lang, request));
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(download.filename(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(download.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(download.content());
     }
 
     @GetMapping("/{planId}/comparison/export")

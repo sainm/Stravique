@@ -15,6 +15,8 @@ import dev.stravique.api.dto.MigrationPlanComparisonFieldDto;
 import dev.stravique.api.dto.MigrationPlanComparisonItemDto;
 import dev.stravique.api.dto.MigrationPlanComparisonSummaryDto;
 import dev.stravique.api.dto.MigrationPlanDto;
+import dev.stravique.api.dto.MigrationPlanExportDto;
+import dev.stravique.api.dto.MigrationPlanExportItemDto;
 import dev.stravique.api.dto.MigrationPlanRequest;
 import dev.stravique.api.dto.MigrationPlanSummaryDto;
 import dev.stravique.api.dto.PageResponse;
@@ -65,6 +67,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -293,6 +296,30 @@ public class MigrationPlanService {
                 new MigrationPlanComparisonSummaryDto(result.added(), result.removed(),
                         result.changed(), result.unchanged()),
                 items);
+    }
+
+    @Transactional(readOnly = true)
+    public MigrationPlanExportDto exportData(UUID projectId, UUID planId) {
+        MigrationPlan plan = requirePlan(projectId, planId);
+        MigrationPlanDto planData = planDto(plan);
+        List<MigrationItem> items = itemRepository
+                .findByPlanIdOrderByPhaseAscPriorityAscTitleAscIdAsc(plan.getId());
+        Map<UUID, String> paths = filePaths(items);
+        List<MigrationPlanExportItemDto> exportItems = items.stream()
+                .map(item -> MigrationPlanExportItemDto.from(item, pathFor(item, paths)))
+                .toList();
+        Map<UUID, String> titles = new HashMap<>();
+        items.forEach(item -> titles.put(item.getId(), item.getTitle()));
+        List<MigrationDependencyDto> dependencies = dependencyRepository
+                .findByPlanIdOrderByEvidencePathAscLineStartAsc(plan.getId()).stream()
+                .map(dependency -> MigrationDependencyDto.from(
+                        dependency,
+                        titles.getOrDefault(dependency.getFromItemId(), ""),
+                        titles.getOrDefault(dependency.getToItemId(), "")
+                ))
+                .toList();
+        return new MigrationPlanExportDto(
+                planData.summary(), planData.phases(), exportItems, dependencies, Instant.now());
     }
 
     private Map<String, Boolean> carriedScope(UUID projectId, MigrationPlanRequest request) {

@@ -76,6 +76,7 @@ The graph response carries `relationCount`, the true total under the current fil
 | `GET` | `/projects/{id}/migration-plans/options` | Every plan of the project as a comparison base option, newest first |
 | `POST` | `/projects/{id}/migration-plans` | Generate a plan from a completed scan |
 | `GET` | `/projects/{id}/migration-plans/{planId}` | Plan summary and phase counts |
+| `GET` | `/projects/{id}/migration-plans/{planId}/export?format=...` | Complete persisted plan, items, phases, and dependencies |
 | `GET` | `/projects/{id}/migration-plans/{planId}/items` | Filtered, paged migration items |
 | `GET` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Item evidence and dependencies |
 | `PATCH` | `/projects/{id}/migration-plans/{planId}/items/{itemId}` | Include or exclude an item |

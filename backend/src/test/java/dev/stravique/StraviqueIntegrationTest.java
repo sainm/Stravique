@@ -722,6 +722,39 @@ class StraviqueIntegrationTest {
         assertThat(listJspView).isNotNull();
         assertThat(webXml).isNotNull();
         assertThat(strutsConfig).isNotNull();
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/export",
+                        projectId, planId)
+                        .param("format", "json"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    JsonNode exported = objectMapper.readTree(
+                            result.getResponse().getContentAsByteArray());
+                    assertThat(exported.at("/plan/id").asText()).isEqualTo(planId);
+                    assertThat(exported.get("items").size()).isEqualTo(items.size());
+                    assertThat(exported.get("dependencies").isArray()).isTrue();
+                    assertThat(exported.get("phases").size()).isGreaterThan(0);
+                });
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/export",
+                        projectId, planId)
+                        .param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    byte[] body = result.getResponse().getContentAsByteArray();
+                    assertThat(body[0]).isEqualTo((byte) 0xEF);
+                    assertThat(body[1]).isEqualTo((byte) 0xBB);
+                    assertThat(body[2]).isEqualTo((byte) 0xBF);
+                    assertThat(new String(body, StandardCharsets.UTF_8))
+                            .contains("\"planSequence\"", "\"primaryFindingId\"");
+                });
+        mockMvc.perform(get("/api/v1/projects/{id}/migration-plans/{plan}/export",
+                        projectId, planId)
+                        .param("format", "markdown")
+                        .param("lang", "zh-CN"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    String body = result.getResponse().getContentAsString();
+                    assertThat(body).contains("迁移计划", "阶段", "任务", "依赖");
+                });
         String componentId = component.get("id").asText();
         mockMvc.perform(post("/api/v1/projects/{id}/migration-plans/{plan}/items/{item}/"
                         + "transformation-proposals", projectId, planId,

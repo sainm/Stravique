@@ -240,6 +240,13 @@ export const api = {
     lang?: string
   ) =>
     `${API_BASE}/projects/${projectId}/migration-plans/${planId}/comparison/export${queryString({ basePlanId, format, lang })}`,
+  migrationPlanExportUrl: (
+    projectId: string,
+    planId: string,
+    format: string,
+    lang?: string
+  ) =>
+    `${API_BASE}/projects/${projectId}/migration-plans/${planId}/export${queryString({ format, lang })}`,
   generateMigrationPlan: (
     projectId: string,
     input: {
