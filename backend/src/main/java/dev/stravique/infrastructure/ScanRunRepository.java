@@ -16,9 +16,14 @@ public interface ScanRunRepository extends JpaRepository<ScanRun, UUID> {
 
     List<ScanRun> findByProjectIdOrderBySequenceDesc(UUID projectId);
 
+    Optional<ScanRun> findByIdAndProjectId(UUID id, UUID projectId);
+
     Optional<ScanRun> findFirstByProjectIdOrderBySequenceDesc(UUID projectId);
 
     Optional<ScanRun> findFirstByProjectIdAndStatusOrderBySequenceDesc(UUID projectId, ScanStatus status);
+
+    Optional<ScanRun> findFirstByProjectIdAndStatusAndSequenceLessThanOrderBySequenceDesc(
+            UUID projectId, ScanStatus status, int sequence);
 
     boolean existsByProjectIdAndStatusIn(UUID projectId, Collection<ScanStatus> statuses);
 

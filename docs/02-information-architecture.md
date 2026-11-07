@@ -33,6 +33,8 @@ The persistent left rail contains brand, project navigation, language selection,
 - Shows how many analyzed files participate in evidence-backed cross-file relationships.
 - Highlights review-required and unresolved findings.
 - Shows the latest scan history and explicit no-scan state.
+- Compares any two completed scans by relative path, with added/removed/changed/unchanged/unknown counts, before/after file facts, a previous-completed default base, an explicit base selector, and an explicit unknown-content state in three languages.
+- Reports removed files separately from the current file total instead of counting them as inventory.
 - Starts or observes scanning without fake progress animation.
 
 ## Inventory Explorer
@@ -43,7 +45,7 @@ The explorer uses three panes:
 2. Virtualized-style paginated file list with search, type, and parse-status filters.
 3. Detail inspector with path, metadata, evidence, rule IDs, certainty, and parse state.
 
-Selecting a file loads persisted evidence. Evidence rows show the source range and snippet captured during analysis. Summaries can link directly to a filtered file or framework result. Empty and failed states explain what is missing.
+Selecting a file loads persisted evidence. Evidence rows show the source range and snippet captured during analysis. Summaries can link directly to a filtered file or framework result. Empty and failed states explain what is missing. Files removed before a scan are not listed as inventory; the scan reports their count separately.
 
 ## Framework Usage
 
@@ -80,7 +82,7 @@ Supported report families:
 - Parse failures.
 - Review and unresolved items.
 
-Each report exports CSV, JSON, or Markdown from the same persisted query used by the preview count. Export actions create an audit record. There are no client-side invented totals.
+Each report exports CSV, JSON, or Markdown from the same persisted query used by the preview count. Export actions create an audit record. There are no client-side invented totals. The file inventory report lists the scan's current files; removed files are reported by the scan's removed count rather than as inventory rows.
 
 ## Settings
 

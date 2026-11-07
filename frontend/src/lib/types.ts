@@ -19,6 +19,42 @@ export interface Scan {
   analyzerVersion: string;
 }
 
+export interface ScanComparisonFile {
+  fileType: string;
+  sizeBytes: number;
+  sha256?: string;
+  encoding?: string;
+  scanStatus: string;
+  parseStatus: string;
+  structureRole?: string;
+  generated: boolean;
+}
+
+export interface ScanComparisonRow {
+  status: string;
+  relativePath: string;
+  before?: ScanComparisonFile;
+  after?: ScanComparisonFile;
+}
+
+export interface ScanComparisonSummary {
+  added: number;
+  removed: number;
+  changed: number;
+  unchanged: number;
+  unknown: number;
+}
+
+export interface ScanComparison {
+  projectId: string;
+  scan: Scan;
+  baseScan: Scan;
+  summary: ScanComparisonSummary;
+  rows: ScanComparisonRow[];
+  truncated: boolean;
+  rowLimit: number;
+}
+
 export interface Project {
   id: string;
   name: string;

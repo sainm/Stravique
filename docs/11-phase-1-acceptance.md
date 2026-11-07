@@ -26,6 +26,8 @@ It covers the following acceptance areas.
 | Verify the running application | End-to-end stage scans the fixture over HTTP and asserts the exported bytes, headers, and localized errors |
 | Support three languages | Backend and frontend locale-key parity tests plus localized API error tests |
 | Preserve source | Integration test compares SHA-256, size, and modification time before and after scanning |
+| Compare scans | Integration test compares two completed scans by path, reports added/removed/changed counts, and refuses same, unknown, other-project, and non-completed scans |
+| Count current inventory | Files removed before a scan are excluded from scan counts, overview totals, and the paged file list, and are reported as a separate removed count |
 | Modern developer UI | Project routes are rendered at desktop and mobile widths in three languages |
 | Initial cross-file analysis | Java, Seasar2, configuration, Struts/SAStruts/JSP, DAO/SQL, and message relations are persisted with source evidence |
 | Generate a migration plan | REST integration test generates a plan from a completed fixture scan |

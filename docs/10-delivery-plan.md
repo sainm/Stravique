@@ -337,6 +337,19 @@ Gate: literal arguments become ordered `fmt:param` elements, unsupported argumen
 
 Gate: scope and filter map exactly to EL objects and `escapeXml`, unsupported forms are refused, tag structure stays balanced, the page restores byte-exactly, and all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
 
+## Phase 26 Scan snapshot comparison
+
+- `GET /projects/{id}/scans/{scanId}/comparison?baseScanId=...` compares two completed scans of the same project by relative path.
+- `DELETED` rows are change evidence, not inventory: scan counts, overview totals, file listings, the `FILES` report, plan inputs, transformation companions, and both comparison snapshots ignore them.
+- The default base is the previous completed scan by sequence; an explicit base may be any other completed scan in the project.
+- The response reports added, removed, changed, unchanged, and unknown counts. A common path is changed only when two content hashes differ, or when a hash is unavailable and the byte size differs; an unavailable hash with equal size is unknown, never unchanged.
+- Rows list only added, removed, changed, and unknown files in status and path order, with before/after type, size, encoding, scan status, parse status, structure role, and hash; unchanged rows are counted but not listed.
+- The response is capped at 2000 rows with `truncated` and `rowLimit`, while the summary still counts every row.
+- Same-scan comparison returns `409 SCAN_COMPARISON_SELF`; a missing previous scan or a non-completed scan returns `409 SCAN_COMPARISON_UNAVAILABLE`; unknown or other-project scans return `404 SCAN_NOT_FOUND`.
+- The Overview workspace offers a two-selector comparison dialog with five metrics, grouped rows, an explicit unknown-content state, and a removed count in scan history, in three languages and on narrow viewports.
+
+Gate: two completed scans report exact added/removed/changed/unchanged/unknown counts and do not list unchanged rows; removed files never appear as current inventory; missing hashes are never reported as unchanged; same, unknown, other-project, and non-completed comparisons are refused with their distinct codes; the comparison writes nothing; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
 ## Phase 4 close-out audit
 
 This table is the delivery checklist for the remaining domains. A domain is either **Done** with a vetted rule/version, or **Boundary** with the evidence that is missing and the condition that would justify a future rule. A boundary is not presented as supported in the product.

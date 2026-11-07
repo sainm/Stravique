@@ -8,6 +8,7 @@ import dev.stravique.api.dto.TransformationRunDto;
 import dev.stravique.config.StraviqueProperties;
 import dev.stravique.domain.AnalysisFinding;
 import dev.stravique.domain.AnalysisProject;
+import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.FileType;
 import dev.stravique.domain.MigrationItem;
 import dev.stravique.domain.MigrationItemType;
@@ -570,6 +571,7 @@ public class TransformationService {
         }
         if (primary.getFileType() == FileType.DICON) {
             return fileRepository.findByScanIdOrderByRelativePathAsc(plan.getScanId()).stream()
+                    .filter(file -> file.getChangeType() != FileChangeType.DELETED)
                     .filter(file -> file.getFileType() == FileType.JAVA
                             || file.getFileType() == FileType.DICON)
                     .filter(file -> !file.isGenerated())
@@ -582,6 +584,7 @@ public class TransformationService {
                     .toList();
         }
         return fileRepository.findByScanIdOrderByRelativePathAsc(plan.getScanId()).stream()
+                .filter(file -> file.getChangeType() != FileChangeType.DELETED)
                 .filter(file -> Objects.equals(file.getModuleId(), primary.getModuleId()))
                 .filter(file -> file.getFileType() == FileType.YAML
                         || file.getFileType() == FileType.PROPERTIES)

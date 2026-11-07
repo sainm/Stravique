@@ -102,6 +102,10 @@ Relations are scan-scoped and cascade with the scan row. Every read resolves the
 
 The graph endpoint caps a scan at 3000 relationships, ordered by relation type, evidence path, and line. It reports the true total in `relationCount`, the cap in `limit`, and sets `truncated` when the cap applied, so a partial graph is never presented as complete and the interface never hard-codes the number. Rendering keeps the browser responsive past the cap because the graph is drawn on a canvas with viewport culling and level-of-detail, so no DOM element is created per file, and label text stays crisp at any zoom because it is drawn in screen space. The paged relation table with type, certainty, and text filters remains the bounded entry point for exhaustive review. Measured on the shipped fixture, a scan of 29 files yields 26 relations and an 8 KB graph response, roughly 300 bytes per relation.
 
+## Scan comparison
+
+Two completed scans of one project are compared by relative path without re-reading the filesystem. `DELETED` rows are excluded from both snapshots, so a removal appears as `REMOVED` rather than as a phantom inventory row; the same rule applies to inventory counts, file listings, and the `FILES` report. A common path is `CHANGED` only when two content hashes differ, or when a hash is unavailable and the byte size differs; when a hash is unavailable and the size is equal, the row is `UNKNOWN` rather than `UNCHANGED`. The response counts added, removed, changed, unchanged, and unknown files, lists only the first four kinds in status and path order, and caps rows at 2000 while reporting the true summary counts and a truncation flag. The comparison writes nothing.
+
 ## Migration planning
 
 Phase 3 adds a planning layer over a completed scan. It does not invoke the inventory parsers again and exposes no source-write operation.

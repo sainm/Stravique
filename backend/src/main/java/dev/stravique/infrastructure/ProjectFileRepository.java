@@ -1,5 +1,6 @@
 package dev.stravique.infrastructure;
 
+import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.FileScanStatus;
 import dev.stravique.domain.FileType;
 import dev.stravique.domain.ProjectFile;
@@ -26,5 +27,5 @@ public interface ProjectFileRepository extends JpaRepository<ProjectFile, UUID>,
     Page<ProjectFile> findByScanIdAndScanStatus(UUID scanId, FileScanStatus scanStatus, Pageable pageable);
 
     long countByScanIdAndScanStatus(UUID scanId, FileScanStatus scanStatus);
-    long countByScanId(UUID scanId);
+    long countByScanIdAndChangeTypeNot(UUID scanId, FileChangeType changeType);
 }

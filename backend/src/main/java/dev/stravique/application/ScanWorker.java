@@ -315,7 +315,7 @@ public class ScanWorker {
                     root, project.getId(), scan.getId(), relationFiles,
                     properties.getAnalyzerVersion());
             relationRepository.saveAll(relations);
-            int totalFiles = seenPaths.size() + deletedFiles.size();
+            int totalFiles = seenPaths.size();
             scan.updateCounts(totalFiles, layout.modules().size(), analyzed, parseFailures, skipped,
                     frameworkFindings + diagnostics.size(), reviewCount, ledger.keys().size(),
                     deletedFiles.size());

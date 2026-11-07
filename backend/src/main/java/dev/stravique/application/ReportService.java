@@ -9,6 +9,7 @@ import dev.stravique.domain.AnalysisKind;
 import dev.stravique.domain.AnalysisProject;
 import dev.stravique.domain.AnalysisRelation;
 import dev.stravique.domain.Certainty;
+import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.ProjectFile;
 import dev.stravique.domain.ScanRun;
 import dev.stravique.infrastructure.AnalysisFindingRepository;
@@ -145,7 +146,8 @@ public class ReportService {
 
     private long countRows(ReportType type, ScanRun scan, Set<String> frameworkKeys) {
         return switch (type) {
-            case FILES -> fileRepository.countByScanId(scan.getId());
+            case FILES -> fileRepository.countByScanIdAndChangeTypeNot(
+                    scan.getId(), FileChangeType.DELETED);
             case STRUCTURE -> moduleRepository.countByScanId(scan.getId());
             case TECHNOLOGY -> technologyRepository.countByScanId(scan.getId());
             case FRAMEWORKS -> frameworkKeys.isEmpty() ? 0
@@ -164,25 +166,27 @@ public class ReportService {
     }
 
     private List<LinkedHashMap<String, Object>> files(ScanRun scan) {
-        return fileRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream().map(file -> {
-            LinkedHashMap<String, Object> row = new LinkedHashMap<>();
-            row.put("id", file.getId());
-            row.put("path", file.getRelativePath());
-            row.put("type", file.getFileType().name());
-            row.put("moduleId", file.getModuleId());
-            row.put("sizeBytes", file.getSizeBytes());
-            row.put("encoding", file.getEncoding());
-            row.put("lastModifiedAt", file.getLastModifiedAt());
-            row.put("scanStatus", file.getScanStatus().name());
-            row.put("parseStatus", file.getParseStatus().name());
-            row.put("parseError", file.getParseError());
-            row.put("frameworkApiCount", file.getFrameworkApiCount());
-            row.put("generated", file.isGenerated());
-            row.put("changeType", file.getChangeType().name());
-            row.put("structureRole", file.getStructureRole());
-            row.put("sha256", file.getSha256());
-            return row;
-        }).toList();
+        return fileRepository.findByScanIdOrderByRelativePathAsc(scan.getId()).stream()
+                .filter(file -> file.getChangeType() != FileChangeType.DELETED)
+                .map(file -> {
+                    LinkedHashMap<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", file.getId());
+                    row.put("path", file.getRelativePath());
+                    row.put("type", file.getFileType().name());
+                    row.put("moduleId", file.getModuleId());
+                    row.put("sizeBytes", file.getSizeBytes());
+                    row.put("encoding", file.getEncoding());
+                    row.put("lastModifiedAt", file.getLastModifiedAt());
+                    row.put("scanStatus", file.getScanStatus().name());
+                    row.put("parseStatus", file.getParseStatus().name());
+                    row.put("parseError", file.getParseError());
+                    row.put("frameworkApiCount", file.getFrameworkApiCount());
+                    row.put("generated", file.isGenerated());
+                    row.put("changeType", file.getChangeType().name());
+                    row.put("structureRole", file.getStructureRole());
+                    row.put("sha256", file.getSha256());
+                    return row;
+                }).toList();
     }
 
     private List<LinkedHashMap<String, Object>> structure(ScanRun scan) {

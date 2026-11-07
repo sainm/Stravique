@@ -18,6 +18,7 @@ import {
   Sparkles,
   TriangleAlert
 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
@@ -33,12 +34,14 @@ import {
   formatDuration,
   formatNumber
 } from "../../lib/format";
+import ScanComparisonModal from "./ScanComparisonModal";
 
 const activeStatuses = ["QUEUED", "RUNNING", "CANCEL_REQUESTED"];
 
 export default function OverviewPage() {
   const { projectId = "" } = useParams();
   const { t, i18n } = useTranslation();
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api.project(projectId)
@@ -398,7 +401,21 @@ export default function OverviewPage() {
                 <span className="eyebrow">{t("overview.historyEyebrow")}</span>
                 <h2>{t("overview.historyTitle")}</h2>
               </div>
-              <span className="section-note">{t("overview.historyNote")}</span>
+              <div className="scan-history-actions">
+                <span className="section-note">{t("overview.historyNote")}</span>
+                {data.recentScans.some(
+                  (item) => item.status === "COMPLETED"
+                ) ? (
+                  <button
+                    className="button button-quiet button-small"
+                    type="button"
+                    onClick={() => setComparisonOpen(true)}
+                  >
+                    <GitCompareArrows size={14} />
+                    {t("scanCompare.button")}
+                  </button>
+                ) : null}
+              </div>
             </header>
             <div className="history-list">
               {data.recentScans.map((item) => (
@@ -412,6 +429,13 @@ export default function OverviewPage() {
                     {t("overview.historyFiles", {
                       count: item.fileCount
                     })}
+                    {item.removedCount > 0 ? (
+                      <small className="history-removed">
+                        {t("overview.historyRemoved", {
+                          count: item.removedCount
+                        })}
+                      </small>
+                    ) : null}
                   </span>
                   <span>
                     {item.finishedAt
@@ -429,6 +453,11 @@ export default function OverviewPage() {
               ))}
             </div>
           </section>
+          <ScanComparisonModal
+            projectId={projectId}
+            open={comparisonOpen}
+            onClose={() => setComparisonOpen(false)}
+          />
         </>
       )}
     </>

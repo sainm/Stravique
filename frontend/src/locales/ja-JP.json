@@ -171,7 +171,40 @@
     "historyTitle": "棚卸実行",
     "historyNote": "新しいスキャンは変更不可の記録として保存されます。",
     "historyFiles": "{{count}} ファイル",
-    "historyReviews": "確認 {{count}} 件"
+    "historyReviews": "確認 {{count}} 件",
+    "historyRemoved": "{{count}} 件削除"
+  },
+  "scanCompare": {
+    "button": "スキャンを比較",
+    "title": "スキャン比較",
+    "description": "スキャン #{{current}} とスキャン #{{base}} を比較します。",
+    "descriptionPending": "完了済みの2回のスキャンを相対パスで比較します。",
+    "currentLabel": "現在のスキャン",
+    "baseLabel": "ベーススキャン",
+    "scanOption": "スキャン #{{number}} · {{date}}",
+    "needTwoScans": "スキャン内容を比較するには、完了済みのスキャンが2回以上必要です。",
+    "noBaseScans": "ベースとして利用できる他の完了済みスキャンがありません。",
+    "empty": "これらのスキャンの間に追加・削除・変更・不明のファイルはありません。",
+    "groupCount": "{{count}} ファイル",
+    "truncated": "変更行の先頭 {{count}} 件のみ表示しています。集計は全件を数えます。",
+    "before": "変更前",
+    "after": "変更後",
+    "none": "—",
+    "noHash": "内容ハッシュなし",
+    "unknownNote": "少なくとも一方に内容ハッシュがなく、バイトサイズも変わっていないため、変更の有無を確認できません。",
+    "metrics": {
+      "added": "追加",
+      "removed": "削除",
+      "changed": "変更",
+      "unchanged": "未変更",
+      "unknown": "不明"
+    },
+    "status": {
+      "ADDED": "追加",
+      "REMOVED": "削除",
+      "CHANGED": "変更",
+      "UNKNOWN": "不明"
+    }
   },
   "inventory": {
     "eyebrow": "棚卸エクスプローラー",

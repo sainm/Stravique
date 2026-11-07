@@ -49,6 +49,11 @@ The configured default is authoritative when the request carries no `Accept-Lang
 | `GET` | `/projects/{id}/scans` | Scan history |
 | `GET` | `/scans/{scanId}` | Scan status and counts |
 | `POST` | `/scans/{scanId}/cancel` | Cooperatively cancel |
+| `GET` | `/projects/{id}/scans/{scanId}/comparison?baseScanId=...` | Read-only snapshot comparison by relative path; defaults to the previous completed scan |
+
+A scan comparison requires two completed scans of the same project. Without `baseScanId`, the previous completed scan by sequence is used; a missing previous scan or a non-completed scan returns `409 SCAN_COMPARISON_UNAVAILABLE`, comparing a scan with itself returns `409 SCAN_COMPARISON_SELF`, and an unknown or other-project scan returns `404 SCAN_NOT_FOUND`. Files marked `DELETED` are not part of either inventory snapshot.
+
+The response reports added, removed, changed, unchanged, and unknown counts. A common path is `CHANGED` when both scans have a content hash and the hashes differ, or when a hash is missing and the byte size differs; it is `UNKNOWN` when a hash is missing on at least one side and the byte size is equal, so missing evidence is never reported as unchanged. Rows list only added, removed, changed, and unknown files, ordered by status and then relative path, and carry before/after file type, size, hash, encoding, scan status, parse status, structure role, and generated state. Unchanged files are counted but not listed. The response is capped at 2000 rows; `truncated` and `rowLimit` state the boundary while the summary still counts every row. The endpoint writes nothing.
 
 ## Inventory
 
@@ -137,7 +142,7 @@ The backup ledger is project-scoped and never returns backup paths. `restorable`
 
 Formats: `csv`, `json`, `markdown`. Every CSV cell is quoted and embedded quotes are doubled; a value whose first character is `=`, `+`, `-`, `@`, a tab, or a carriage return is prefixed with an apostrophe so a spreadsheet shows it as text instead of evaluating it as a formula. Consumers that need the raw value strip one leading apostrophe from such cells.
 
-Report types: `files`, `structure`, `technology`, `frameworks`, `relations`, `configuration`, `parse-errors`, `reviews`.
+Report types: `files`, `structure`, `technology`, `frameworks`, `relations`, `configuration`, `parse-errors`, `reviews`. The `files` report describes the selected scan's current inventory: rows marked `DELETED` are not exported or counted, and the scan's `removedCount` remains the place to read that change evidence.
 
 Exports accept optional `scanId` and `lang` query parameters. The export inherits the language resolution described above.
 

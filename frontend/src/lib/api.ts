@@ -24,6 +24,7 @@ import type {
   ReportDescriptor,
   RuntimeInfo,
   Scan,
+  ScanComparison,
   Technology,
   TransformationBackupLedger,
   TransformationBackupPrune,
@@ -130,6 +131,11 @@ export const api = {
   overview: (projectId: string) => request<Overview>(`/projects/${projectId}/overview`),
   scans: (projectId: string) => request<Scan[]>(`/projects/${projectId}/scans`),
   scan: (scanId: string) => request<Scan>(`/scans/${scanId}`),
+  scanComparison: (projectId: string, scanId: string, baseScanId?: string) =>
+    request<ScanComparison>(
+      `/projects/${projectId}/scans/${scanId}/comparison`,
+      { query: { baseScanId } }
+    ),
   startScan: (projectId: string) =>
     request<Scan>(`/projects/${projectId}/scans`, { method: "POST" }),
   cancelScan: (scanId: string) =>

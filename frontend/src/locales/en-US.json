@@ -171,7 +171,40 @@
     "historyTitle": "Inventory runs",
     "historyNote": "New scans create immutable records.",
     "historyFiles": "{{count}} files",
-    "historyReviews": "{{count}} review"
+    "historyReviews": "{{count}} review",
+    "historyRemoved": "{{count}} removed"
+  },
+  "scanCompare": {
+    "button": "Compare scans",
+    "title": "Scan comparison",
+    "description": "Scan #{{current}} compared with scan #{{base}}.",
+    "descriptionPending": "Compare two completed scans by relative path.",
+    "currentLabel": "Current scan",
+    "baseLabel": "Base scan",
+    "scanOption": "Scan #{{number}} · {{date}}",
+    "needTwoScans": "At least two completed scans are required to compare inventory snapshots.",
+    "noBaseScans": "No other completed scan is available as a base.",
+    "empty": "No added, removed, changed, or unknown files between these scans.",
+    "groupCount": "{{count}} file(s)",
+    "truncated": "Showing the first {{count}} changed rows. The summary counts every row.",
+    "before": "Before",
+    "after": "After",
+    "none": "—",
+    "noHash": "No content hash",
+    "unknownNote": "A content hash is unavailable for at least one side, and the byte size did not change; the file is neither confirmed changed nor unchanged.",
+    "metrics": {
+      "added": "Added",
+      "removed": "Removed",
+      "changed": "Changed",
+      "unchanged": "Unchanged",
+      "unknown": "Unknown"
+    },
+    "status": {
+      "ADDED": "Added",
+      "REMOVED": "Removed",
+      "CHANGED": "Changed",
+      "UNKNOWN": "Unknown"
+    }
   },
   "inventory": {
     "eyebrow": "Inventory Explorer",

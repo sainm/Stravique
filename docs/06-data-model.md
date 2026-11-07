@@ -43,7 +43,7 @@ Terminal states cannot return to running, and a cancel request never overwrites 
 | change type | `ADDED`, `MODIFIED`, `UNCHANGED`, `DELETED` |
 | generated | Boolean |
 
-Deleted files retain previous path metadata and are marked `DELETED`; source contents are not fabricated.
+Deleted files retain previous path metadata and are marked `DELETED`; source contents are not fabricated. A `DELETED` row is change evidence, not current inventory: file counts, the inventory tree and file list, the `FILES` report, plan generation, transformation companions, and scan comparison all ignore it. The scan's removed count reports these rows separately.
 
 ## Technology certainty
 

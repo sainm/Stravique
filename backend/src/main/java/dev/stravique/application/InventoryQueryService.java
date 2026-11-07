@@ -117,7 +117,10 @@ public class InventoryQueryService {
                     "RUN_SCAN", true);
         }
 
-        List<ProjectFile> files = fileRepository.findByScanIdOrderByRelativePathAsc(scan.getId());
+        List<ProjectFile> files = fileRepository.findByScanIdOrderByRelativePathAsc(scan.getId())
+                .stream()
+                .filter(file -> file.getChangeType() != FileChangeType.DELETED)
+                .toList();
         Map<String, Long> fileTypes = countBy(files.stream()
                 .collect(java.util.stream.Collectors.groupingBy(
                         file -> file.getFileType().name(), TreeMap::new,
@@ -183,6 +186,7 @@ public class InventoryQueryService {
         Specification<ProjectFile> specification = (root, criteriaQuery, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(builder.equal(root.get("scanId"), scan.getId()));
+            predicates.add(builder.notEqual(root.get("changeType"), FileChangeType.DELETED));
             if (query != null && !query.isBlank()) {
                 String value = "%" + query.strip().toLowerCase() + "%";
                 predicates.add(builder.or(

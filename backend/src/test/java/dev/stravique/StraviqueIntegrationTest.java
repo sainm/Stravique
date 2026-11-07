@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -3231,6 +3232,200 @@ class StraviqueIntegrationTest {
                     .andExpect(status().isOk());
         } finally {
             deleteRecursively(scaleProject);
+        }
+    }
+
+    @Test
+    void keepsRemovedFilesOutOfTheInventoryCounts() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build", "removal-fixture");
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        try {
+            String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "name", "Removal Fixture",
+                                    "sourcePath", tempProject.toString()))))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+            String firstScan = objectMapper.readTree(mockMvc.perform(
+                            post("/api/v1/projects/{id}/scans", projectId))
+                    .andExpect(status().isAccepted())
+                    .andReturn().getResponse().getContentAsString()).get("id").asText();
+            JsonNode before = awaitScan(firstScan);
+            int firstCount = before.get("fileCount").asInt();
+            assertThat(before.get("removedCount").asInt()).isZero();
+
+            Files.delete(tempProject.resolve("web-app/src/main/resources/messages.properties"));
+            Files.delete(tempProject.resolve("web-app/src/main/webapp/WEB-INF/struts-config.xml"));
+
+            String secondScan = objectMapper.readTree(mockMvc.perform(
+                            post("/api/v1/projects/{id}/scans", projectId))
+                    .andExpect(status().isAccepted())
+                    .andReturn().getResponse().getContentAsString()).get("id").asText();
+            JsonNode after = awaitScan(secondScan);
+            assertThat(after.get("status").asText()).isEqualTo("COMPLETED");
+            assertThat(after.get("fileCount").asInt()).isEqualTo(firstCount - 2);
+            assertThat(after.get("removedCount").asInt()).isEqualTo(2);
+
+            String overview = mockMvc.perform(get("/api/v1/projects/{id}/overview", projectId))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(objectMapper.readTree(overview).get("totalFiles").asInt())
+                    .isEqualTo(after.get("fileCount").asInt());
+
+            String files = mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                            .param("size", "1"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(objectMapper.readTree(files).get("totalElements").asInt())
+                    .isEqualTo(after.get("fileCount").asInt());
+
+            String reportRows = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/reports/FILES.json", projectId))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(objectMapper.readTree(reportRows).size())
+                    .isEqualTo(after.get("fileCount").asInt());
+
+            JsonNode descriptors = objectMapper.readTree(mockMvc.perform(get(
+                            "/api/v1/projects/{id}/reports", projectId))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString());
+            JsonNode fileDescriptor = null;
+            for (JsonNode descriptor : descriptors) {
+                if (descriptor.get("type").asText().equals("FILES")) {
+                    fileDescriptor = descriptor;
+                }
+            }
+            assertThat(fileDescriptor).isNotNull();
+            assertThat(fileDescriptor.get("rowCount").asInt())
+                    .isEqualTo(after.get("fileCount").asInt());
+        } finally {
+            deleteRecursively(tempProject);
+        }
+    }
+
+    @Test
+    void comparesCompletedScansByRelativePath() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build", "comparison-fixture");
+        deleteRecursively(tempProject);
+        copyRecursively(SAMPLE, tempProject);
+        try {
+            String projectId = objectMapper.readTree(mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "name", "Comparison Fixture",
+                                    "sourcePath", tempProject.toString()))))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString()).get("id").asText();
+            String firstScanId = objectMapper.readTree(mockMvc.perform(
+                            post("/api/v1/projects/{id}/scans", projectId))
+                    .andExpect(status().isAccepted())
+                    .andReturn().getResponse().getContentAsString()).get("id").asText();
+            JsonNode first = awaitScan(firstScanId);
+            assertThat(first.get("status").asText()).isEqualTo("COMPLETED");
+            int firstCount = first.get("fileCount").asInt();
+
+            Path webXml = tempProject.resolve("web-app/src/main/webapp/WEB-INF/web.xml");
+            Files.writeString(webXml, Files.readString(webXml) + "\n", StandardCharsets.UTF_8);
+            Files.writeString(tempProject.resolve(
+                            "web-app/src/main/java/com/example/legacy/AddedSupport.java"),
+                    """
+                            package com.example.legacy;
+
+                            public class AddedSupport {
+                            }
+                            """, StandardCharsets.UTF_8);
+            Files.delete(tempProject.resolve("web-app/src/main/resources/messages.properties"));
+            Files.delete(tempProject.resolve("web-app/src/main/webapp/WEB-INF/struts-config.xml"));
+
+            String secondScanId = objectMapper.readTree(mockMvc.perform(
+                            post("/api/v1/projects/{id}/scans", projectId))
+                    .andExpect(status().isAccepted())
+                    .andReturn().getResponse().getContentAsString()).get("id").asText();
+            JsonNode second = awaitScan(secondScanId);
+            assertThat(second.get("status").asText()).isEqualTo("COMPLETED");
+            assertThat(second.get("fileCount").asInt()).isEqualTo(firstCount - 1);
+            assertThat(second.get("removedCount").asInt()).isEqualTo(2);
+
+            String comparisonBody = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            projectId, secondScanId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.scan.id").value(secondScanId))
+                    .andExpect(jsonPath("$.baseScan.id").value(firstScanId))
+                    .andExpect(jsonPath("$.truncated").value(false))
+                    .andReturn().getResponse().getContentAsString();
+            JsonNode comparison = objectMapper.readTree(comparisonBody);
+            JsonNode summary = comparison.get("summary");
+            assertThat(summary.get("added").asInt()).isEqualTo(1);
+            assertThat(summary.get("removed").asInt()).isEqualTo(2);
+            assertThat(summary.get("changed").asInt()).isEqualTo(1);
+            assertThat(summary.get("unchanged").asInt()).isEqualTo(firstCount - 3);
+            assertThat(summary.get("unknown").asInt()).isZero();
+            JsonNode rows = comparison.get("rows");
+            assertThat(rows.size()).isEqualTo(4);
+            assertThat(rows.get(0).get("status").asText()).isEqualTo("ADDED");
+            assertThat(rows.get(0).get("relativePath").asText())
+                    .isEqualTo("web-app/src/main/java/com/example/legacy/AddedSupport.java");
+            assertThat(rows.get(0).hasNonNull("before")).isFalse();
+            assertThat(rows.get(0).get("after").get("fileType").asText()).isEqualTo("JAVA");
+            assertThat(rows.get(1).get("status").asText()).isEqualTo("REMOVED");
+            assertThat(rows.get(1).get("relativePath").asText())
+                    .isEqualTo("web-app/src/main/resources/messages.properties");
+            assertThat(rows.get(1).hasNonNull("after")).isFalse();
+            assertThat(rows.get(2).get("status").asText()).isEqualTo("REMOVED");
+            assertThat(rows.get(2).get("relativePath").asText())
+                    .isEqualTo("web-app/src/main/webapp/WEB-INF/struts-config.xml");
+            assertThat(rows.get(3).get("status").asText()).isEqualTo("CHANGED");
+            assertThat(rows.get(3).get("relativePath").asText())
+                    .isEqualTo("web-app/src/main/webapp/WEB-INF/web.xml");
+            assertThat(rows.get(3).get("before").get("sha256").asText())
+                    .isNotEqualTo(rows.get(3).get("after").get("sha256").asText());
+
+            mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            projectId, secondScanId)
+                            .param("baseScanId", firstScanId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.baseScan.id").value(firstScanId))
+                    .andExpect(jsonPath("$.summary.added").value(1));
+
+            mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            projectId, secondScanId)
+                            .param("baseScanId", secondScanId))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCAN_COMPARISON_SELF"));
+
+            String otherProjectId = objectMapper.readTree(mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "name", "Comparison Other Project",
+                                    "sourcePath", SAMPLE.toString()))))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString()).get("id").asText();
+            mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            otherProjectId, secondScanId))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCAN_NOT_FOUND"));
+            mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            projectId, UUID.randomUUID()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCAN_NOT_FOUND"));
+            mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            projectId, secondScanId)
+                            .param("baseScanId", UUID.randomUUID().toString()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCAN_NOT_FOUND"));
+
+            jdbcTemplate.update("UPDATE scan_run SET status = 'FAILED' WHERE id = ?::uuid", secondScanId);
+            mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
+                            projectId, secondScanId))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCAN_COMPARISON_UNAVAILABLE"));
+        } finally {
+            deleteRecursively(tempProject);
         }
     }
 
