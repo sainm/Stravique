@@ -32,6 +32,7 @@
 - Atomic source replacement: a replaced file keeps its own permissions and executable bit, a created file takes the platform default rather than the private mode of a staging file, a shorter replacement truncates, and no staging file survives.
 - Paged query ordering ends at the row identifier and never repeats a column, so offset paging cannot duplicate or drop rows that share a sort key.
 - Migration plan comparison calculator: added/removed/changed/unchanged counts, added-removed-changed row order with title/key ties, every compared field in stable order with nullable primary paths, and no rows for identical plans.
+- Override path policy: a plain directory resolves to its canonical path; links escaping the project directly or through a parent segment, missing directories, and parent traversal are refused with `OVERRIDE_PATH_INVALID`; a link staying inside is canonicalized.
 - Scan comparison calculator: added/removed/changed/unchanged/unknown counts, a size difference counting as changed when a hash is unavailable, equal unavailable hashes staying unknown rather than unchanged, unchanged rows staying out of the listed rows, and status-then-path ordering.
 
 ### Integration tests
@@ -71,6 +72,7 @@
 - Plan scope carry-over: regenerating with a same-scan source keeps the excluded leaf excluded and reports no comparison change against that source, while regeneration without carry-over includes it again; a cross-scan source is accepted when the new graph stays closed; unknown and other-project sources are not found; a newly introduced binding that makes an included item depend on the carried excluded item is refused with `MIGRATION_PLAN_CARRY_OVER_SCOPE_CONFLICT`.
 - Plan comparison export: CSV starts with a UTF-8 BOM and stable English columns and contains the scope change; Markdown localizes the Chinese title, plan lines, summary, and headers; JSON matches the comparison plan, summary, and current item ID; an unsupported format returns `MIGRATION_PLAN_COMPARISON_FORMAT_INVALID`.
 - Scan comparison: two completed scans of a copied fixture compare with exactly one added, one changed, and two removed files; the default base is the previous completed scan; same-scan, unknown, other-project, and non-completed scans are refused with their distinct codes; rows list added before removed before changed with before/after snapshots and no unchanged rows.
+- Path overrides: a symlink pointing outside the project is refused with `OVERRIDE_PATH_INVALID` without wiping the stored overrides, while a link staying inside is saved under its real path.
 - Removed files are excluded from scan counts, overview totals, the paged file list, and the `FILES` report descriptor and rows, while the removed count reports them separately.
 
 ### Fixture tests

@@ -66,14 +66,32 @@ public class ScanPathPolicy {
         }
     }
 
+    /**
+     * Resolves an override path to a directory that really exists inside the project.
+     * A lexical startsWith alone accepts a symlink (including one in a parent segment)
+     * that points outside the project, so the canonical path is checked as well.
+     */
     public Path resolveProjectRelative(Path projectRoot, String relativePath) {
         String normalized = relativePath == null ? "" : relativePath.replace('\\', '/');
-        Path resolved = projectRoot.resolve(normalized).normalize();
-        if (!resolved.startsWith(projectRoot)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "OVERRIDE_PATH_INVALID",
-                    "error.override.invalidPath");
+        try {
+            Path realRoot = projectRoot.toRealPath();
+            Path resolved = realRoot.resolve(normalized).normalize();
+            if (!resolved.startsWith(realRoot)) {
+                throw invalidOverridePath();
+            }
+            Path real = resolved.toRealPath();
+            if (!real.startsWith(realRoot)) {
+                throw invalidOverridePath();
+            }
+            return real;
+        } catch (IOException exception) {
+            throw invalidOverridePath();
         }
-        return resolved;
+    }
+
+    private ApiException invalidOverridePath() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "OVERRIDE_PATH_INVALID",
+                "error.override.invalidPath");
     }
 
     public List<String> allowedRoots() {

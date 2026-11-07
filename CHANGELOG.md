@@ -32,4 +32,5 @@ All notable changes to Stravique are documented in this file.
 
 ### Fixed
 
+- Path overrides resolve to canonical paths: a symlink leaving the project (including one in a parent segment) and a missing directory are refused with `OVERRIDE_PATH_INVALID`, while a link staying inside is stored under its real path rather than the link name.
 - Files marked `DELETED` no longer inflate scan file counts, overview totals, the inventory tree or file list, the `FILES` report (descriptor count and rows), or transformation companion reads. A scan reports the removed files separately, and inventory counts describe the files that exist in that snapshot.

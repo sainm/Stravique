@@ -3236,6 +3236,62 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void refusesOverridePathsThatEscapeTheProjectThroughASymlink() throws Exception {
+        Path tempProject = Path.of(System.getProperty("user.dir"), "build", "override-fixture");
+        Path outside = Path.of(System.getProperty("user.dir"), "build", "override-outside");
+        deleteRecursively(tempProject);
+        deleteRecursively(outside);
+        copyRecursively(SAMPLE, tempProject);
+        Files.createDirectories(outside);
+        try {
+            String projectResponse = mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "name", "Override Fixture",
+                                    "sourcePath", tempProject.toString()))))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            String projectId = objectMapper.readTree(projectResponse).get("id").asText();
+
+            mockMvc.perform(put("/api/v1/projects/{id}/path-overrides", projectId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    [{"relativePath":"web-app/views","role":"JSP_ROOT"}]
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].relativePath").value("web-app/views"));
+
+            Files.createSymbolicLink(tempProject.resolve("escaped"), outside);
+            mockMvc.perform(put("/api/v1/projects/{id}/path-overrides", projectId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    [{"relativePath":"escaped","role":"JAVA_SOURCE"}]
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("OVERRIDE_PATH_INVALID"));
+
+            // A refused replacement must not wipe the stored overrides.
+            mockMvc.perform(get("/api/v1/projects/{id}/path-overrides", projectId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].relativePath").value("web-app/views"));
+
+            // A link that stays inside the project is stored under its real path.
+            Files.createSymbolicLink(tempProject.resolve("views-link"),
+                    tempProject.resolve("web-app/views").toAbsolutePath());
+            mockMvc.perform(put("/api/v1/projects/{id}/path-overrides", projectId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    [{"relativePath":"views-link","role":"JSP_ROOT"}]
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].relativePath").value("web-app/views"));
+        } finally {
+            deleteRecursively(tempProject);
+            deleteRecursively(outside);
+        }
+    }
+
+    @Test
     void keepsRemovedFilesOutOfTheInventoryCounts() throws Exception {
         Path tempProject = Path.of(System.getProperty("user.dir"), "build", "removal-fixture");
         deleteRecursively(tempProject);
