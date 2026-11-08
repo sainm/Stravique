@@ -192,6 +192,12 @@
     "none": "—",
     "noHash": "无内容哈希",
     "unknownNote": "至少一侧缺少内容哈希，且字节大小未变化；无法确认该文件是否变更。",
+    "export": "导出",
+    "formats": {
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "json": "JSON"
+    },
     "metrics": {
       "added": "新增",
       "removed": "移除",
@@ -439,6 +445,7 @@
       "SCAN_CANCELLED": "棚卸扫描已取消",
       "SCAN_COMPLETED": "棚卸扫描已完成",
       "SCAN_FAILED": "棚卸扫描失败",
+      "SCAN_COMPARISON_EXPORTED": "扫描对比已导出",
       "REPORT_EXPORTED": "棚卸报告已导出"
     },
     "entity": {

@@ -33,6 +33,7 @@
 - Paged query ordering ends at the row identifier and never repeats a column, so offset paging cannot duplicate or drop rows that share a sort key.
 - Migration plan comparison calculator: added/removed/changed/unchanged counts, added-removed-changed row order with title/key ties, every compared field in stable order with nullable primary paths, and no rows for identical plans.
 - Override path policy: a plain directory resolves to its canonical path; links escaping the project directly or through a parent segment, missing directories, and parent traversal are refused with `OVERRIDE_PATH_INVALID`; a link staying inside is canonicalized.
+- Scan comparison export CSV: formula-trigger paths are prefixed, quotes and newlines stay inside one cell, and ordinary paths are unchanged; the exporter shares the report CSV guard instead of keeping a second escaping implementation.
 - Scan comparison calculator: added/removed/changed/unchanged/unknown counts, a size difference counting as changed when a hash is unavailable, equal unavailable hashes staying unknown rather than unchanged, unchanged rows staying out of the listed rows, and status-then-path ordering.
 
 ### Integration tests
@@ -73,6 +74,7 @@
 - Plan comparison export: CSV starts with a UTF-8 BOM and stable English columns and contains the scope change; Markdown localizes the Chinese title, plan lines, summary, and headers; JSON matches the comparison plan, summary, and current item ID; an unsupported format returns `MIGRATION_PLAN_COMPARISON_FORMAT_INVALID`.
 - Scan comparison: two completed scans of a copied fixture compare with exactly one added, one changed, and two removed files; the default base is the previous completed scan; same-scan, unknown, other-project, and non-completed scans are refused with their distinct codes; rows list added before removed before changed with before/after snapshots and no unchanged rows.
 - Path overrides: a symlink pointing outside the project is refused with `OVERRIDE_PATH_INVALID` without wiping the stored overrides, while a link staying inside is saved under its real path.
+- Scan comparison export: CSV starts with a UTF-8 BOM and stable quoted English columns and contains added, removed, and changed rows; Markdown localizes the Chinese title, scan lines, summary, and headers; JSON matches the comparison scan, base, summary, and row count; an unsupported format returns `SCAN_COMPARISON_FORMAT_INVALID`, a self base returns `SCAN_COMPARISON_SELF`, and three successful downloads write three audit events.
 - Removed files are excluded from scan counts, overview totals, the paged file list, and the `FILES` report descriptor and rows, while the removed count reports them separately.
 
 ### Fixture tests
@@ -115,6 +117,7 @@ Use MockMvc for successful and failure paths:
 - Relation graph layout: layered depth, sibling stacking, cycles, isolated nodes, and inferred propagation.
 - Migration dependency graph conversion and prerequisite-before-dependent layers.
 - Plan comparison grouping order, field value localization, and base-version options/defaulting.
+- Scan comparison export URLs carry the base scan, format, and active interface language, and omit the language when none is active.
 - Scan comparison grouping order, completed-scan defaults, previous-completed base defaulting, hash shortening, and a rendered dialog that defaults to the latest completed scan, renders all five metrics and groups, refetches on current-scan change, and states when fewer than two completed scans exist.
 - Report URL generation.
 - Migration page batch selection: excluding an item drops it from the batch and refetches the plan-wide coverage, using a rendered page with a stubbed API rather than isolated helpers.

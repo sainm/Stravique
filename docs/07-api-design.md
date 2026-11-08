@@ -50,10 +50,13 @@ The configured default is authoritative when the request carries no `Accept-Lang
 | `GET` | `/scans/{scanId}` | Scan status and counts |
 | `POST` | `/scans/{scanId}/cancel` | Cooperatively cancel |
 | `GET` | `/projects/{id}/scans/{scanId}/comparison?baseScanId=...` | Read-only snapshot comparison by relative path; defaults to the previous completed scan |
+| `GET` | `/projects/{id}/scans/{scanId}/comparison/export?format=...` | Download the snapshot comparison as CSV, Markdown, or JSON |
 
 A scan comparison requires two completed scans of the same project. Without `baseScanId`, the previous completed scan by sequence is used; a missing previous scan or a non-completed scan returns `409 SCAN_COMPARISON_UNAVAILABLE`, comparing a scan with itself returns `409 SCAN_COMPARISON_SELF`, and an unknown or other-project scan returns `404 SCAN_NOT_FOUND`. Files marked `DELETED` are not part of either inventory snapshot.
 
 The response reports added, removed, changed, unchanged, and unknown counts. A common path is `CHANGED` when both scans have a content hash and the hashes differ, or when a hash is missing and the byte size differs; it is `UNKNOWN` when a hash is missing on at least one side and the byte size is equal, so missing evidence is never reported as unchanged. Rows list only added, removed, changed, and unknown files, ordered by status and then relative path, and carry before/after file type, size, hash, encoding, scan status, parse status, structure role, and generated state. Unchanged files are counted but not listed. The response is capped at 2000 rows; `truncated` and `rowLimit` state the boundary while the summary still counts every row. The endpoint writes nothing.
+
+`GET /projects/{id}/scans/{scanId}/comparison/export` reuses those guards and accepts `csv`, `json`, or `markdown`; an unsupported format returns `400 SCAN_COMPARISON_FORMAT_INVALID`. CSV keeps stable English columns and a UTF-8 BOM, Markdown localizes its title, scan lines, summary, column headers, empty state, and truncation notice through `lang`/`Accept-Language`, and JSON is the comparison response. Every format contains only the listed added, removed, changed, and unknown rows. CSV cells are quoted and values a spreadsheet would evaluate are prefixed, sharing the guard used by every other report export. Each successful download writes a `SCAN_COMPARISON_EXPORTED` audit event.
 
 ## Inventory
 

@@ -192,6 +192,12 @@
     "none": "—",
     "noHash": "No content hash",
     "unknownNote": "A content hash is unavailable for at least one side, and the byte size did not change; the file is neither confirmed changed nor unchanged.",
+    "export": "Export",
+    "formats": {
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "json": "JSON"
+    },
     "metrics": {
       "added": "Added",
       "removed": "Removed",
@@ -439,6 +445,7 @@
       "SCAN_CANCELLED": "Inventory scan cancelled",
       "SCAN_COMPLETED": "Inventory scan completed",
       "SCAN_FAILED": "Inventory scan failed",
+      "SCAN_COMPARISON_EXPORTED": "Scan comparison exported",
       "REPORT_EXPORTED": "Inventory report exported"
     },
     "entity": {

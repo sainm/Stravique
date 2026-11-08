@@ -3448,6 +3448,72 @@ class StraviqueIntegrationTest {
                     .andExpect(jsonPath("$.baseScan.id").value(firstScanId))
                     .andExpect(jsonPath("$.summary.added").value(1));
 
+            byte[] csvBytes = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/scans/{scanId}/comparison/export",
+                            projectId, secondScanId)
+                            .param("format", "csv"))
+                    .andExpect(status().isOk())
+                    .andExpect(result -> assertThat(result.getResponse()
+                            .getHeader("Content-Disposition"))
+                            .contains("stravique-scan-comparison-2-vs-1.csv"))
+                    .andReturn().getResponse().getContentAsByteArray();
+            assertThat(csvBytes[0]).isEqualTo((byte) 0xEF);
+            assertThat(csvBytes[1]).isEqualTo((byte) 0xBB);
+            assertThat(csvBytes[2]).isEqualTo((byte) 0xBF);
+            String csv = new String(csvBytes, StandardCharsets.UTF_8);
+            assertThat(csv)
+                    .startsWith("\uFEFF\"status\",\"relativePath\",\"beforeType\",\"afterType\","
+                            + "\"beforeSizeBytes\",\"afterSizeBytes\",\"beforeSha256\",\"afterSha256\","
+                            + "\"beforeEncoding\",\"afterEncoding\",\"beforeScanStatus\",\"afterScanStatus\","
+                            + "\"beforeParseStatus\",\"afterParseStatus\"")
+                    .contains("\"ADDED\"")
+                    .contains("\"REMOVED\"")
+                    .contains("\"CHANGED\"")
+                    .contains("AddedSupport.java");
+            String markdown = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/scans/{scanId}/comparison/export",
+                            projectId, secondScanId)
+                            .param("format", "markdown")
+                            .param("lang", "zh-CN"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(markdown)
+                    .contains("# 扫描对比")
+                    .contains("当前扫描 #2")
+                    .contains("基线扫描 #1")
+                    .contains("新增 1，移除 2，变更 1，未变 ")
+                    .contains("| 状态 | 相对路径 |")
+                    .contains("AddedSupport.java");
+            String exportedJson = mockMvc.perform(get(
+                            "/api/v1/projects/{id}/scans/{scanId}/comparison/export",
+                            projectId, secondScanId)
+                            .param("format", "json"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            JsonNode exportedComparison = objectMapper.readTree(exportedJson);
+            assertThat(exportedComparison.at("/scan/id").asText()).isEqualTo(secondScanId);
+            assertThat(exportedComparison.at("/baseScan/id").asText()).isEqualTo(firstScanId);
+            assertThat(exportedComparison.at("/summary/added").asInt()).isEqualTo(1);
+            assertThat(exportedComparison.at("/rows").size()).isEqualTo(4);
+            mockMvc.perform(get(
+                            "/api/v1/projects/{id}/scans/{scanId}/comparison/export",
+                            projectId, secondScanId)
+                            .param("format", "xml"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCAN_COMPARISON_FORMAT_INVALID"));
+            mockMvc.perform(get(
+                            "/api/v1/projects/{id}/scans/{scanId}/comparison/export",
+                            projectId, secondScanId)
+                            .param("format", "csv")
+                            .param("baseScanId", secondScanId))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCAN_COMPARISON_SELF"));
+            Integer exportAuditCount = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM audit_event WHERE entity_id = ? "
+                            + "AND action = 'SCAN_COMPARISON_EXPORTED'",
+                    Integer.class, secondScanId);
+            assertThat(exportAuditCount).isEqualTo(3);
+
             mockMvc.perform(get("/api/v1/projects/{id}/scans/{scanId}/comparison",
                             projectId, secondScanId)
                             .param("baseScanId", secondScanId))

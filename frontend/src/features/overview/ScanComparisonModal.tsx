@@ -148,6 +148,25 @@ export default function ScanComparisonModal({
           ) : null}
           {comparison ? (
             <>
+              <div className="migration-comparison-export">
+                <span>{t("scanCompare.export")}</span>
+                {(["csv", "markdown", "json"] as const).map((format) => (
+                  <a
+                    key={format}
+                    className="migration-chip"
+                    href={api.scanComparisonExportUrl(
+                      projectId,
+                      comparison.scan.id,
+                      comparison.baseScan.id,
+                      format,
+                      i18n.language
+                    )}
+                    download
+                  >
+                    {t(`scanCompare.formats.${format}`)}
+                  </a>
+                ))}
+              </div>
               <div className="migration-comparison-metrics scan-comparison-metrics">
                 {(
                   ["added", "removed", "changed", "unchanged", "unknown"] as const

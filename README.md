@@ -283,6 +283,7 @@ Implemented:
 - Phase 25 JSP write scope and filter: literal `bean:write` scopes map to EL scope objects and `filter="false"` maps to `escapeXml="false"`; unknown scopes, non-boolean filters, and `ignore`/`format` remain refused.
 - Phase 26 scan snapshot comparison: any two completed scans of one project compare by relative path with added/removed/changed/unchanged/unknown counts, before/after file facts, a previous-completed default base, explicit base selection, and a 2000-row boundary; `DELETED` rows are not inventory, and unknown content is never reported as unchanged.
 - Phase 22 plan comparison export: the comparison downloads as CSV with stable English columns and a UTF-8 BOM, localized Markdown with plan and summary lines, or JSON isomorphic to the comparison API; only added, removed, and changed rows are exported, and unsupported formats are refused.
+- Phase 27 scan comparison export: the snapshot comparison downloads as CSV with stable English columns and a UTF-8 BOM, localized Markdown with a summary and truncation notice, or JSON isomorphic to the comparison API; CSV cells share the spreadsheet-formula guard used by other report exports, unsupported formats are refused, and each download is audited.
 - Review visibility.
 - Reports.
 

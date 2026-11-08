@@ -80,7 +80,17 @@ const state = vi.hoisted(() => {
 vi.mock("../lib/api", () => ({
   api: {
     scans: state.scans,
-    scanComparison: state.comparison
+    scanComparison: state.comparison,
+    scanComparisonExportUrl: (
+      projectId: string,
+      scanId: string,
+      baseScanId: string,
+      format: string,
+      lang?: string
+    ) =>
+      `/api/v1/projects/${projectId}/scans/${scanId}/comparison/export?baseScanId=${baseScanId}&format=${format}${
+        lang ? `&lang=${lang}` : ""
+      }`
   }
 }));
 

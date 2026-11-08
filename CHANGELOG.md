@@ -16,6 +16,7 @@ All notable changes to Stravique are documented in this file.
 - Plan comparison export in CSV, localized Markdown, and JSON: only added, removed, and changed rows are written, CSV keeps stable English columns and a UTF-8 BOM, Markdown adds the plan/base summary, and unsupported formats are refused.
 - Read-only scan snapshot comparison by relative path across any two completed scans: added, removed, changed, unchanged, and unknown counts, before/after type, size, encoding, status, and hash snapshots, a previous-completed default base, explicit base selection, and a 2000-row boundary with true summary counts.
 - Scan-to-scan comparison in the Overview workspace with two selectors, five summary metrics, grouped rows, an explicit unknown-content state, and three-language labels; scan history also shows removed counts without mixing them into the current file total.
+- Scan comparison export in CSV, Markdown, and JSON: stable English CSV columns with a UTF-8 BOM, localized Markdown with a summary and truncation notice, JSON isomorphic to the comparison response, three-language download links for the selected base, and an audit event per export; unsupported formats are refused.
 - `JSP-BEAN-MESSAGE-JSTL` `1.3.0` converts contiguous literal message arguments (`arg0`..`arg3`) into nested `fmt:param` elements; argument gaps, EL/script values, unsafe text, and unknown attributes are refused.
 - `JSP-BEAN-MESSAGE-JSTL` `1.4.0` maps literal `bean:write` scopes to EL scope objects and `filter="false"` to `escapeXml="false"`; unknown scopes, non-boolean filters, `ignore`, and `format` remain refused.
 - `DICON-COMPONENT-SPRING-CONFIG` `1.6.0`: create-only Spring `@Configuration` generation for explicit dicon components, same-module relative include chains merged from the root dicon, anonymous components nested in properties and constructor arguments with deterministic bean names, reference properties/arguments, typed String/boolean/int/long/double literals, supported scopes, and existing no-arg init methods.
@@ -28,9 +29,10 @@ All notable changes to Stravique are documented in this file.
 - `WEBXML-JAKARTA-NAMESPACE` `1.2.0` also rewrites vetted `javax.*` class names in `servlet-class`, `filter-class`, `listener-class`, and `exception-type`, and can apply the class-name migration alone to a Jakarta EE 6.0 descriptor.
 - `JAVAX-TO-JAKARTA` and the `web.xml` rule share one vetted `JakartaMappings` table so package and class-name migration cannot drift apart.
 - Proposal preparation is reusable by a read-only probe, so coverage reports exactly whether the current rule can build a proposal without persisting one.
-- The vetted rule catalog now publishes twelve rules, with current versions surfaced to the inspector and the browser checks; documentation, README, and delivery plan are updated through Phase 26.
+- The vetted rule catalog now publishes twelve rules, with current versions surfaced to the inspector and the browser checks; documentation, README, and delivery plan are updated through Phase 27.
 
 ### Fixed
 
+- Scan comparison CSV cells use the same spreadsheet-formula guard as every other report export, so a path beginning with a formula trigger is prefixed rather than evaluated.
 - Path overrides resolve to canonical paths: a symlink leaving the project (including one in a parent segment) and a missing directory are refused with `OVERRIDE_PATH_INVALID`, while a link staying inside is stored under its real path rather than the link name.
 - Files marked `DELETED` no longer inflate scan file counts, overview totals, the inventory tree or file list, the `FILES` report (descriptor count and rows), or transformation companion reads. A scan reports the removed files separately, and inventory counts describe the files that exist in that snapshot.

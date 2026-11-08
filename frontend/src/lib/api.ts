@@ -136,6 +136,14 @@ export const api = {
       `/projects/${projectId}/scans/${scanId}/comparison`,
       { query: { baseScanId } }
     ),
+  scanComparisonExportUrl: (
+    projectId: string,
+    scanId: string,
+    baseScanId: string,
+    format: string,
+    lang?: string
+  ) =>
+    `${API_BASE}/projects/${projectId}/scans/${scanId}/comparison/export${queryString({ baseScanId, format, lang })}`,
   startScan: (projectId: string) =>
     request<Scan>(`/projects/${projectId}/scans`, { method: "POST" }),
   cancelScan: (scanId: string) =>

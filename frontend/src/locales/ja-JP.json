@@ -192,6 +192,12 @@
     "none": "—",
     "noHash": "内容ハッシュなし",
     "unknownNote": "少なくとも一方に内容ハッシュがなく、バイトサイズも変わっていないため、変更の有無を確認できません。",
+    "export": "エクスポート",
+    "formats": {
+      "csv": "CSV",
+      "markdown": "Markdown",
+      "json": "JSON"
+    },
     "metrics": {
       "added": "追加",
       "removed": "削除",
@@ -439,6 +445,7 @@
       "SCAN_CANCELLED": "棚卸スキャンをキャンセル",
       "SCAN_COMPLETED": "棚卸スキャン完了",
       "SCAN_FAILED": "棚卸スキャン失敗",
+      "SCAN_COMPARISON_EXPORTED": "スキャン比較をエクスポート",
       "REPORT_EXPORTED": "棚卸レポートをエクスポート"
     },
     "entity": {

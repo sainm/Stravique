@@ -350,6 +350,16 @@ Gate: scope and filter map exactly to EL objects and `escapeXml`, unsupported fo
 
 Gate: two completed scans report exact added/removed/changed/unchanged/unknown counts and do not list unchanged rows; removed files never appear as current inventory; missing hashes are never reported as unchanged; same, unknown, other-project, and non-completed comparisons are refused with their distinct codes; the comparison writes nothing; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
 
+## Phase 27 Scan snapshot comparison export
+
+- `GET /projects/{id}/scans/{scanId}/comparison/export?format=...` downloads the snapshot comparison as CSV, Markdown, or JSON and accepts the same `baseScanId` guards as the comparison endpoint.
+- CSV uses stable English column names, quotes every value, prefixes cells a spreadsheet would evaluate, and starts with a UTF-8 BOM; the escaping is shared with the other report exports.
+- Markdown localizes its title, scan lines, summary, column headers, empty state, and truncation notice through `lang`/`Accept-Language`; JSON is the comparison response.
+- Every format contains only the listed added, removed, changed, and unknown rows. An unsupported format returns `400 SCAN_COMPARISON_FORMAT_INVALID`; each successful download writes a `SCAN_COMPARISON_EXPORTED` audit event.
+- The comparison dialog exposes CSV, Markdown, and JSON download links for the currently selected base and active interface language.
+
+Gate: CSV, Markdown, and JSON downloads match the current comparison and base; CSV headers, BOM, and formula guard are stable; Markdown localizes in all three languages; JSON stays isomorphic to the API; invalid formats and a self base are refused; each download is audited; all backend, frontend, end-to-end, visual, i18n, and documentation checks stay green.
+
 ## Phase 4 close-out audit
 
 This table is the delivery checklist for the remaining domains. A domain is either **Done** with a vetted rule/version, or **Boundary** with the evidence that is missing and the condition that would justify a future rule. A boundary is not presented as supported in the product.

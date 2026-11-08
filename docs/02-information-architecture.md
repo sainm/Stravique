@@ -35,6 +35,7 @@ The persistent left rail contains brand, project navigation, language selection,
 - Shows the latest scan history and explicit no-scan state.
 - Compares any two completed scans by relative path, with added/removed/changed/unchanged/unknown counts, before/after file facts, a previous-completed default base, an explicit base selector, and an explicit unknown-content state in three languages.
 - Reports removed files separately from the current file total instead of counting them as inventory.
+- Offers CSV, Markdown, and JSON download links for the displayed comparison, using the selected base and the active interface language.
 - Starts or observes scanning without fake progress animation.
 
 ## Inventory Explorer
