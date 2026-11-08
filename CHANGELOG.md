@@ -21,7 +21,7 @@ All notable changes to Stravique are documented in this file.
 - `JSP-BEAN-MESSAGE-JSTL` `1.4.0` maps literal `bean:write` scopes to EL scope objects and `filter="false"` to `escapeXml="false"`; unknown scopes, non-boolean filters, `ignore`, and `format` remain refused.
 - `DICON-COMPONENT-SPRING-CONFIG` `1.6.0`: create-only Spring `@Configuration` generation for explicit dicon components, same-module relative include chains merged from the root dicon, anonymous components nested in properties and constructor arguments with deterministic bean names, reference properties/arguments, typed String/boolean/int/long/double literals, supported scopes, and existing no-arg init methods.
 - Three-language controls for coverage, plan-run progress/cancel/resume/recover/restore, backup pruning, and plan comparison; the dicon inspector describes includes, nested components, naming, and refusal boundaries.
-- Unit, integration, end-to-end, and browser visual checks for plan runs, backup ledgers, dicon rules, plan comparison, and scan snapshot comparison, including source-byte identity and isolate-fixture immutability.
+- Unit, integration, end-to-end, and browser visual checks for plan runs, plan run polling, backup ledgers, dicon rules, plan comparison, and scan snapshot comparison, including source-byte identity and isolate-fixture immutability.
 
 ### Changed
 

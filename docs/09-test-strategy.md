@@ -121,6 +121,7 @@ Use MockMvc for successful and failure paths:
 - Scan comparison grouping order, completed-scan defaults, previous-completed base defaulting, hash shortening, and a rendered dialog that defaults to the latest completed scan, renders all five metrics and groups, refetches on current-scan change, and states when fewer than two completed scans exist.
 - Report URL generation.
 - Migration page batch selection: excluding an item drops it from the batch and refetches the plan-wide coverage, using a rendered page with a stubbed API rather than isolated helpers.
+- Plan run polling: a rendered page starts a plan-wide run, fails the run status poll, and shows that failure instead of leaving the progress count frozen with no way out.
 - Navigation and responsive class contracts.
 
 ## Visual verification

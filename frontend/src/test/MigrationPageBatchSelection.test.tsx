@@ -66,7 +66,9 @@ const state = vi.hoisted(() => {
     updateScope: vi.fn(),
     coverage: vi.fn(),
     backups: vi.fn(),
-    applyTransformation: vi.fn()
+    applyTransformation: vi.fn(),
+    startPlanRun: vi.fn(),
+    planRunDetail: vi.fn()
   };
 });
 
@@ -122,6 +124,8 @@ vi.mock("../lib/api", () => ({
     applyTransformation: state.applyTransformation,
     transformationBackups: state.backups,
     transformationPlanRuns: async () => [],
+    transformationPlanRun: state.planRunDetail,
+    applyTransformationPlanRun: state.startPlanRun,
     transformationRuns: async () => [],
     updateMigrationScope: state.updateScope
   }
@@ -241,5 +245,77 @@ describe("MigrationPage batch selection", () => {
     await waitFor(() =>
       expect(state.coverage.mock.calls.length).toBeGreaterThan(before)
     );
+  });
+});
+
+describe("MigrationPage plan run polling", () => {
+  beforeEach(() => {
+    state.startPlanRun.mockReset();
+    state.startPlanRun.mockResolvedValue({
+      id: "run-1",
+      planId: "plan-1",
+      status: "RUNNING",
+      items: [],
+      appliedCount: 0,
+      failedCount: 0
+    });
+    state.planRunDetail.mockReset();
+    state.planRunDetail.mockRejectedValue(
+      new Error("The plan run status could not be read.")
+    );
+    state.coverage.mockReset();
+    state.coverage.mockResolvedValue({
+      planId: "plan-1",
+      scanId: "scan-1",
+      ruleCount: 1,
+      items: [
+        {
+          itemId: "item-1",
+          title: "item-1.java",
+          itemType: "COMPONENT_BEAN",
+          targetKey: "SPRING_DI",
+          status: "READY",
+          included: true,
+          supported: true,
+          eligible: true,
+          proposalCount: 0,
+          appliedRunCount: 0,
+          restoredRunCount: 0
+        }
+      ],
+      summary: {
+        items: 1,
+        supported: 1,
+        unsupported: 0,
+        eligible: 1,
+        excluded: 0,
+        reviewRequired: 0,
+        blocked: 0,
+        proposals: 0,
+        appliedRuns: 0,
+        restoredRuns: 0
+      }
+    });
+  });
+
+  it("surfaces a failed plan run poll instead of freezing on the progress count", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const run = await screen.findByRole("button", { name: /run selected items/i });
+    await waitFor(() => expect(run).toBeEnabled());
+    await user.click(run);
+
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: /i understand this writes every eligible item/i
+      })
+    );
+    await user.click(screen.getByRole("button", { name: /^run plan$/i }));
+
+    await waitFor(() => expect(state.planRunDetail).toHaveBeenCalled());
+    expect(
+      await screen.findByText("The plan run status could not be read.")
+    ).toBeInTheDocument();
   });
 });
