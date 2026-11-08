@@ -76,6 +76,8 @@ The response reports added, removed, changed, unchanged, and unknown counts. A c
 
 The graph response carries `relationCount`, the true total under the current filters, `limit`, the cap the endpoint applied, and `truncated`, which is `true` when only the first `limit` relationships were returned in relation type, evidence path, and line order. Aggregated nodes and edges are always computed from the returned rows, so a truncated graph stays internally consistent; `relationCount` still reports what the scan actually holds, so a partial graph is never mistaken for a complete one. Clients should surface the flag, state the cap from `limit` rather than hard-coding it, and offer the paged relation table for exhaustive review.
 
+The file list parses `fileType`, `scanStatus`, and `structureRole` as enums, so those filters compare case-insensitively and an unknown value is refused with `400 INVALID_FILTER` instead of quietly matching nothing. `structureRole` accepts the `PathRole` value recorded for a file's position in the project, such as `JAVA_SOURCE`, `JSP_ROOT`, or `CONFIGURATION`.
+
 ## Migration planning
 
 | Method | Path | Purpose |

@@ -26,6 +26,7 @@ import dev.stravique.domain.Certainty;
 import dev.stravique.domain.FileChangeType;
 import dev.stravique.domain.FileScanStatus;
 import dev.stravique.domain.FileType;
+import dev.stravique.domain.PathRole;
 import dev.stravique.domain.ProjectFile;
 import dev.stravique.domain.ScanRun;
 import dev.stravique.domain.ScanStatus;
@@ -202,7 +203,8 @@ public class InventoryQueryService {
                         parseEnum(FileScanStatus.class, scanStatus)));
             }
             if (structureRole != null && !structureRole.isBlank()) {
-                predicates.add(builder.equal(root.get("structureRole"), structureRole));
+                predicates.add(builder.equal(root.get("structureRole"),
+                        parseEnum(PathRole.class, structureRole).name()));
             }
             if (moduleId != null) {
                 predicates.add(builder.equal(root.get("moduleId"), moduleId));

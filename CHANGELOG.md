@@ -33,6 +33,7 @@ All notable changes to Stravique are documented in this file.
 
 ### Fixed
 
+- The file list's `structureRole` filter now parses the role like every other enum filter, so it is case-insensitive and trims, and an unknown role is refused with `INVALID_FILTER` instead of silently matching nothing.
 - Scan comparison CSV cells use the same spreadsheet-formula guard as every other report export, so a path beginning with a formula trigger is prefixed rather than evaluated.
 - Path overrides resolve to canonical paths: a symlink leaving the project (including one in a parent segment) and a missing directory are refused with `OVERRIDE_PATH_INVALID`, while a link staying inside is stored under its real path rather than the link name.
 - Files marked `DELETED` no longer inflate scan file counts, overview totals, the inventory tree or file list, the `FILES` report (descriptor count and rows), or transformation companion reads. A scan reports the removed files separately, and inventory counts describe the files that exist in that snapshot.

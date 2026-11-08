@@ -75,6 +75,7 @@
 - Scan comparison: two completed scans of a copied fixture compare with exactly one added, one changed, and two removed files; the default base is the previous completed scan; same-scan, unknown, other-project, and non-completed scans are refused with their distinct codes; rows list added before removed before changed with before/after snapshots and no unchanged rows.
 - Path overrides: a symlink pointing outside the project is refused with `OVERRIDE_PATH_INVALID` without wiping the stored overrides, while a link staying inside is saved under its real path.
 - Scan comparison export: CSV starts with a UTF-8 BOM and stable quoted English columns and contains added, removed, and changed rows; Markdown localizes the Chinese title, scan lines, summary, and headers; JSON matches the comparison scan, base, summary, and row count; an unsupported format returns `SCAN_COMPARISON_FORMAT_INVALID`, a self base returns `SCAN_COMPARISON_SELF`, and three successful downloads write three audit events.
+- File list filters: `structureRole` matches case-insensitively and returns exactly the rows an uppercase role returns, while an unknown role is refused with `INVALID_FILTER`.
 - Removed files are excluded from scan counts, overview totals, the paged file list, and the `FILES` report descriptor and rows, while the removed count reports them separately.
 
 ### Fixture tests

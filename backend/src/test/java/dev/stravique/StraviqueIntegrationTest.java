@@ -3292,6 +3292,44 @@ class StraviqueIntegrationTest {
     }
 
     @Test
+    void filtersFilesByStructureRoleRegardlessOfCase() throws Exception {
+        String projectId = objectMapper.readTree(mockMvc.perform(post("/api/v1/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Structure Role Fixture",
+                                "sourcePath", SAMPLE.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+        String scanId = objectMapper.readTree(mockMvc.perform(
+                        post("/api/v1/projects/{id}/scans", projectId))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+        awaitScan(scanId);
+
+        JsonNode upper = objectMapper.readTree(mockMvc.perform(get(
+                            "/api/v1/projects/{id}/files", projectId)
+                            .param("structureRole", "JSP_ROOT"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).get("content");
+        assertThat(upper.size()).isGreaterThan(0);
+        for (JsonNode file : upper) {
+            assertThat(file.get("structureRole").asText()).isEqualTo("JSP_ROOT");
+        }
+
+        JsonNode lower = objectMapper.readTree(mockMvc.perform(get(
+                            "/api/v1/projects/{id}/files", projectId)
+                            .param("structureRole", "jsp_root"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).get("content");
+        assertThat(lower).isEqualTo(upper);
+
+        mockMvc.perform(get("/api/v1/projects/{id}/files", projectId)
+                        .param("structureRole", "NOT_A_ROLE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_FILTER"));
+    }
+
+    @Test
     void keepsRemovedFilesOutOfTheInventoryCounts() throws Exception {
         Path tempProject = Path.of(System.getProperty("user.dir"), "build", "removal-fixture");
         deleteRecursively(tempProject);
